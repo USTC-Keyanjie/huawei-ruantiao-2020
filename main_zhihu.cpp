@@ -316,10 +316,10 @@ public:
 
 int main()
 {
-	string testFile = "test_data/2861665/test_data.txt";
-	string outputFile = "test_data/2861665/result.txt";
+	string testFile = "test_data/38252/test_data.txt";
+	string outputFile = "test_data/38252/result.txt";
 #ifdef TEST
-	string answerFile = "test_data/2861665/answer.txt";
+	string answerFile = "test_data/38252/answer.txt";
 #endif
 	auto t = clock();
 	//    for(int i=0;i<100;i++){
@@ -331,7 +331,7 @@ int main()
 	solution.solve();
 	solution.save_fwrite(outputFile);
 
-	cout << clock() - t << endl;
+	cout << (double)(clock() - t) / CLOCKS_PER_SEC << endl;
 	//    }
 
 	return 0;

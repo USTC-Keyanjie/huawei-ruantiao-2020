@@ -54,19 +54,70 @@ void save_fwrite(const string &resultFile, int &ansCnt, vector<string> &idsComma
 }
 
 
-vector<vector<int> > get_paths(int start, int cur_id, vector<bool> &visited, vector<unordered_map<int, vector<int> > > &two_uj)
+vector<vector<int> > get_paths(int start, int cur_id, vector<unordered_map<int, vector<int> > > &two_uj)
 {
 	vector<int> path;
 	vector<vector<int> > paths;
 
 	path.push_back(cur_id);
 
-	for (vector<int>::iterator k = two_uj[start][cur_id].begin(); k != two_uj[start][cur_id].end(); ++k)
+	// get path num of two_uj[start][next].size()
+	for (int &k : two_uj[start][cur_id])
 	{
-		if (!visited[*k])
+		path.push_back(k);
+		paths.push_back(path);
+		path.pop_back();
+	}
+
+	sort(paths.begin(), paths.end());
+	return paths;
+}
+
+void dfs_3(int start, int &ansCnt, vector<vector<int> > &one_dj, vector<vector<vector<int> > > &results, vector<unordered_map<int, vector<int> > > &two_uj)
+{
+	vector<int> left_path;
+	left_path.push_back(start);
+
+	for (vector<int>::reverse_iterator it = one_dj[start].rbegin(); it != one_dj[start].rend(); ++it)
+	{
+		vector<vector<int> > paths = get_paths(start, *it, two_uj);
+		// find a circuit
+		if (paths.size())
 		{
-			path.push_back(*k);
-			paths.push_back(path);
+			for (vector<int> &right_path : paths)
+			{
+				vector<int> path;
+				path.insert(path.end(), left_path.begin(), left_path.end());
+				path.insert(path.end(), right_path.begin(), right_path.end());
+				results[0].push_back(path);
+			}
+			ansCnt += paths.size();
+		}
+	}
+}
+
+
+vector<vector<int> > get_paths_visited(int start, int cur_id, vector<bool> &visited, vector<unordered_map<int, unordered_map<int, vector<int> > > > &three_uj)
+{
+	vector<int> path;
+	vector<vector<int> > paths;
+
+	path.push_back(cur_id);
+
+	for (unordered_map<int, vector<int>>::iterator k = three_uj[start][cur_id].begin(); k != three_uj[start][cur_id].end(); ++k)
+	{
+		if (!visited[k->first])
+		{
+			path.push_back(k->first);
+			for (int &l : k->second)
+			{
+				if (!visited[l])
+				{
+					path.push_back(l);
+					paths.push_back(path);
+					path.pop_back();
+				}
+			}
 			path.pop_back();
 		}
 	}
@@ -75,10 +126,10 @@ vector<vector<int> > get_paths(int start, int cur_id, vector<bool> &visited, vec
 	return paths;
 }
 
-void dfs(int start, int id_num, int &ansCnt, vector<vector<int> > &one_dj, vector<vector<vector<int> > > &results, vector<unordered_map<int, vector<int> > > &two_uj)
+// handle [4, 7] circuit length
+void dfs_4567(int start, int id_num, int &ansCnt, vector<vector<int> > &one_dj, vector<vector<vector<int> > > &results, vector<unordered_map<int, unordered_map<int, vector<int> > > > &three_uj)
 {
 	vector<int> left_path;
-	vector<vector<int> > paths;
 	vector<bool> visited(id_num, false);
 	vector<vector<int> > stack;
 
@@ -86,6 +137,7 @@ void dfs(int start, int id_num, int &ansCnt, vector<vector<int> > &one_dj, vecto
 	visited[start] = true;
 	left_path.push_back(start);
 	stack.push_back(one_dj[start]);
+
 
 	while (!stack.empty())
 	{
@@ -100,7 +152,7 @@ void dfs(int start, int id_num, int &ansCnt, vector<vector<int> > &one_dj, vecto
 			// cur_id has been in path
 			if (visited[next_id] || next_id <= start) continue;
 
-			paths = get_paths(start, next_id, visited, two_uj);
+			vector<vector<int> > paths = get_paths_visited(start, next_id, visited, three_uj);
 
 			// find a circuit
 			if (paths.size())
@@ -115,7 +167,7 @@ void dfs(int start, int id_num, int &ansCnt, vector<vector<int> > &one_dj, vecto
 				ansCnt += paths.size();
 			}
 
-			if (left_path.size() < 5)
+			if (left_path.size() < 4)
 			{
 				cur_id = next_id;
 				visited[cur_id] = true;
@@ -152,7 +204,7 @@ int main()
 	unordered_map<int, int> id_hash;  // really-id to regular-id(0, 1, 2, ..., n-1)
 
 #ifdef TEST
-	string dataset = "38252";
+	string dataset = "3512444";
 	testFile = "test_data/" + dataset + "/test_data.txt";
 	resultFile = "test_data/" + dataset + "/result.txt";
 	clock_t start_time = clock();
@@ -202,10 +254,10 @@ int main()
 	}
 
 #ifdef TEST
-	clock_t two_uj_time = clock();
+	clock_t three_uj_time = clock();
 #endif
 
-	// 2 up steps jump table
+	// 3 up steps jump table
 	for (int u = 0; u < id_num; u++)
 	{
 		// one step succ
@@ -218,12 +270,20 @@ int main()
 			{
 				if (k > l && u > l)
 					two_uj[l][u].push_back(k);
+
+				// three steps succ
+				vector<int> &succ3 = one_dj[l];
+				for (int &v : succ3)
+				{
+					if (l > v && k > v && u > v && u != l)
+						three_uj[v][u][k].push_back(l);
+				}
 			}
 		}
 	}
 
 #ifdef TEST
-	cout << "construct jump table " << (double)(clock() - two_uj_time) / CLOCKS_PER_SEC << "s" << endl;
+	cout << "construct jump table " << (double)(clock() - three_uj_time) / CLOCKS_PER_SEC << "s" << endl;
 	clock_t search_time = clock();
 #endif
 
@@ -237,14 +297,17 @@ int main()
 		}
 #endif
 
-		dfs(start, id_num, ansCnt, one_dj, results, two_uj);		
+		dfs_3(start, ansCnt, one_dj, results, two_uj);
+		dfs_4567(start, id_num, ansCnt, one_dj, results, three_uj);
 	}
 
 #ifdef TEST
 	cout << "DFS " << (double)(clock() - search_time) / CLOCKS_PER_SEC << "s" << endl;
 #endif
+	delete &three_uj;
 
 	save_fwrite(resultFile, ansCnt, idsComma, idsLF, results);
+	delete &results;
 
 #ifdef TEST
 	cout << "Total time " << (double)(clock() - start_time) / CLOCKS_PER_SEC << "s" << endl;
