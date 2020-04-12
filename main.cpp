@@ -1,28 +1,27 @@
-#include <bits/stdc++.h>
-using namespace std;
-
+// submit: 1. delete #define TEST. 2. open //#include <bits/stdc++.h>
 #define TEST
 
-int id_num = 0;
-int edge_num = 0;
-int ansCnt = 0;
-set<int> ids_set;
-vector<int> ids;  // regular-id(0, 1, 2, ..., n-1) to really-id
-unordered_map<int, int> id_hash;  // really-id to regular-id(0, 1, 2, ..., n-1)
+#ifdef TEST
+#include <iostream>
+#include <vector>
+#include <set>
+#include <map>
+#include <unordered_set>
+#include <unordered_map>
+#include <algorithm>
+#include <ctime>
+#include <string>
+#endif
+//#include <bits/stdc++.h>
+using namespace std;
 
-vector<string> idsComma; //0...n to sorted id
-vector<string> idsLF; //0...n to sorted id
 
-vector<vector<int> > one_dj;
-vector<vector<vector<int> > > results(5);
+bool reverse_adj(int a, int b)
+{
+	return a > b;
+}
 
-vector<unordered_map<int, vector<int> > > two_uj;
-
-vector<unordered_map<int, unordered_map<int, vector<int> > > > three_uj;
-
-bool record_time = false;
-
-void save_fwrite(const string &resultFile) {
+void save_fwrite(const string &resultFile, int &ansCnt, vector<string> &idsComma, vector<string> &idsLF, vector<vector<vector<int> > > &results) {
 	
 #ifdef TEST
 	clock_t write_time = clock();
@@ -54,12 +53,8 @@ void save_fwrite(const string &resultFile) {
 
 }
 
-bool cmp(vector<int> a, vector<int> b)
-{
-	return a.size() < b.size() || (a.size() == b.size() && a < b);
-}
 
-vector<vector<int> > get_paths(int start, int cur_id)
+vector<vector<int> > get_paths(int start, int cur_id, vector<unordered_map<int, vector<int> > > &two_uj)
 {
 	vector<int> path;
 	vector<vector<int> > paths;
@@ -78,14 +73,14 @@ vector<vector<int> > get_paths(int start, int cur_id)
 	return paths;
 }
 
-void dfs_3(int start)
+void dfs_3(int start, int &ansCnt, vector<vector<int> > &one_dj, vector<vector<vector<int> > > &results, vector<unordered_map<int, vector<int> > > &two_uj)
 {
 	vector<int> left_path;
 	left_path.push_back(start);
 
-	for (int &next : one_dj[start])
+	for (vector<int>::reverse_iterator it = one_dj[start].rbegin(); it != one_dj[start].rend(); ++it)
 	{
-		vector<vector<int> > paths = get_paths(start, next);
+		vector<vector<int> > paths = get_paths(start, *it, two_uj);
 		// find a circuit
 		if (paths.size())
 		{
@@ -102,7 +97,7 @@ void dfs_3(int start)
 }
 
 
-vector<vector<int> > get_paths_visited(int start, int cur_id, vector<bool> &visited)
+vector<vector<int> > get_paths_visited(int start, int cur_id, vector<bool> &visited, vector<unordered_map<int, unordered_map<int, vector<int> > > > &three_uj)
 {
 	vector<int> path;
 	vector<vector<int> > paths;
@@ -132,7 +127,7 @@ vector<vector<int> > get_paths_visited(int start, int cur_id, vector<bool> &visi
 }
 
 // handle [4, 7] circuit length
-void dfs_4567(int start)
+void dfs_4567(int start, int id_num, int &ansCnt, vector<vector<int> > &one_dj, vector<vector<vector<int> > > &results, vector<unordered_map<int, unordered_map<int, vector<int> > > > &three_uj)
 {
 	vector<int> left_path;
 	vector<bool> visited(id_num, false);
@@ -151,13 +146,13 @@ void dfs_4567(int start)
 		// has other nbrs
 		if (!nbrs->empty())
 		{
-			next_id = *(nbrs->begin());
-			nbrs->erase(nbrs->begin());
+			next_id = *(nbrs->rbegin());
+			nbrs->pop_back();
 
 			// cur_id has been in path
 			if (visited[next_id] || next_id <= start) continue;
 
-			vector<vector<int> > paths = get_paths_visited(start, next_id, visited);
+			vector<vector<int> > paths = get_paths_visited(start, next_id, visited, three_uj);
 
 			// find a circuit
 			if (paths.size())
@@ -192,15 +187,24 @@ void dfs_4567(int start)
 	}
 }
 
+
+
 int main()
 {
+	int id_num = 0;
+	int edge_num = 0;
+	int ansCnt = 0;
+
 	// input
 	string testFile = "/data/test_data.txt";
 	string resultFile = "/projects/student/result.txt";
 
+	set<int> ids_set;
+	vector<int> ids;  // regular-id(0, 1, 2, ..., n-1) to really-id
+	unordered_map<int, int> id_hash;  // really-id to regular-id(0, 1, 2, ..., n-1)
 
 #ifdef TEST
-	string dataset = "58284";
+	string dataset = "38252";
 	testFile = "test_data/" + dataset + "/test_data.txt";
 	resultFile = "test_data/" + dataset + "/result.txt";
 	clock_t start_time = clock();
@@ -221,16 +225,20 @@ int main()
 	ids = vector<int>(ids_set.begin(), ids_set.end());
 	id_num = ids.size();
 
+	// define data structure
+	vector<string> idsComma(id_num); //0...n to sorted id
+	vector<string> idsLF(id_num); //0...n to sorted id
+
+	vector<vector<int> > one_dj(id_num);
+	vector<vector<vector<int> > > results(5);
+
+	vector<unordered_map<int, vector<int> > > two_uj(id_num);
+	vector<unordered_map<int, unordered_map<int, vector<int> > > > three_uj(id_num);
+
 	for (int i = 0; i < ids.size(); i++)
 	{
 		id_hash[ids[i]] = i;
 	}
-
-	one_dj.resize(id_num);
-	two_uj.resize(id_num);
-	three_uj.resize(id_num);
-	idsComma.resize(id_num);
-	idsLF.resize(id_num);
 
 	for (int i = 0; i < edge_num; i++)
 	{
@@ -240,7 +248,7 @@ int main()
 
 	for (int i = 0; i < id_num; i++)
 	{
-		sort(one_dj[i].begin(), one_dj[i].end());
+		sort(one_dj[i].begin(), one_dj[i].end(), reverse_adj);
 		idsComma[i] = to_string(ids[i]) + ",";
 		idsLF[i] = to_string(ids[i]) + "\n";
 	}
@@ -289,15 +297,15 @@ int main()
 		}
 #endif
 
-		dfs_3(start);
-		dfs_4567(start);
+		dfs_3(start, ansCnt, one_dj, results, two_uj);
+		dfs_4567(start, id_num, ansCnt, one_dj, results, three_uj);
 	}
 
 #ifdef TEST
 	cout << "DFS " << (double)(clock() - search_time) / CLOCKS_PER_SEC << "s" << endl;
 #endif
 
-	save_fwrite(resultFile);
+	save_fwrite(resultFile, ansCnt, idsComma, idsLF, results);
 
 #ifdef TEST
 	cout << "Total time " << (double)(clock() - start_time) / CLOCKS_PER_SEC << "s" << endl;
