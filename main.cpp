@@ -116,7 +116,7 @@ int main()
 	unordered_map<int, int> id_hash;  // really-id to regular-id(0, 1, 2, ..., n-1)
 
 #ifdef TEST
-	string dataset = "3512444";
+	string dataset = "2755223";
 	testFile = "test_data/" + dataset + "/test_data.txt";
 	resultFile = "test_data/" + dataset + "/result.txt";
 	clock_t start_time = clock();
