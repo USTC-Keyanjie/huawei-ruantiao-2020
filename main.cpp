@@ -15,6 +15,13 @@
 //#include <bits/stdc++.h>
 using namespace std;
 
+/*
+bool reverse_adj(int a, int b)
+{
+	return a > b;
+}
+*/
+
 void save_fwrite(const string &resultFile, int &ansCnt, vector<string> &idsComma, vector<string> &idsLF, vector<vector<vector<int> > > &results) {
 
 #ifdef TEST
@@ -48,27 +55,6 @@ void save_fwrite(const string &resultFile, int &ansCnt, vector<string> &idsComma
 }
 
 
-vector<vector<int> > get_paths(int start, int cur_id, vector<bool> &visited, vector<unordered_map<int, vector<int> > > &two_uj)
-{
-	vector<int> path;
-	vector<vector<int> > paths;
-
-	path.push_back(cur_id);
-
-	for (vector<int>::iterator k = two_uj[start][cur_id].begin(); k != two_uj[start][cur_id].end(); ++k)
-	{
-		if (!visited[*k])
-		{
-			path.push_back(*k);
-			paths.push_back(path);
-			path.pop_back();
-		}
-	}
-
-	sort(paths.begin(), paths.end());
-	return paths;
-}
-
 void dfs(int start,
 	int cur_id,
 	int depth,
@@ -77,7 +63,9 @@ void dfs(int start,
 	vector<bool> &visited,
 	vector<int> &path,
 	vector<vector<vector<int> > > &results, 
-	vector<unordered_map<int, vector<int> > > &two_uj)
+	vector<unordered_map<int, vector<int> > > &two_uj,
+	vector<bool> &reachable,
+	vector<int> &currentJs)
 {
 	visited[cur_id] = true;
 	path.push_back(cur_id);
@@ -87,21 +75,24 @@ void dfs(int start,
 	{
 		if (!visited[*it])
 		{
-			// find circuits
-			for (int &k : two_uj[start][*it])
+			if (reachable[*it])
 			{
-				if (!visited[k])
+				// find circuits
+				for (int &k : two_uj[start][*it])
 				{
-					vector<int> res = path;
-					res.push_back(*it);
-					res.push_back(k);
-					results[depth].push_back(res);
-					++ansCnt;
+					if (!visited[k])
+					{
+						vector<int> res = path;
+						res.push_back(*it);
+						res.push_back(k);
+						results[depth].push_back(res);
+						++ansCnt;
+					}
 				}
 			}
 
 			if (depth < 4)
-				dfs(start, *it, depth + 1, ansCnt, one_dj, visited, path, results, two_uj);
+				dfs(start, *it, depth + 1, ansCnt, one_dj, visited, path, results, two_uj, reachable, currentJs);
 		}
 	}
 
@@ -143,6 +134,9 @@ int main()
 		while (fgetc(file) != '\n');
 	}
 
+	//free(u_ids);
+	//free(v_ids);
+
 	ids = vector<int>(ids_set.begin(), ids_set.end());
 	id_num = ids.size();
 
@@ -156,7 +150,9 @@ int main()
 	vector<vector<vector<int> > > results(5);
 
 	vector<unordered_map<int, vector<int> > > two_uj(id_num);
-	vector<unordered_map<int, unordered_map<int, vector<int> > > > three_uj(id_num);
+
+	vector<bool> reachable(id_num);
+	vector<int> currentJs(id_num);
 
 	for (int i = 0; i < ids.size(); i++)
 	{
@@ -211,8 +207,20 @@ int main()
 			cout << start << "/" << id_num << " ~ " << ansCnt << endl;
 		}
 #endif
+		for (unordered_map<int, vector<int> >::iterator js = two_uj[start].begin(); js != two_uj[start].end(); ++js)
+		{
+			int j = js->first;
+			reachable[j] = true;
+			currentJs.push_back(j);
+		}
 
-		dfs(start, start, 0, ansCnt, one_dj, visited, path, results, two_uj);
+		dfs(start, start, 0, ansCnt, one_dj, visited, path, results, two_uj, reachable, currentJs);
+
+		for (int &j : currentJs)
+		{
+			reachable[j] = false;
+		}
+		currentJs.clear();
 	}
 
 #ifdef TEST
