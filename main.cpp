@@ -1,13 +1,4 @@
-#include <iostream>
-#include <vector>
-#include <set>
-#include <map>
-#include <unordered_set>
-#include <unordered_map>
-#include <algorithm>
-#include <fstream>
-#include <ctime>
-#include <string>
+#include <bits/stdc++.h>
 using namespace std;
 
 #define TEST
