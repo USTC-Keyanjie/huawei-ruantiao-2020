@@ -304,13 +304,14 @@ int main()
 #ifdef TEST
 	cout << "DFS " << (double)(clock() - search_time) / CLOCKS_PER_SEC << "s" << endl;
 #endif
+	delete &three_uj;
 
 	save_fwrite(resultFile, ansCnt, idsComma, idsLF, results);
+	delete &results;
 
 #ifdef TEST
 	cout << "Total time " << (double)(clock() - start_time) / CLOCKS_PER_SEC << "s" << endl;
 #endif
-
 
 	return 0;
 }
