@@ -80,3 +80,65 @@ void search_result(int num_jump, int start, int pred)
 	}
 }
 */
+
+/* 非递归形式的dfs，效率不高
+void dfs(int start, int id_num, int &ansCnt, vector<vector<int> > &one_dj, vector<vector<vector<int> > > &results, vector<unordered_map<int, vector<int> > > &two_uj)
+{
+	vector<int> left_path;
+	vector<vector<int> > paths;
+	vector<bool> visited(id_num, false);
+	vector<vector<int> > stack;
+
+	int cur_id = start, next_id;
+	visited[start] = true;
+	left_path.push_back(start);
+	stack.push_back(one_dj[start]);
+
+	while (!stack.empty())
+	{
+		vector<vector<int> >::reverse_iterator nbrs = stack.rbegin();
+
+		// has other nbrs
+		if (!nbrs->empty())
+		{
+			next_id = *(nbrs->rbegin());
+			nbrs->pop_back();
+
+			// cur_id has been in path
+			if (visited[next_id] || next_id <= start) continue;
+
+			paths = get_paths(start, next_id, visited, two_uj);
+
+			// find a circuit
+			if (paths.size())
+			{
+				for (vector<int> &right_path : paths)
+				{
+					vector<int> path;
+					path.insert(path.end(), left_path.begin(), left_path.end());
+					path.insert(path.end(), right_path.begin(), right_path.end());
+					results[path.size() - 3].push_back(path);
+				}
+				ansCnt += paths.size();
+			}
+
+			if (left_path.size() < 5)
+			{
+				cur_id = next_id;
+				visited[cur_id] = true;
+				left_path.push_back(cur_id);
+				stack.push_back(one_dj[cur_id]);
+			}
+		}
+		// no left nbr
+		else
+		{
+			visited[cur_id] = false;
+			left_path.pop_back();
+			stack.pop_back();
+			if (left_path.size())
+				cur_id = *left_path.rbegin();
+		}
+	}
+}
+*/

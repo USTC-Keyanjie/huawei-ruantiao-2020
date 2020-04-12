@@ -15,14 +15,15 @@
 //#include <bits/stdc++.h>
 using namespace std;
 
-
+/*
 bool reverse_adj(int a, int b)
 {
 	return a > b;
 }
+*/
 
 void save_fwrite(const string &resultFile, int &ansCnt, vector<string> &idsComma, vector<string> &idsLF, vector<vector<vector<int> > > &results) {
-	
+
 #ifdef TEST
 	clock_t write_time = clock();
 	printf("Total Loops %d\n", ansCnt);
@@ -75,66 +76,45 @@ vector<vector<int> > get_paths(int start, int cur_id, vector<bool> &visited, vec
 	return paths;
 }
 
-void dfs(int start, int id_num, int &ansCnt, vector<vector<int> > &one_dj, vector<vector<vector<int> > > &results, vector<unordered_map<int, vector<int> > > &two_uj)
+void dfs(int start,
+	int cur_id,
+	int depth,
+	int &ansCnt,
+	vector<vector<int> > &one_dj,
+	vector<bool> &visited,
+	vector<int> &path,
+	vector<vector<vector<int> > > &results, 
+	vector<unordered_map<int, vector<int> > > &two_uj)
 {
-	vector<int> left_path;
-	vector<vector<int> > paths;
-	vector<bool> visited(id_num, false);
-	vector<vector<int> > stack;
+	visited[cur_id] = true;
+	path.push_back(cur_id);
 
-	int cur_id = start, next_id;
-	visited[start] = true;
-	left_path.push_back(start);
-	stack.push_back(one_dj[start]);
-
-	while (!stack.empty())
+	vector<int>::iterator it = lower_bound(one_dj[cur_id].begin(), one_dj[cur_id].end(), start);
+	for (; it != one_dj[cur_id].end(); it++)
 	{
-		vector<vector<int> >::reverse_iterator nbrs = stack.rbegin();
-
-		// has other nbrs
-		if (!nbrs->empty())
+		if (!visited[*it])
 		{
-			next_id = *(nbrs->rbegin());
-			nbrs->pop_back();
-
-			// cur_id has been in path
-			if (visited[next_id] || next_id <= start) continue;
-
-			paths = get_paths(start, next_id, visited, two_uj);
-
-			// find a circuit
-			if (paths.size())
+			// find circuits
+			for (int &k : two_uj[start][*it])
 			{
-				for (vector<int> &right_path : paths)
+				if (!visited[k])
 				{
-					vector<int> path;
-					path.insert(path.end(), left_path.begin(), left_path.end());
-					path.insert(path.end(), right_path.begin(), right_path.end());
-					results[path.size() - 3].push_back(path);
+					vector<int> res = path;
+					res.push_back(*it);
+					res.push_back(k);
+					results[res.size() - 3].push_back(res);
+					++ansCnt;
 				}
-				ansCnt += paths.size();
 			}
 
-			if (left_path.size() < 5)
-			{
-				cur_id = next_id;
-				visited[cur_id] = true;
-				left_path.push_back(cur_id);
-				stack.push_back(one_dj[cur_id]);
-			}
-		}
-		// no left nbr
-		else
-		{
-			visited[cur_id] = false;
-			left_path.pop_back();
-			stack.pop_back();
-			if (left_path.size())
-				cur_id = *left_path.rbegin();
+			if (depth < 4)
+				dfs(start, *it, depth + 1, ansCnt, one_dj, visited, path, results, two_uj);
 		}
 	}
-}
 
+	visited[cur_id] = false;
+	path.pop_back();
+}
 
 
 int main()
@@ -177,7 +157,9 @@ int main()
 	vector<string> idsComma(id_num); //0...n to sorted id
 	vector<string> idsLF(id_num); //0...n to sorted id
 
+	vector<int> path;
 	vector<vector<int> > one_dj(id_num);
+	vector<bool> visited(id_num);
 	vector<vector<vector<int> > > results(5);
 
 	vector<unordered_map<int, vector<int> > > two_uj(id_num);
@@ -196,7 +178,7 @@ int main()
 
 	for (int i = 0; i < id_num; i++)
 	{
-		sort(one_dj[i].begin(), one_dj[i].end(), reverse_adj);
+		sort(one_dj[i].begin(), one_dj[i].end());
 		idsComma[i] = to_string(ids[i]) + ",";
 		idsLF[i] = to_string(ids[i]) + "\n";
 	}
@@ -214,10 +196,10 @@ int main()
 		{
 			// two steps succ
 			vector<int> &succ2 = one_dj[k];
-			for (int &l : succ2)
+			for (int &v : succ2)
 			{
-				if (k > l && u > l)
-					two_uj[l][u].push_back(k);
+				if (k > v && u > v)
+					two_uj[v][u].push_back(k);
 			}
 		}
 	}
@@ -227,7 +209,7 @@ int main()
 	clock_t search_time = clock();
 #endif
 
-	
+
 	for (int start = 0; start < id_num; ++start)
 	{
 
@@ -237,7 +219,7 @@ int main()
 		}
 #endif
 
-		dfs(start, id_num, ansCnt, one_dj, results, two_uj);		
+		dfs(start, start, 0, ansCnt, one_dj, visited, path, results, two_uj);
 	}
 
 #ifdef TEST
