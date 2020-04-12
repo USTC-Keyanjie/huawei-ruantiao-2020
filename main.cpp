@@ -15,13 +15,6 @@
 //#include <bits/stdc++.h>
 using namespace std;
 
-/*
-bool reverse_adj(int a, int b)
-{
-	return a > b;
-}
-*/
-
 void save_fwrite(const string &resultFile, int &ansCnt, vector<string> &idsComma, vector<string> &idsLF, vector<vector<vector<int> > > &results) {
 
 #ifdef TEST
@@ -102,7 +95,7 @@ void dfs(int start,
 					vector<int> res = path;
 					res.push_back(*it);
 					res.push_back(k);
-					results[res.size() - 3].push_back(res);
+					results[depth].push_back(res);
 					++ansCnt;
 				}
 			}

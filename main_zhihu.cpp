@@ -139,7 +139,6 @@ public:
 					}
 				}
 			}
-
 		}
 		for (int i = 0; i < nodeCnt; i++) {
 			for (auto &x : P2inv[i]) {
