@@ -33,17 +33,17 @@ void save_fwrite(const string &resultFile, int &ansCnt, vector<string> &idsComma
 	char buf[1024];
 	int idx = sprintf(buf, "%d\n", ansCnt);
 	buf[idx] = '\0';
-	fwrite(buf, idx, sizeof(char), fp);
+	fwrite(buf, sizeof(char), idx,  fp);
 	for (int i = 0; i < 5; ++i) {
 
 		for (vector<int> &single_result : results[i]) {
 
 			for (int j = 0; j < i + 2; j++) {
 				string res = idsComma[single_result[j]];
-				fwrite(res.c_str(), res.size(), sizeof(char), fp);
+				fwrite(res.c_str(), sizeof(char), res.size(), fp);
 			}
 			string res = idsLF[single_result[i + 2]];
-			fwrite(res.c_str(), res.size(), sizeof(char), fp);
+			fwrite(res.c_str(), sizeof(char), res.size(), fp);
 		}
 	}
 	fclose(fp);
