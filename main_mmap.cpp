@@ -13,105 +13,84 @@
 #include <algorithm>
 #include <ctime>
 #include <string>
+
+
+#include <unistd.h>
+#include <sys/stat.h> 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <fcntl.h>
+#include <linux/fb.h>
+#include <sys/mman.h>
+#include <sys/ioctl.h>
 #endif
 
 using namespace std;
-
-void input_fstream(string &testFile, int &edge_num, set<int> &ids_set, int* u_ids, int* v_ids)
-{
-#ifdef TEST
-	clock_t input_time = clock();
-#endif
-
-	FILE* file = fopen(testFile.c_str(), "r");
-
-	while (fscanf(file, "%d,", u_ids + edge_num) != EOF) {
-		fscanf(file, "%d,", v_ids + edge_num);
-		ids_set.insert(u_ids[edge_num]);
-		ids_set.insert(v_ids[edge_num++]);
-		while (fgetc(file) != '\n');
-	}
-#ifdef TEST
-	cout << "Input time " << (double)(clock() - input_time) / CLOCKS_PER_SEC << "s" << endl;
-#endif
-}
 
 // void input_fstream(string &testFile, int &edge_num, set<int> &ids_set, int* u_ids, int* v_ids)
 // {
 // #ifdef TEST
 // 	clock_t input_time = clock();
 // #endif
-// 	int fd;
-// 	char *p_map;
-// 	fd = open(testFile.c_str(),O_RDWR);
-// 	if(fd < 0) {
-// 		printf("open fail\n");
-// 		exit(1);
+
+// 	FILE* file = fopen(testFile.c_str(), "r");
+
+// 	while (fscanf(file, "%d,", u_ids + edge_num) != EOF) {
+// 		fscanf(file, "%d,", v_ids + edge_num);
+// 		ids_set.insert(u_ids[edge_num]);
+// 		ids_set.insert(v_ids[edge_num++]);
+// 		while (fgetc(file) != '\n');
 // 	}
-// 	//get the size of the document
-// 	int length = lseek(fd,0,SEEK_END);
-  
-// 	//mmap
-// 	p_map = (char *)mmap(NULL, length, PROT_READ, MAP_PRIVATE,fd, 0);
-// 	if(p_map == MAP_FAILED) {
-// 		printf("mmap fail\n");
-// 		close(fd);
-// 		munmap(p_map, length);
-// 	}
-// 	char *buf;
-// 	buf = (char *)malloc(length);
-// 	strcpy(buf,p_map);
-//     char* token = strtok(buf, ",\n");
-//     while (token != NULL)
-//     {
-//         u_ids[edge_num] = atoi(token);
-//         ids_set.insert(u_ids[edge_num]);
-//         token = strtok(NULL, ",\n");
-//         v_ids[edge_num] = atoi(token);
-//         ids_set.insert(v_ids[edge_num++]);
-//         token = strtok(NULL, ",\n");
-//         token = strtok(NULL, ",\n");
-//     }
-//     close(fd);
-// 	munmap(p_map, length);
 // #ifdef TEST
 // 	cout << "Input time " << (double)(clock() - input_time) / CLOCKS_PER_SEC << "s" << endl;
 // #endif
 // }
 
-
-
-void save_fwrite(const string &resultFile, int &ansCnt, vector<string> &idsComma, vector<string> &idsLF, vector<vector<vector<int> > > &results) {
-
+void input_fstream(string &testFile, int &edge_num, set<int> &ids_set, int* u_ids, int* v_ids)
+{
 #ifdef TEST
-	clock_t write_time = clock();
-	printf("Total Loops %d\n", ansCnt);
+	clock_t input_time = clock();
 #endif
-
-	FILE *fp = fopen(resultFile.c_str(), "w");
-	char buf[1024];
-	int idx = sprintf(buf, "%d\n", ansCnt);
-	buf[idx] = '\0';
-	fwrite(buf, idx, sizeof(char), fp);
-	for (int i = 0; i < 5; ++i) {
-
-		for (vector<int> &single_result : results[i]) {
-
-			for (int j = 0; j < i + 2; j++) {
-				string res = idsComma[single_result[j]];
-				fwrite(res.c_str(), res.size(), sizeof(char), fp);
-			}
-			string res = idsLF[single_result[i + 2]];
-			fwrite(res.c_str(), res.size(), sizeof(char), fp);
-		}
+	int fd;
+	char *p_map;
+	fd = open(testFile.c_str(),O_RDWR);
+	if(fd < 0) {
+		printf("open fail\n");
+		exit(1);
 	}
-	fclose(fp);
-
+	//get the size of the document
+	int length = lseek(fd,0,SEEK_END);
+  
+	//mmap
+	p_map = (char *)mmap(NULL, length, PROT_READ, MAP_PRIVATE,fd, 0);
+	if(p_map == MAP_FAILED) {
+		printf("mmap fail\n");
+		close(fd);
+		munmap(p_map, length);
+	}
+	char *buf;
+	buf = (char *)malloc(length);
+	strcpy(buf,p_map);
+    char* token = strtok(buf, ",\n");
+    while (token != NULL)
+    {
+        u_ids[edge_num] = atoi(token);
+        ids_set.insert(u_ids[edge_num]);
+        token = strtok(NULL, ",\n");
+        v_ids[edge_num] = atoi(token);
+        ids_set.insert(v_ids[edge_num++]);
+        token = strtok(NULL, ",\n");
+        token = strtok(NULL, ",\n");
+    }
+    close(fd);
+	munmap(p_map, length);
 #ifdef TEST
-	cout << "Output time " << (double)(clock() - write_time) / CLOCKS_PER_SEC << "s" << endl;
+	cout << "Input time " << (double)(clock() - input_time) / CLOCKS_PER_SEC << "s" << endl;
 #endif
-
 }
+
+
 
 // void save_fwrite(const string &resultFile, int &ansCnt, vector<string> &idsComma, vector<string> &idsLF, vector<vector<vector<int> > > &results) {
 
@@ -119,70 +98,102 @@ void save_fwrite(const string &resultFile, int &ansCnt, vector<string> &idsComma
 // 	clock_t write_time = clock();
 // 	printf("Total Loops %d\n", ansCnt);
 // #endif
-    
-// 	int fd=open(resultFile.c_str(), O_RDWR|O_CREAT, 0644);
-// 	if(fd < 0) {
-// 		printf("open fail\n");
-// 		exit(1);
-// 	}
-	
-//     int length = 0;
-//     char buf[1024];
+
+// 	FILE *fp = fopen(resultFile.c_str(), "w");
+// 	char buf[1024];
 // 	int idx = sprintf(buf, "%d\n", ansCnt);
 // 	buf[idx] = '\0';
-// 	length += idx;
-//     for (int i = 0; i < 5; ++i) {
-// 		for (vector<int> &single_result : results[i]) {
-// 			for (int j = 0; j < i + 2; j++) {
-// 				const char* res = idsComma[single_result[j]].c_str();
-// 				length += strlen(res);
-// 			}
-// 			const char* res = idsLF[single_result[i + 2]].c_str();
-// 			length += strlen(res);
-// 		}
-// 	}
-// 	int f_ret = ftruncate(fd, length);
-// 	if (-1 == f_ret) { 
-// 		printf("ftruncate fail\n");
-// 		exit(1);
-// 	}
-// 	char *const address = (char *)mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-
-// 	if (MAP_FAILED == address) { 
-// 		printf("mmap fail\n");
-// 		exit(1);
-// 	}
-	
-// 	int pos = 0;
-// 	memcpy(address, buf, idx);
-// 	pos += idx;
-    
-//     for (int i = 0; i < 5; ++i) {
+// 	fwrite(buf, idx, sizeof(char), fp);
+// 	for (int i = 0; i < 5; ++i) {
 
 // 		for (vector<int> &single_result : results[i]) {
 
 // 			for (int j = 0; j < i + 2; j++) {
-// 				const char* res = idsComma[single_result[j]].c_str();
-// 				memcpy(address+pos,res,strlen(res));
-// 				pos += strlen(res);
+// 				string res = idsComma[single_result[j]];
+// 				fwrite(res.c_str(), res.size(), sizeof(char), fp);
 // 			}
-// 			const char* res = idsLF[single_result[i + 2]].c_str();
-// 			memcpy(address+pos,res,strlen(res));
-// 			pos += strlen(res);
+// 			string res = idsLF[single_result[i + 2]];
+// 			fwrite(res.c_str(), res.size(), sizeof(char), fp);
 // 		}
 // 	}
-// 	int mun_ret = munmap(address, length);
-// 	if (-1 == mun_ret) {
-// 		printf("munmap fail\n");
-// 		exit(1);
-// 	}
-// 	close(fd);
+// 	fclose(fp);
 
 // #ifdef TEST
 // 	cout << "Output time " << (double)(clock() - write_time) / CLOCKS_PER_SEC << "s" << endl;
 // #endif
 
 // }
+
+void save_fwrite(const string &resultFile, int &ansCnt, vector<string> &idsComma, vector<string> &idsLF, vector<vector<vector<int> > > &results) {
+
+#ifdef TEST
+	clock_t write_time = clock();
+	printf("Total Loops %d\n", ansCnt);
+#endif
+    
+	int fd=open(resultFile.c_str(), O_RDWR|O_CREAT, 0644);
+	if(fd < 0) {
+		printf("open fail\n");
+		exit(1);
+	}
+	
+    int length = 0;
+    char buf[1024];
+	int idx = sprintf(buf, "%d\n", ansCnt);
+	buf[idx] = '\0';
+	length += idx;
+    for (int i = 0; i < 5; ++i) {
+		for (vector<int> &single_result : results[i]) {
+			for (int j = 0; j < i + 2; j++) {
+				const char* res = idsComma[single_result[j]].c_str();
+				length += strlen(res);
+			}
+			const char* res = idsLF[single_result[i + 2]].c_str();
+			length += strlen(res);
+		}
+	}
+	int f_ret = ftruncate(fd, length);
+	if (-1 == f_ret) { 
+		printf("ftruncate fail\n");
+		exit(1);
+	}
+	char *const address = (char *)mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+
+	if (MAP_FAILED == address) { 
+		printf("mmap fail\n");
+		exit(1);
+	}
+	
+	int pos = 0;
+	memcpy(address, buf, idx);
+	pos += idx;
+    
+    for (int i = 0; i < 5; ++i) {
+
+		for (vector<int> &single_result : results[i]) {
+
+			for (int j = 0; j < i + 2; j++) {
+				const char* res = idsComma[single_result[j]].c_str();
+				memcpy(address+pos,res,strlen(res));
+				pos += strlen(res);
+			}
+			const char* res = idsLF[single_result[i + 2]].c_str();
+			memcpy(address+pos,res,strlen(res));
+			pos += strlen(res);
+		}
+	}
+	int mun_ret = munmap(address, length);
+	if (-1 == mun_ret) {
+		printf("munmap fail\n");
+		exit(1);
+	}
+	close(fd);
+
+#ifdef TEST
+	cout << "Output time " << (double)(clock() - write_time) / CLOCKS_PER_SEC << "s" << endl;
+#endif
+
+}
 
 void dfs(int start,
 	int cur_id,
@@ -253,6 +264,7 @@ int main()
 	testFile = "test_data/" + dataset + "/test_data.txt";
 	resultFile = "test_data/" + dataset + "/result.txt";
 	clock_t start_time = clock();
+
 #endif
 
 	input_fstream(testFile, edge_num, ids_set, u_ids, v_ids);
@@ -271,7 +283,7 @@ int main()
 	vector<unordered_map<int, vector<int> > > two_uj(id_num);
 
 	vector<bool> reachable(id_num);
-	vector<int> currentJs;
+	vector<int> currentJs(id_num);
 
 	for (int i = 0; i < ids.size(); i++)
 	{
@@ -313,6 +325,7 @@ int main()
 	}
 
 #ifdef TEST
+	cout << "Construct Jump Table " << (double)(clock() - two_uj_time) / CLOCKS_PER_SEC << "s" << endl;
 	clock_t search_time = clock();
 #endif
 

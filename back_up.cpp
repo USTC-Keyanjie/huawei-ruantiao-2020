@@ -1,144 +1,85 @@
-    // fscanf输入 还有问题
-    /*
-    start = clock();
-    fin = fopen("test_data1.txt", "r");
-  	while (fscanf(fin, "%u", &s_id) != EOF)
-	{
-        fseek(fin, 1, 1);
-        fscanf(fin, "%u", &d_id);
-        fseek(fin, 2, 1);
-        while (fgetc(fin) != '\n');
-        g[s_id].push_back(d_id);
-	}
-    end = clock();
-    cout << "花费了" << (double)(end - start) << "ms" << endl;
-    */
+// mmap不使用memcpy
+// void save_results(const string &resultFile, vector<string> &idsComma, vector<string> &idsLF)
+// {
+// #ifdef TEST
+//     clock_t write_time = clock();
+//     printf("Total Loops %d\n", res_count);
+// #endif
 
-// 打印强连通分量
-   /*
-    for (unordered_set<int> scc : scc_results)
-    {
-        for (int i : scc)
-        {
-            cout << i << " ";
-        }
-        cout << endl;
-    }
-    cout << endl;
-    cout << scc_results.size() << endl;
-    */
+//     //create and open the resultFile
+//     int fd = open(resultFile.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0666);
+//     if (fd < 0)
+//     {
+//         printf("open fail\n");
+//         exit(1);
+//     }
 
-/* 备份
-void search_result(int num_jump, int start, int pred)
-{
-	vector<int> path;
-	vector<vector<int> > stack;
+//     char buf[1024];
+//     int idx = sprintf(buf, "%d\n", res_count);
+//     buf[idx] = '\0';
 
-	int pre_id, cur_jump = num_jump - 1;
-	path.push_back(pred);
-	stack.push_back(mul_jump[cur_jump][start][pred]);
+//     int str_len = idx;
 
-	while (!stack.empty())
-	{
-		vector<vector<int> >::reverse_iterator preds = stack.rbegin();
+//     for (int res_len = 3; res_len <= 7; ++res_len)
+//     {
+//         for (int line = 0; line < num_res[res_len - 3]; ++line)
+//         {
+//             for (int id = 0; id < res_len - 1; ++id)
+//             {
+//                 const char *res = idsComma[results[res_len - 3][line * res_len + id]].c_str();
+//                 str_len += strlen(res);
+//             }
+//             const char *res = idsLF[results[res_len - 3][line * res_len + res_len - 1]].c_str();
+//             str_len += strlen(res);
+//         }
+//     }
 
-		if (!preds->empty())
-		{
-			pre_id = *(preds->begin());
-			preds->erase(preds->begin());
 
-			if (pre_id != start && find(path.begin(), path.end(), pre_id) == path.end())
-			{
-				path.push_back(pre_id);
-				// 深搜正常出口
-				if (cur_jump == 2)
-				{
-					path.push_back(start);
-					save_result(path);
-					path.pop_back();
-				}
-				else
-				{
-					stack.push_back(mul_jump[--cur_jump][start][pre_id]);
-				}
-			}
-			else
-			{
-				// 出现提前闭合的边，异常出口 或者 提前到终点
-				stack.pop_back();
-				path.pop_back();
-				cur_jump++;
-			}
-		}
-		else
-		{
-			// 这一层深搜结束
-			stack.pop_back();
-			path.pop_back();
-			cur_jump++;
-		}
-	}
-}
-*/
+//     //allocate space
+//     int f_ret = ftruncate(fd, str_len);
+//     if (-1 == f_ret)
+//     {
+//         printf("ftruncate fail\n");
+//         exit(1);
+//     }
 
-/* 非递归形式的dfs，效率不高
-void dfs(int start, int id_num, int &ansCnt, vector<vector<int> > &one_dj, vector<vector<vector<int> > > &results, vector<unordered_map<int, vector<int> > > &two_uj)
-{
-	vector<int> left_path;
-	vector<vector<int> > paths;
-	vector<bool> visited(id_num, false);
-	vector<vector<int> > stack;
+//     char *const address = (char *)mmap(NULL, str_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
-	int cur_id = start, next_id;
-	visited[start] = true;
-	left_path.push_back(start);
-	stack.push_back(one_dj[start]);
+//     if (MAP_FAILED == address)
+//     {
+//         printf("mmap fail\n");
+//         exit(1);
+//     }
 
-	while (!stack.empty())
-	{
-		vector<vector<int> >::reverse_iterator nbrs = stack.rbegin();
+//     memcpy(address, buf, idx);
 
-		// has other nbrs
-		if (!nbrs->empty())
-		{
-			next_id = *(nbrs->rbegin());
-			nbrs->pop_back();
+//     int pos = idx;
 
-			// cur_id has been in path
-			if (visited[next_id] || next_id <= start) continue;
+//     for (int res_len = 3; res_len <= 7; ++res_len)
+//     {
+//         for (int line = 0; line < num_res[res_len - 3]; ++line)
+//         {
+//             for (int id = 0; id < res_len - 1; ++id)
+//             {
+//                 const char *res = idsComma[results[res_len - 3][line * res_len + id]].c_str();
+//                 memcpy(address + pos, res, strlen(res));
+//                 pos += strlen(res);
+//             }
+//             const char *res = idsLF[results[res_len - 3][line * res_len + res_len - 1]].c_str();
+//             memcpy(address + pos, res, strlen(res));
+//             pos += strlen(res);
+//         }
+//     }
 
-			paths = get_paths(start, next_id, visited, two_uj);
+//     int mun_ret = munmap(address, str_len);
+//     if (mun_ret == -1)
+//     {
+//         printf("munmap fail\n");
+//         exit(1);
+//     }
+//     close(fd);
 
-			// find a circuit
-			if (paths.size())
-			{
-				for (vector<int> &right_path : paths)
-				{
-					vector<int> path;
-					path.insert(path.end(), left_path.begin(), left_path.end());
-					path.insert(path.end(), right_path.begin(), right_path.end());
-					results[path.size() - 3].push_back(path);
-				}
-				ansCnt += paths.size();
-			}
-
-			if (left_path.size() < 5)
-			{
-				cur_id = next_id;
-				visited[cur_id] = true;
-				left_path.push_back(cur_id);
-				stack.push_back(one_dj[cur_id]);
-			}
-		}
-		// no left nbr
-		else
-		{
-			visited[cur_id] = false;
-			left_path.pop_back();
-			stack.pop_back();
-			if (left_path.size())
-				cur_id = *left_path.rbegin();
-		}
-	}
-}
-*/
+// #ifdef TEST
+//     cout << "Output time " << (double)(clock() - write_time) / CLOCKS_PER_SEC << "s" << endl;
+// #endif
+// }
