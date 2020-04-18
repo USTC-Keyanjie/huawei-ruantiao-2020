@@ -504,7 +504,6 @@ void *thread_process(void *t)
 #ifdef TEST
     cout << "tid " << tid << " DFS " << (double)(clock() - search_time) / CLOCKS_PER_SEC << "s" << endl;
 #endif
-    cout << "tid address:" << t << endl;
     // pthread_exit(NULL) 为退出该线程
     pthread_exit(NULL);
 }
@@ -603,14 +602,11 @@ int main()
     // 创建NUM_THREADS个数的线程
     for (thread_id = 0; thread_id < NUM_THREADS; thread_id++)
     {
+#ifdef TEST
         cout << "main() : creating thread, " << thread_id << endl;
+#endif
         indexes[thread_id] = thread_id;
         rc = pthread_create(&threads[thread_id], NULL, thread_process, (void *)&indexes[thread_id]);
-        if (rc)
-        {
-            cout << "Error:unable to create thread," << rc << endl;
-            exit(-1);
-        }
     }
 
     // 删除属性，并等待其他线程
@@ -618,16 +614,15 @@ int main()
     for (thread_id = 0; thread_id < NUM_THREADS; ++thread_id)
     {
         rc = pthread_join(threads[thread_id], &status);
-        if (rc)
-        {
-            cout << "Error:unable to join," << rc << endl;
-            exit(-1);
-        }
+#ifdef TEST
         cout << "Main: completed thread id :" << thread_id;
         cout << "  exiting with status :" << status << endl;
+#endif
     }
 
+#ifdef TEST
     cout << "Main: program exiting." << endl;
+#endif
 
 #ifdef MMAP
     save_mmap(resultFile, idsComma, idsLF);
