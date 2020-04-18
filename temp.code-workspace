@@ -1,0 +1,33 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "..\\demo\\demo\\demo"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"unordered_map": "cpp",
+			"vector": "cpp",
+			"stack": "cpp",
+			"unordered_set": "cpp",
+			"list": "cpp",
+			"iostream": "cpp",
+			"iosfwd": "cpp",
+			"xiosbase": "cpp",
+			"set": "cpp",
+			"xtree": "cpp",
+			"xutility": "cpp",
+			"deque": "cpp",
+			"initializer_list": "cpp",
+			"xhash": "cpp",
+			"xstring": "cpp",
+			"ostream": "cpp",
+			"xlocale": "cpp",
+			"string": "cpp",
+			"algorithm": "cpp"
+		}
+	}
+}
