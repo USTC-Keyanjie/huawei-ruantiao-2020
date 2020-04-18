@@ -3,8 +3,8 @@
 // 2. open //#define MMAP
 // 3. change NUM_LEN7_RESULT to 3000000
 
-// #define TEST
-#define MMAP
+#define TEST
+// #define MMAP
 #include <bits/stdc++.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -27,7 +27,7 @@
 #define NUM_LEN4_RESULT 500000
 #define NUM_LEN5_RESULT 1000000
 #define NUM_LEN6_RESULT 2000000
-#define NUM_LEN7_RESULT 3000000
+#define NUM_LEN7_RESULT 3200000
 
 #define MAX_INT 2147483647
 
