@@ -624,9 +624,9 @@ void *thread_process(void *t)
         // dfs_rec(start_id, start_id, 0, tid);
         dfs_ite(start_id, start_id, 0, tid);
 
-        for (unsigned int thread_id = 0; thread_id < num_currentJs[tid]; ++thread_id)
+        for (unsigned int j = 0; j < num_currentJs[tid]; ++j)
         {
-            reachable[tid][currentJs[tid][thread_id]] = false;
+            reachable[tid][currentJs[tid][j]] = false;
         }
 
         num_currentJs[tid] = 0;
@@ -676,10 +676,10 @@ int main()
 
     duplicate_removal();
 
-    for (unsigned int thread_id = 0; thread_id < edge_num; ++thread_id)
+    for (unsigned int id = 0; id < edge_num; ++id)
     {
-        unsigned int u = binary_search(u_ids[thread_id]);
-        g_succ[u][out_degree[u]++] = binary_search(v_ids[thread_id]);
+        unsigned int u = binary_search(u_ids[id]);
+        g_succ[u][out_degree[u]++] = binary_search(v_ids[id]);
     }
 
     for (unsigned int id = 0; id < id_num; ++id)
