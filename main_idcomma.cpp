@@ -3,7 +3,7 @@
 // 2. open //#define MMAP
 // 3. change NUM_LEN7_RESULT to 3000000
 
-//#define TEST
+#define TEST
 #define MMAP
 #include <bits/stdc++.h>
 #include <fcntl.h>
@@ -27,7 +27,7 @@
 #define NUM_LEN4_RESULT 500000
 #define NUM_LEN5_RESULT 1000000
 #define NUM_LEN6_RESULT 2000000
-#define NUM_LEN7_RESULT 3000000
+#define NUM_LEN7_RESULT 3200000
 
 #define MAX_INT 2147483647
 
@@ -48,9 +48,6 @@ unsigned int out_degree[MAX_NUM_IDS];
 
 unsigned int path[NUM_THREADS][7];
 bool visited[NUM_THREADS][MAX_NUM_IDS];
-
-char idsChar[MAX_NUM_IDS * 10]; // chars id
-unsigned int idsChar_len[MAX_NUM_IDS];
 
 vector<unordered_map<unsigned int, vector<unsigned int>>> two_uj;
 bool reachable[NUM_THREADS][MAX_NUM_IDS];
@@ -178,7 +175,7 @@ unsigned int digits10_length(unsigned int v)
     return 12;
 }
 
-unsigned int uint2ascii(unsigned int value, char *dst)
+unsigned int uint2ascii(unsigned int value, char *dst, unsigned int offset)
 {
     static const char digits[] =
         "0001020304050607080910111213141516171819"
@@ -194,25 +191,25 @@ unsigned int uint2ascii(unsigned int value, char *dst)
     {
         const unsigned int i = (value % 100) * 2;
         value /= 100;
-        dst[next - 1] = digits[i];
-        dst[next] = digits[i + 1];
+        dst[offset + next - 1] = digits[i];
+        dst[offset + next] = digits[i + 1];
         next -= 2;
     }
 
     if (value < 10)
     {
-        dst[next] = '0' + value;
+        dst[offset + next] = '0' + value;
     }
     else
     {
         unsigned int i = value * 2;
-        dst[next - 1] = digits[i];
-        dst[next] = digits[i + 1];
+        dst[offset + next - 1] = digits[i];
+        dst[offset + next] = digits[i + 1];
     }
     return length;
 }
 
-void save_fwrite(const string &resultFile)
+void save_fwrite(const string &resultFile, vector<string> &idsComma, vector<string> &idsLF)
 {
 
     for (int thread_id = 0; thread_id < NUM_THREADS; ++thread_id)
@@ -231,9 +228,14 @@ void save_fwrite(const string &resultFile)
     FILE *fp = fopen(resultFile.c_str(), "w");
     char *str_res = (char *)malloc(512 * 1024 * 1024); // 512M space
 
-    register unsigned int str_len = uint2ascii(res_count, str_res);
-    str_res[str_len++] = '\n';
-    register unsigned int thread_offset, line_offset, result_id;
+    register unsigned int str_len = 0;
+
+    str_len = sprintf(str_res, "%d\n", res_count);
+
+    // str_len += uint2ascii(res_count, str_res, str_len);
+    // str_res[str_len++] = '\n';
+
+    register unsigned int thread_offset, line_offset;
 
     for (unsigned int res_len = 3; res_len <= 7; ++res_len)
     {
@@ -265,29 +267,18 @@ void save_fwrite(const string &resultFile)
                 line_offset = line * res_len;
                 for (unsigned int id = 0; id < res_len - 1; ++id)
                 {
-                    // const char *res = idsComma[results[res_len - 3][tid * thread_offset + line_offset + id]].c_str();
-                    // memcpy(str_res + str_len, res, strlen(res));
-                    // str_len += strlen(res);
-
+                    const char *res = idsComma[results[res_len - 3][tid * thread_offset + line_offset + id]].c_str();
+                    memcpy(str_res + str_len, res, strlen(res));
+                    str_len += strlen(res);
                     // str_len += uint2ascii(ids[results[res_len - 3][tid * thread_offset + line_offset + id]], str_res, str_len);
                     // str_res[str_len++] = ',';
-
-                    result_id = results[res_len - 3][tid * thread_offset + line_offset + id];
-                    memcpy(str_res + str_len, idsChar + result_id * 10, idsChar_len[result_id]);
-                    str_len += idsChar_len[result_id];
-                    str_res[str_len++] = ',';
                 }
-                // const char *res = idsLF[results[res_len - 3][tid * thread_offset + line_offset + res_len - 1]].c_str();
-                // memcpy(str_res + str_len, res, strlen(res));
-                // str_len += strlen(res);
+                const char *res = idsLF[results[res_len - 3][tid * thread_offset + line_offset + res_len - 1]].c_str();
+                memcpy(str_res + str_len, res, strlen(res));
+                str_len += strlen(res);
 
                 // str_len += uint2ascii(ids[results[res_len - 3][tid * thread_offset + line_offset + res_len - 1]], str_res, str_len);
                 // str_res[str_len++] = '\n';
-
-                result_id = results[res_len - 3][tid * thread_offset + line_offset + res_len - 1];
-                memcpy(str_res + str_len, idsChar + result_id * 10, idsChar_len[result_id]);
-                str_len += idsChar_len[result_id];
-                str_res[str_len++] = '\n';
             }
         }
     }
@@ -303,7 +294,7 @@ void save_fwrite(const string &resultFile)
 
 #ifdef MMAP
 // memcpy version
-void save_mmap(const string &resultFile)
+void save_mmap(const string &resultFile, vector<string> &idsComma, vector<string> &idsLF)
 {
     for (int thread_id = 0; thread_id < NUM_THREADS; ++thread_id)
     {
@@ -319,19 +310,17 @@ void save_mmap(const string &resultFile)
     //copy the results into str_res and get the length of results
     char *str_res = (char *)malloc(512 * 1024 * 1024); // 512M space
 
-    // char buf[1024];
-    // int idx = sprintf(buf, "%d\n", res_count);
-    // buf[idx] = '\0';
-    // memcpy(str_res, buf, idx);
-
+    char buf[1024];
+    int idx = sprintf(buf, "%d\n", res_count);
+    buf[idx] = '\0';
+    memcpy(str_res, buf, idx);
+    int str_len = idx;
+    
     // register unsigned int str_len = 0;
     // str_len += uint2ascii(res_count, str_res, str_len);
     // str_res[str_len++] = '\n';
 
-    register unsigned int str_len = uint2ascii(res_count, str_res);
-    str_res[str_len++] = '\n';
-
-    register unsigned int thread_offset, line_offset, result_id;
+    register unsigned int thread_offset, line_offset;
 
     for (int res_len = 3; res_len <= 7; ++res_len)
     {
@@ -362,29 +351,19 @@ void save_mmap(const string &resultFile)
                 line_offset = line * res_len;
                 for (int id = 0; id < res_len - 1; ++id)
                 {
-                    // const char *res = idsComma[results[res_len - 3][tid * thread_offset + line_offset + id]].c_str();
-                    // memcpy(str_res + str_len, res, strlen(res));
-                    // str_len += strlen(res);
+                    const char *res = idsComma[results[res_len - 3][tid * thread_offset + line_offset + id]].c_str();
+                    memcpy(str_res + str_len, res, strlen(res));
+                    str_len += strlen(res);
 
                     // str_len += uint2ascii(ids[results[res_len - 3][tid * thread_offset + line_offset + id]], str_res, str_len);
                     // str_res[str_len++] = ',';
-
-                    result_id = results[res_len - 3][tid * thread_offset + line_offset + id];
-                    memcpy(str_res + str_len, idsChar + result_id * 10, idsChar_len[result_id]);
-                    str_len += idsChar_len[result_id];
-                    str_res[str_len++] = ',';
                 }
-                // const char *res = idsLF[results[res_len - 3][tid * thread_offset + line_offset + res_len - 1]].c_str();
-                // memcpy(str_res + str_len, res, strlen(res));
-                // str_len += strlen(res);
+                const char *res = idsLF[results[res_len - 3][tid * thread_offset + line_offset + res_len - 1]].c_str();
+                memcpy(str_res + str_len, res, strlen(res));
+                str_len += strlen(res);
 
                 // str_len += uint2ascii(ids[results[res_len - 3][tid * thread_offset + line_offset + res_len - 1]], str_res, str_len);
                 // str_res[str_len++] = '\n';
-
-                result_id = results[res_len - 3][tid * thread_offset + line_offset + res_len - 1];
-                memcpy(str_res + str_len, idsChar + result_id * 10, idsChar_len[result_id]);
-                str_len += idsChar_len[result_id];
-                str_res[str_len++] = '\n';
             }
         }
     }
@@ -482,8 +461,8 @@ void dfs_ite(unsigned int start_id, unsigned int cur_id, int depth, int tid)
     if (begin_pos[0] == out_degree[cur_id])
         return;
 
-    register unsigned int next_id;
-    register unsigned int *stack[5];
+    unsigned int next_id;
+    unsigned int *stack[5];
     stack[0] = g_succ[cur_id];
 
     while (depth >= 0)
@@ -581,8 +560,8 @@ unsigned int binary_search(unsigned int target)
 
 void duplicate_removal()
 {
-    register unsigned int slow = 0, fast = 1;
-    register unsigned int double_edge_num = edge_num << 1;
+    unsigned int slow = 0, fast = 1;
+    unsigned int double_edge_num = edge_num << 1;
     while (fast < double_edge_num)
     {
         if (ids[fast] != ids[slow])
@@ -660,6 +639,9 @@ int main()
     clock_t start_time = clock();
 #endif
 
+    vector<string> idsComma(MAX_NUM_IDS); // id + ','
+    vector<string> idsLF(MAX_NUM_IDS);    // id + '\n'
+
 #ifdef MMAP
     input_mmap(testFile);
 #else
@@ -682,13 +664,12 @@ int main()
         g_succ[u][out_degree[u]++] = binary_search(v_ids[thread_id]);
     }
 
-    for (unsigned int id = 0; id < id_num; ++id)
+    for (unsigned int thread_id = 0; thread_id < id_num; ++thread_id)
     {
-        sort(g_succ[id], g_succ[id] + out_degree[id]);
-        g_succ[id][out_degree[id]] = MAX_INT;
-        //idsComma[id] = to_string(ids[id]) + ",";
-        //idsLF[id] = to_string(ids[id]) + "\n";
-        idsChar_len[id] = uint2ascii(ids[id], idsChar + 10 * id);
+        sort(g_succ[thread_id], g_succ[thread_id] + out_degree[thread_id]);
+        g_succ[thread_id][out_degree[thread_id]] = MAX_INT;
+        idsComma[thread_id] = to_string(ids[thread_id]) + ",";
+        idsLF[thread_id] = to_string(ids[thread_id]) + "\n";
     }
 
 #ifdef TEST
@@ -762,7 +743,11 @@ int main()
     cout << "Main: program exiting." << endl;
 #endif
 
-    save_fwrite(resultFile);
+#ifdef MMAP
+    save_mmap(resultFile, idsComma, idsLF);
+#else
+    save_fwrite(resultFile, idsComma, idsLF);
+#endif
 
 #ifdef TEST
     cout << "Total time " << (double)(clock() - start_time) / CLOCKS_PER_SEC << "s" << endl;

@@ -141,6 +141,7 @@ void save_fwrite(const string &resultFile, int &ansCnt, vector<string> &idsComma
     char buf[1024];
 	int idx = sprintf(buf, "%d\n", ansCnt);
 	buf[idx] = '\0';
+
 	length += idx;
     for (int i = 0; i < 5; ++i) {
 		for (vector<int> &single_result : results[i]) {
@@ -152,11 +153,13 @@ void save_fwrite(const string &resultFile, int &ansCnt, vector<string> &idsComma
 			length += strlen(res);
 		}
 	}
+
 	int f_ret = ftruncate(fd, length);
 	if (-1 == f_ret) { 
 		printf("ftruncate fail\n");
 		exit(1);
 	}
+
 	char *const address = (char *)mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
 	if (MAP_FAILED == address) { 
@@ -182,6 +185,7 @@ void save_fwrite(const string &resultFile, int &ansCnt, vector<string> &idsComma
 			pos += strlen(res);
 		}
 	}
+	
 	int mun_ret = munmap(address, length);
 	if (-1 == mun_ret) {
 		printf("munmap fail\n");
