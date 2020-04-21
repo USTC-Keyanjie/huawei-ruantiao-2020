@@ -23,11 +23,17 @@
 #define MAX_NUM_IDS 262144
 #define MAX_OUT_DEGREE 51
 
-#define NUM_LEN3_RESULT 500000
-#define NUM_LEN4_RESULT 500000
-#define NUM_LEN5_RESULT 1000000
-#define NUM_LEN6_RESULT 2000000
-#define NUM_LEN7_RESULT 3200000
+// #define NUM_LEN3_RESULT 500000
+// #define NUM_LEN4_RESULT 500000
+// #define NUM_LEN5_RESULT 1000000
+// #define NUM_LEN6_RESULT 2000000
+// #define NUM_LEN7_RESULT 3000000
+
+#define NUM_LEN3_RESULT 400000
+#define NUM_LEN4_RESULT 400000
+#define NUM_LEN5_RESULT 800000
+#define NUM_LEN6_RESULT 1500000
+#define NUM_LEN7_RESULT 2000000
 
 #define MAX_INT 2147483647
 
@@ -37,7 +43,9 @@ using namespace std;
 
 unsigned int id_num = 0, edge_num = 0, res_count = 0;
 
-float seg_ratio[] = {0, 0.068, 0.148, 0.284, 1};
+// float seg_ratio[] = {0, 0.068, 0.148, 0.284, 1};
+float seg_ratio[] = {0, 0.058, 0.125, 0.225, 1};
+
 
 unsigned int u_ids[MAX_NUM_EDGES];
 unsigned int v_ids[MAX_NUM_EDGES];
@@ -153,29 +161,20 @@ unsigned int digits10_length(unsigned int v)
         return 2;
     if (v < 1000)
         return 3;
-    if (v < 1e12) // 10^12
+
+    if (v < 1e9)
     {
-        if (v < 1e8) // 10^8
+        if (v < 1e7)
         {
-            if (v < 1e6)
+            if (v < 1e5)
             {
-                if (v < 1e4)
-                {
-                    return 4;
-                }
-
-                return 5 + (v >= 1e5);
+                return 4 + (v >= 1e4);
             }
-
-            return 7 + (v >= 1e7);
+            return 6 + (v >= 1e6);
         }
-        if (v < 1e10)
-        {
-            return 9 + (v >= 1e9);
-        }
-        return 11 + (v >= 1e11);
+        return 8 + (v >= 1e8);
     }
-    return 12;
+    return 10;
 }
 
 unsigned int uint2ascii(unsigned int value, char *dst)
@@ -752,15 +751,7 @@ int main()
     for (thread_id = 0; thread_id < NUM_THREADS; ++thread_id)
     {
         pthread_join(threads[thread_id], &status);
-#ifdef TEST
-        cout << "Main: completed thread id :" << thread_id;
-        cout << "  exiting with status :" << status << endl;
-#endif
     }
-
-#ifdef TEST
-    cout << "Main: program exiting." << endl;
-#endif
 
     save_fwrite(resultFile);
 
