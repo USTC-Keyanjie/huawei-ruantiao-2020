@@ -2,8 +2,8 @@
 // 1. delete #define TEST.
 // 2. open //#define MMAP
 
-// #define TEST
-#define MMAP
+#define TEST
+// #define MMAP
 #include <bits/stdc++.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -64,7 +64,7 @@ unsigned int out_degree[MAX_NUM_IDS];
 unsigned int g_pred[MAX_NUM_IDS][MAX_IN_DEGREE];
 unsigned int in_degree[MAX_NUM_IDS];
 
-unsigned int path[NUM_THREADS][5];
+unsigned int path[NUM_THREADS][4];
 bool visited[NUM_THREADS][MAX_NUM_IDS];
 
 char idsChar[MAX_NUM_IDS * 10]; // chars id
