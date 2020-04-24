@@ -2,8 +2,8 @@
 // 1. delete #define TEST.
 // 2. open //#define MMAP
 
-#define TEST
-// #define MMAP
+// #define TEST
+#define MMAP
 #include <bits/stdc++.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -23,7 +23,7 @@
 #define MAX_OUT_DEGREE 51
 #define MAX_IN_DEGREE 51
 
-#define MAX_NUM_THREE_PREDS 50000
+#define MAX_NUM_THREE_PREDS 10000
 
 #define NUM_LEN3_RESULT 400000
 #define NUM_LEN4_RESULT 400000
@@ -119,7 +119,7 @@ void input_mmap(const string &testFile)
     //mmap
     char *buf = (char *)mmap(NULL, length, PROT_READ, MAP_PRIVATE, fd, 0);
 
-    register int id_pos = -1;
+    register int id_pos = 0;
     register int sign = 0;
     register unsigned int temp = 0;
 
@@ -137,12 +137,12 @@ void input_mmap(const string &testFile)
             {
             case 1: //读取 id1
                 u_ids[edge_num] = temp;
-                ids[++id_pos] = temp;
+                ids[id_pos++] = temp;
                 temp = 0;
                 break;
             case 2: //读取 id2
                 v_ids[edge_num++] = temp;
-                ids[++id_pos] = temp;
+                ids[id_pos++] = temp;
                 temp = 0;
 
                 while (*p != '\n') // 过滤'\n'
