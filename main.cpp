@@ -66,8 +66,10 @@ unsigned int in_degree[MAX_NUM_IDS];
 unsigned int path[NUM_THREADS][4];
 bool visited[NUM_THREADS][MAX_NUM_IDS];
 
+
 char idsChar[MAX_NUM_IDS * 10]; // chars id
 unsigned int idsChar_len[MAX_NUM_IDS];
+
 
 Three_pred three_uj[NUM_THREADS][MAX_NUM_THREE_PREDS];
 unsigned int three_uj_len[NUM_THREADS];
@@ -75,11 +77,13 @@ unsigned int reachable[NUM_THREADS][MAX_NUM_IDS];
 unsigned int currentJs[NUM_THREADS][MAX_NUM_THREE_PREDS];
 unsigned int currentJs_len[NUM_THREADS];
 
+
 unsigned int res3[NUM_THREADS * NUM_LEN3_RESULT];
 unsigned int res4[NUM_THREADS * NUM_LEN4_RESULT];
 unsigned int res5[NUM_THREADS * NUM_LEN5_RESULT];
 unsigned int res6[NUM_THREADS * NUM_LEN6_RESULT];
 unsigned int res7[NUM_THREADS * NUM_LEN7_RESULT];
+
 
 unsigned int res_count[NUM_THREADS][5];
 unsigned int *results[] = {res3, res4, res5, res6, res7};
