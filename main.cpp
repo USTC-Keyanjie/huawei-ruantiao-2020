@@ -467,7 +467,7 @@ void dfs_rec(unsigned int start_id, unsigned int cur_id, int depth, int tid)
         {
             if (!visited[tid][three_uj[tid][i].k1] && !visited[tid][three_uj[tid][i].k2])
             {
-                memcpy(results[depth] + tid * thread_offset + res_count[tid][depth]++ * (depth + 3), path[tid], 4 * depth);
+                memcpy(results[depth] + tid * thread_offset + res_count[tid][depth]++ * (depth + 3), path[tid], depth << 2);
                 results[depth][tid * thread_offset + res_count[tid][depth] * (depth + 3) - 3] = cur_id;
                 results[depth][tid * thread_offset + res_count[tid][depth] * (depth + 3) - 2] = three_uj[tid][i].k1;
                 results[depth][tid * thread_offset + res_count[tid][depth] * (depth + 3) - 1] = three_uj[tid][i].k2;
@@ -515,9 +515,9 @@ void dfs_ite(register unsigned int start_id, int tid)
     {
         for (unsigned int i = reachable[tid][cur_id] - 1; three_uj[tid][i].u == cur_id; ++i)
         {
-            results[depth][tid * NUM_LEN3_RESULT + ++res_count[tid][depth] * (depth + 3) - 3] = cur_id;
-            results[depth][tid * NUM_LEN3_RESULT + res_count[tid][depth] * (depth + 3) - 2] = three_uj[tid][i].k1;
-            results[depth][tid * NUM_LEN3_RESULT + res_count[tid][depth] * (depth + 3) - 1] = three_uj[tid][i].k2;
+            results[0][tid * NUM_LEN3_RESULT + ++res_count[tid][0] * 3 - 3] = cur_id;
+            results[0][tid * NUM_LEN3_RESULT + res_count[tid][0] * 3 - 2] = three_uj[tid][i].k1;
+            results[0][tid * NUM_LEN3_RESULT + res_count[tid][0] * 3 - 1] = three_uj[tid][i].k2;
         }
     }
 
@@ -560,7 +560,7 @@ void dfs_ite(register unsigned int start_id, int tid)
                     {
                         if (!visited[tid][three_uj[tid][i].k1] && !visited[tid][three_uj[tid][i].k2])
                         {
-                            memcpy(results[depth + 1] + tid * thread_offset + res_count[tid][depth + 1]++ * (depth + 4), path[tid], 4 * depth + 4);
+                            memcpy(results[depth + 1] + tid * thread_offset + res_count[tid][depth + 1]++ * (depth + 4), path[tid], (depth + 1) << 2);
                             results[depth + 1][tid * thread_offset + res_count[tid][depth + 1] * (depth + 4) - 3] = next_id;
                             results[depth + 1][tid * thread_offset + res_count[tid][depth + 1] * (depth + 4) - 2] = three_uj[tid][i].k1;
                             results[depth + 1][tid * thread_offset + res_count[tid][depth + 1] * (depth + 4) - 1] = three_uj[tid][i].k2;
