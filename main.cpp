@@ -2,8 +2,8 @@
 // 1. delete #define TEST.
 // 2. open //#define MMAP
 
-// #define TEST
-#define MMAP
+#define TEST
+// #define MMAP
 #include <bits/stdc++.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -18,8 +18,9 @@
 #include <sys/mman.h>
 #endif
 
-#define MAX_NUM_EDGES 280000
-#define MAX_NUM_IDS 204800
+#define MAX_NUM_EDGES 280000 // 280000
+#define MAX_NUM_IDS 204800   // 204800
+#define ID_COUNT_SIZE 80000000
 #define MAX_OUT_DEGREE 51
 #define MAX_IN_DEGREE 51
 
@@ -56,7 +57,9 @@ struct Three_pred
 
 unsigned int u_ids[MAX_NUM_EDGES];
 unsigned int v_ids[MAX_NUM_EDGES];
-unsigned int ids[MAX_NUM_EDGES * 2];
+
+unsigned int id_count[ID_COUNT_SIZE];
+unsigned int ids[MAX_NUM_IDS];
 
 unsigned int g_succ[MAX_NUM_IDS][MAX_OUT_DEGREE];
 unsigned int out_degree[MAX_NUM_IDS];
@@ -66,10 +69,8 @@ unsigned int in_degree[MAX_NUM_IDS];
 unsigned int path[NUM_THREADS][4];
 bool visited[NUM_THREADS][MAX_NUM_IDS];
 
-
 char idsChar[MAX_NUM_IDS * 10]; // chars id
 unsigned int idsChar_len[MAX_NUM_IDS];
-
 
 Three_pred three_uj[NUM_THREADS][MAX_NUM_THREE_PREDS];
 unsigned int three_uj_len[NUM_THREADS];
@@ -77,13 +78,11 @@ unsigned int reachable[NUM_THREADS][MAX_NUM_IDS];
 unsigned int currentJs[NUM_THREADS][MAX_NUM_THREE_PREDS];
 unsigned int currentJs_len[NUM_THREADS];
 
-
 unsigned int res3[NUM_THREADS * NUM_LEN3_RESULT];
 unsigned int res4[NUM_THREADS * NUM_LEN4_RESULT];
 unsigned int res5[NUM_THREADS * NUM_LEN5_RESULT];
 unsigned int res6[NUM_THREADS * NUM_LEN6_RESULT];
 unsigned int res7[NUM_THREADS * NUM_LEN7_RESULT];
-
 
 unsigned int res_count[NUM_THREADS][5];
 unsigned int *results[] = {res3, res4, res5, res6, res7};
@@ -98,8 +97,8 @@ void input_fstream(char *testFile)
     unsigned int money;
     while (fscanf(file, "%d,%d,%d\n", u_ids + edge_num, v_ids + edge_num, &money) != EOF)
     {
-        ids[(edge_num << 1)] = u_ids[edge_num];
-        ids[(edge_num << 1) + 1] = v_ids[edge_num];
+        id_count[u_ids[edge_num]] = 1;
+        id_count[v_ids[edge_num]] = 1;
         ++edge_num;
     }
     fclose(file);
@@ -136,18 +135,16 @@ void input_mmap(char *testFile)
         else
         {
             ++sign;
+            id_count[temp] = 1;
             switch (sign)
             {
             case 1: //读取 id1
                 u_ids[edge_num] = temp;
-                ids[id_pos++] = temp;
                 temp = 0;
                 break;
             case 2: //读取 id2
                 v_ids[edge_num++] = temp;
-                ids[id_pos++] = temp;
                 temp = 0;
-
                 while (*p != '\n') // 过滤'\n'
                     ++p;
                 sign = 0; // 开始读取下一行
@@ -420,7 +417,6 @@ void dfs_rec(unsigned int start_id, unsigned int cur_id, int depth, int tid)
                 results[depth][tid * thread_offset + res_count[tid][depth] * (depth + 3) - 1] = three_uj[tid][i].k2;
             }
         }
-#endif
     }
 
     if (depth < 4)
@@ -441,136 +437,6 @@ void dfs_rec(unsigned int start_id, unsigned int cur_id, int depth, int tid)
         }
         visited[tid][cur_id] = false;
     }
-}
-
-/*
-// iteration version
-void dfs_ite(unsigned int start_id, int tid)
-{
-    visited[tid][start_id] = true;
-    path[tid][0] = start_id;
-
-    register unsigned int begin_pos[5] = {0};
-    while (start_id >= g_succ[start_id][begin_pos[0]])
-        ++begin_pos[0];
-
-    if (begin_pos[0] == out_degree[start_id])
-        return;
-
-    register unsigned int cur_id = start_id, next_id, thread_offset = 0;
-    register int depth = 0;
-    register unsigned int *stack[5];
-    stack[0] = g_succ[cur_id];
-
-    // depth ~ length
-    //     0 ~ 3
-    //     1 ~ 4
-    //     2 ~ 5
-    //     3 ~ 6
-    //     4 ~ 7
-    while (depth >= 0)
-    {
-        // no valid succ
-        if (begin_pos[depth] == out_degree[cur_id])
-        {
-            visited[tid][cur_id] = false;
-            if (--depth >= 0)
-                cur_id = path[tid][depth];
-        }
-        else
-        {
-            next_id = stack[depth][begin_pos[depth]++];
-            if (!visited[tid][next_id])
-            {
-                // find a circuit
-                if (reachable[tid][next_id])
-                {
-                    // path[tid][depth + 1] = next_id;
-                    for (unsigned int u = reachable[tid][next_id] - 1; two_uj[start_id][u].u == next_id; ++u)
-                    {
-                        if (!visited[tid][two_uj[start_id][u].k])
-                        {
-                            // path[tid][depth + 2] = two_uj[start_id][u].k;
-                            switch (depth)
-                            {
-                            case 0:
-                                thread_offset = NUM_LEN3_RESULT * 3;
-                                break;
-                            case 1:
-                                thread_offset = NUM_LEN4_RESULT * 4;
-                                break;
-                            case 2:
-                                thread_offset = NUM_LEN5_RESULT * 5;
-                                break;
-                            case 3:
-                                thread_offset = NUM_LEN6_RESULT * 6;
-                                break;
-                            case 4:
-                                thread_offset = NUM_LEN7_RESULT * 7;
-                                break;
-                            default:
-                                break;
-                            }
-
-                            memcpy(results[depth] + tid * thread_offset + num_res[tid][depth]++ * (depth + 3), path[tid], 4 * depth + 4);
-                            results[depth][tid * thread_offset + num_res[tid][depth] * (depth + 3) - 2] = next_id;
-                            results[depth][tid * thread_offset + num_res[tid][depth] * (depth + 3) - 1] = two_uj[start_id][u].k;
-                        }
-                    }
-                }
-
-                if (depth < 4)
-                {
-                    stack[++depth] = g_succ[next_id];
-                    cur_id = next_id;
-                    visited[tid][cur_id] = true;
-                    path[tid][depth] = cur_id;
-                    begin_pos[depth] = 0;
-                    while (start_id >= stack[depth][begin_pos[depth]])
-                        ++begin_pos[depth];
-                }
-            }
-        }
-    }
-}
-*/
-
-unsigned int binary_search(unsigned int target)
-{
-    register unsigned int left = 0;
-    register unsigned int right = id_num - 1;
-    register unsigned int mid;
-
-    while (left <= right)
-    {
-        mid = (right + left) >> 1;
-        if (ids[mid] == target)
-        {
-            return mid;
-        }
-        else if (target > ids[mid])
-        {
-            left = mid + 1;
-        }
-        else if (target < ids[mid])
-        {
-            right = mid - 1;
-        }
-    }
-    return -1;
-}
-
-void duplicate_removal()
-{
-    register unsigned int slow = 0, fast = 1;
-    register unsigned int double_edge_num = edge_num << 1;
-    while (fast < double_edge_num)
-    {
-        if (ids[fast] != ids[slow])
-            ids[++slow] = ids[fast];
-        fast++;
-    }
-    id_num = slow + 1;
 }
 
 bool three_uj_cmp(Three_pred &a, Three_pred &b)
@@ -604,16 +470,6 @@ void *thread_process(void *t)
         //     printf("%d/%d ~ %.2lfs ~ %2.lf%%\n", start_id, id_num, (double)(clock() - search_time) / CLOCKS_PER_SEC, (double)(start_id) / id_num * 100);
         // }
 #endif
-
-        // memset(reachable[tid], 0, id_num * 4);
-        // for (unsigned int i = 0; i < two_uj_len[start_id]; ++i)
-        // {
-        //     if (!reachable[tid][two_uj[start_id][i].u])
-        //     {
-        //         reachable[tid][two_uj[start_id][i].u] = i + 1;
-        //         currentJs[tid][currentJs_len[tid]++] = two_uj[start_id][i].u;
-        //     }
-        // }
 
         pre_dfs_rec(start_id, start_id, 0, tid);
         // 有直达的点才继续搜下去
@@ -676,17 +532,23 @@ int main()
     input_fstream(testFile);
 #endif
 
-    sort(ids, ids + (edge_num << 1));
-    duplicate_removal();
+    for (unsigned int id = 1; id < MAX_NUM_IDS; ++id)
+    {
+        id_count[id] += id_count[id - 1];
+    }
+    id_num = id_count[MAX_NUM_IDS - 1];
 
-    register unsigned int u_id, v_id;
+    register unsigned int u_hash_id, v_hash_id;
     for (unsigned int id = 0; id < edge_num; ++id)
     {
-        u_id = binary_search(u_ids[id]);
-        v_id = binary_search(v_ids[id]);
+        u_hash_id = id_count[u_ids[id]] - 1;
+        v_hash_id = id_count[v_ids[id]] - 1;
 
-        g_succ[u_id][out_degree[u_id]++] = v_id;
-        g_pred[v_id][in_degree[v_id]++] = u_id;
+        ids[u_hash_id] = u_ids[id];
+        ids[v_hash_id] = v_ids[id];
+
+        g_succ[u_hash_id][out_degree[u_hash_id]++] = v_hash_id;
+        g_pred[v_hash_id][in_degree[v_hash_id]++] = u_hash_id;
     }
 
     for (unsigned int id = 0; id < id_num; ++id)
@@ -698,43 +560,6 @@ int main()
         idsChar_len[id] = uint2ascii(ids[id], idsChar + 10 * id);
     }
 
-    /*
-#ifdef TEST
-    clock_t two_uj_time = clock();
-#endif
-    register unsigned int u, k, v;
-    unsigned int *succ1, *succ2;
-    // u -> k -> v
-    for (u = 0; u < id_num; u++)
-    {
-        succ1 = g_succ[u];
-        // one step succ
-        for (unsigned int it1 = 0; it1 < out_degree[u]; ++it1)
-        {
-            k = succ1[it1];
-            // two steps succ
-            succ2 = g_succ[k];
-            for (unsigned int it2 = 0; it2 < out_degree[k]; ++it2)
-            {
-                v = succ2[it2];
-                if (u >= v && k > v)
-                {
-                    two_uj[v][two_uj_len[v]++] = {u, k};
-                }
-            }
-        }
-    }
-
-    for (u = 0; u < id_num; ++u)
-    {
-        sort(two_uj[u], two_uj[u] + two_uj_len[u], three_uj_cmp);
-        two_uj[u][two_uj_len[u]] = {MAX_INT, MAX_INT};
-    }
-
-#ifdef TEST
-    cout << "Construct Jump Table " << (double)(clock() - two_uj_time) / CLOCKS_PER_SEC << "s" << endl;
-#endif
-*/
     int tid;
     // 创建子线程的标识符 就是线程 的id,放在数组中
     pthread_t threads[NUM_THREADS];
