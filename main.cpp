@@ -42,10 +42,7 @@ using namespace std;
 unsigned int id_num = 0, edge_num = 0;
 
 // float seg_ratio[] = {0, 1};
-
 float seg_ratio[] = {0, 0.068, 0.148, 0.284, 1};
-
-// float seg_ratio[] = {0, 0.055, 0.128, 0.284, 1};
 
 struct Three_pred
 {
@@ -78,8 +75,6 @@ unsigned int reachable[NUM_THREADS][MAX_NUM_IDS];
 unsigned int currentJs[NUM_THREADS][MAX_NUM_THREE_PREDS];
 unsigned int currentJs_len[NUM_THREADS];
 
-// ----- int array -----
-
 unsigned int res3[NUM_THREADS * NUM_LEN3_RESULT];
 unsigned int res4[NUM_THREADS * NUM_LEN4_RESULT];
 unsigned int res5[NUM_THREADS * NUM_LEN5_RESULT];
@@ -88,34 +83,6 @@ unsigned int res7[NUM_THREADS * NUM_LEN7_RESULT];
 
 unsigned int res_count[NUM_THREADS][5];
 unsigned int *results[] = {res3, res4, res5, res6, res7};
-// ----------------------
-
-// ----- char array -----
-
-// 不可用
-// #define NUM_LEN3_RESULT 10000000
-// #define NUM_LEN4_RESULT 10000000
-// #define NUM_LEN5_RESULT 20000000
-// #define NUM_LEN6_RESULT 35000000
-// #define NUM_LEN7_RESULT 70000000
-
-// 可用
-// #define NUM_LEN3_RESULT 10000000
-// #define NUM_LEN4_RESULT 10000000
-// #define NUM_LEN5_RESULT 30000000
-// #define NUM_LEN6_RESULT 70000000
-// #define NUM_LEN7_RESULT 100000000
-
-// char char_res3[NUM_THREADS * NUM_LEN3_RESULT];
-// char char_res4[NUM_THREADS * NUM_LEN4_RESULT];
-// char char_res5[NUM_THREADS * NUM_LEN5_RESULT];
-// char char_res6[NUM_THREADS * NUM_LEN6_RESULT];
-// char char_res7[NUM_THREADS * NUM_LEN7_RESULT];
-
-// unsigned int char_res_len[NUM_THREADS][5];
-// unsigned int res_count[NUM_THREADS];
-// char *char_results[] = {char_res3, char_res4, char_res5, char_res6, char_res7};
-// ----------------------
 
 void input_fstream(char *testFile)
 {
@@ -277,42 +244,6 @@ void save_fwrite(char *resultFile)
     register unsigned int str_len = uint2ascii(all_res_count, str_res);
     str_res[str_len++] = '\n';
 
-#ifdef CHAR_RES
-
-    for (tid = 0; tid < NUM_THREADS; ++tid)
-    {
-        memcpy(str_res + str_len, char_results[0] + tid * NUM_LEN3_RESULT, char_res_len[tid][0]);
-        str_len += char_res_len[tid][0];
-    }
-
-    for (tid = 0; tid < NUM_THREADS; ++tid)
-    {
-        memcpy(str_res + str_len, char_results[1] + tid * NUM_LEN4_RESULT, char_res_len[tid][1]);
-        str_len += char_res_len[tid][1];
-    }
-
-    for (tid = 0; tid < NUM_THREADS; ++tid)
-    {
-        memcpy(str_res + str_len, char_results[2] + tid * NUM_LEN5_RESULT, char_res_len[tid][2]);
-        str_len += char_res_len[tid][2];
-    }
-
-    for (tid = 0; tid < NUM_THREADS; ++tid)
-    {
-        memcpy(str_res + str_len, char_results[3] + tid * NUM_LEN6_RESULT, char_res_len[tid][3]);
-        str_len += char_res_len[tid][3];
-    }
-
-    for (tid = 0; tid < NUM_THREADS; ++tid)
-    {
-        memcpy(str_res + str_len, char_results[4] + tid * NUM_LEN7_RESULT, char_res_len[tid][4]);
-        str_len += char_res_len[tid][4];
-    }
-
-    str_res[str_len] = '\0';
-    fwrite(str_res, sizeof(char), str_len, fp);
-    fclose(fp);
-#else
     register unsigned int line_offset, line, id, result_id;
     for (tid = 0; tid < NUM_THREADS; ++tid)
     {
@@ -407,7 +338,6 @@ void save_fwrite(char *resultFile)
     str_res[str_len] = '\0';
     fwrite(str_res, sizeof(char), str_len, fp);
     fclose(fp);
-#endif
 
 #ifdef TEST
     cout << "fwrite output time " << (double)(clock() - write_time) / CLOCKS_PER_SEC << "s" << endl;
@@ -476,35 +406,6 @@ void dfs_rec(unsigned int start_id, unsigned int cur_id, int depth, int tid)
         default:
             break;
         }
-
-#ifdef CHAR_RES
-        // reachable里的index是+1存储的
-        for (unsigned int i = reachable[tid][cur_id] - 1; three_uj[tid][i].u == cur_id; ++i)
-        {
-            if (!visited[tid][three_uj[tid][i].k1] && !visited[tid][three_uj[tid][i].k2])
-            {
-                res_count[tid]++;
-                for (int path_pos = 0; path_pos < depth; ++path_pos)
-                {
-                    memcpy(char_results[depth] + tid * thread_offset + char_res_len[tid][depth], idsChar + path[tid][path_pos] * 10, idsChar_len[path[tid][path_pos]]);
-                    char_res_len[tid][depth] += idsChar_len[path[tid][path_pos]];
-                    char_results[depth][tid * thread_offset + char_res_len[tid][depth]++] = ',';
-                }
-
-                memcpy(char_results[depth] + tid * thread_offset + char_res_len[tid][depth], idsChar + cur_id * 10, idsChar_len[cur_id]);
-                char_res_len[tid][depth] += idsChar_len[cur_id];
-                char_results[depth][tid * thread_offset + char_res_len[tid][depth]++] = ',';
-
-                memcpy(char_results[depth] + tid * thread_offset + char_res_len[tid][depth], idsChar + three_uj[tid][i].k1 * 10, idsChar_len[three_uj[tid][i].k1]);
-                char_res_len[tid][depth] += idsChar_len[three_uj[tid][i].k1];
-                char_results[depth][tid * thread_offset + char_res_len[tid][depth]++] = ',';
-
-                memcpy(char_results[depth] + tid * thread_offset + char_res_len[tid][depth], idsChar + three_uj[tid][i].k2 * 10, idsChar_len[three_uj[tid][i].k2]);
-                char_res_len[tid][depth] += idsChar_len[three_uj[tid][i].k2];
-                char_results[depth][tid * thread_offset + char_res_len[tid][depth]++] = '\n';
-            }
-        }
-#else
         for (unsigned int i = reachable[tid][cur_id] - 1; three_uj[tid][i].u == cur_id; ++i)
         {
             if (!visited[tid][three_uj[tid][i].k1] && !visited[tid][three_uj[tid][i].k2])
