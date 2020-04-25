@@ -367,15 +367,71 @@ void pre_dfs_rec(unsigned int start_id, unsigned int cur_id, int depth, int tid)
         {
             path[tid][depth] = next_id;
 
-            if (depth == 2 && path[tid][2] != path[tid][0])
+            if (depth == 2)
             {
-                three_uj[tid][three_uj_len[tid]++] = {path[tid][2], path[tid][1], path[tid][0]};
+                if (path[tid][2] != path[tid][0])
+                    three_uj[tid][three_uj_len[tid]++] = {path[tid][2], path[tid][1], path[tid][0]};
             }
             else
             {
                 visited[tid][next_id] = true;
                 pre_dfs_rec(start_id, next_id, depth + 1, tid);
                 visited[tid][next_id] = false;
+            }
+        }
+    }
+}
+
+// iteration version
+void pre_dfs_ite(register unsigned int start_id, int tid)
+{
+    register unsigned int begin_pos[3] = {0};
+    register unsigned int cur_id = start_id, next_id;
+    register int depth = 0;
+    register unsigned int *stack[3];
+    stack[0] = g_pred[cur_id];
+
+    // 试试把++写到判别条件中去
+    while (start_id > g_pred[cur_id][begin_pos[depth]])
+        ++begin_pos[depth];
+
+    while (depth >= 0)
+    {
+        // no valid succ
+        if (begin_pos[depth] == in_degree[cur_id])
+        {
+            visited[tid][cur_id] = false;
+            cur_id = --depth > 0 ? path[tid][depth - 1] : start_id;
+        }
+        else
+        {
+            next_id = stack[depth][begin_pos[depth]++];
+            if (!visited[tid][next_id])
+            {
+                path[tid][depth] = next_id;
+                if (depth == 2)
+                {
+                    if (path[tid][2] != path[tid][0])
+                        three_uj[tid][three_uj_len[tid]++] = {path[tid][2], path[tid][1], path[tid][0]};
+                }
+                else
+                {
+                    stack[++depth] = g_pred[next_id];
+                    cur_id = next_id;
+                    visited[tid][cur_id] = true;
+                    path[tid][depth] = cur_id;
+                    begin_pos[depth] = 0;
+                    if (depth < 2)
+                    {
+                        while (start_id >= stack[depth][begin_pos[depth]])
+                            ++begin_pos[depth];
+                    }
+                    else
+                    {
+                        while (start_id > stack[depth][begin_pos[depth]])
+                            ++begin_pos[depth];
+                    }
+                }
             }
         }
     }
@@ -439,6 +495,94 @@ void dfs_rec(unsigned int start_id, unsigned int cur_id, int depth, int tid)
     }
 }
 
+// iteration version
+void dfs_ite(register unsigned int start_id, int tid)
+{
+    visited[tid][start_id] = true;
+    path[tid][0] = start_id;
+
+    register unsigned int begin_pos[4] = {0};
+    while (start_id >= g_succ[start_id][begin_pos[0]])
+        ++begin_pos[0];
+
+    register unsigned int cur_id = start_id, next_id, thread_offset = 0;
+    register int depth = 0;
+    register unsigned int *stack[4];
+    stack[0] = g_succ[cur_id];
+
+    // length 3 result
+    if (reachable[tid][cur_id])
+    {
+        for (unsigned int i = reachable[tid][cur_id] - 1; three_uj[tid][i].u == cur_id; ++i)
+        {
+            results[depth][tid * NUM_LEN3_RESULT + ++res_count[tid][depth] * (depth + 3) - 3] = cur_id;
+            results[depth][tid * NUM_LEN3_RESULT + res_count[tid][depth] * (depth + 3) - 2] = three_uj[tid][i].k1;
+            results[depth][tid * NUM_LEN3_RESULT + res_count[tid][depth] * (depth + 3) - 1] = three_uj[tid][i].k2;
+        }
+    }
+
+    while (depth >= 0)
+    {
+        // no valid succ
+        if (begin_pos[depth] == out_degree[cur_id])
+        {
+            visited[tid][cur_id] = false;
+            if (--depth >= 0)
+                cur_id = path[tid][depth];
+        }
+        else
+        {
+            next_id = stack[depth][begin_pos[depth]++];
+            if (!visited[tid][next_id])
+            {
+                // find a circuit
+                if (reachable[tid][next_id])
+                {
+                    switch (depth)
+                    {
+                    case 0:
+                        thread_offset = NUM_LEN4_RESULT;
+                        break;
+                    case 1:
+                        thread_offset = NUM_LEN5_RESULT;
+                        break;
+                    case 2:
+                        thread_offset = NUM_LEN6_RESULT;
+                        break;
+                    case 3:
+                        thread_offset = NUM_LEN7_RESULT;
+                        break;
+                    default:
+                        break;
+                    }
+
+                    for (unsigned int i = reachable[tid][next_id] - 1; three_uj[tid][i].u == next_id; ++i)
+                    {
+                        if (!visited[tid][three_uj[tid][i].k1] && !visited[tid][three_uj[tid][i].k2])
+                        {
+                            memcpy(results[depth + 1] + tid * thread_offset + res_count[tid][depth + 1]++ * (depth + 4), path[tid], 4 * depth + 4);
+                            results[depth + 1][tid * thread_offset + res_count[tid][depth + 1] * (depth + 4) - 3] = next_id;
+                            results[depth + 1][tid * thread_offset + res_count[tid][depth + 1] * (depth + 4) - 2] = three_uj[tid][i].k1;
+                            results[depth + 1][tid * thread_offset + res_count[tid][depth + 1] * (depth + 4) - 1] = three_uj[tid][i].k2;
+                        }
+                    }
+                }
+
+                if (depth < 3)
+                {
+                    stack[++depth] = g_succ[next_id];
+                    cur_id = next_id;
+                    visited[tid][cur_id] = true;
+                    path[tid][depth] = cur_id;
+                    begin_pos[depth] = 0;
+                    while (start_id >= stack[depth][begin_pos[depth]])
+                        ++begin_pos[depth];
+                }
+            }
+        }
+    }
+}
+
 bool three_uj_cmp(Three_pred &a, Three_pred &b)
 {
     if (a.u != b.u)
@@ -470,8 +614,8 @@ void *thread_process(void *t)
         //     printf("%d/%d ~ %.2lfs ~ %2.lf%%\n", start_id, id_num, (double)(clock() - search_time) / CLOCKS_PER_SEC, (double)(start_id) / id_num * 100);
         // }
 #endif
-
-        pre_dfs_rec(start_id, start_id, 0, tid);
+        pre_dfs_ite(start_id, tid);
+        // pre_dfs_rec(start_id, start_id, 0, tid);
         // 有直达的点才继续搜下去
         if (three_uj_len[tid])
         {
@@ -486,8 +630,8 @@ void *thread_process(void *t)
                 }
             }
 
-            // dfs_ite(start_id, tid);
-            dfs_rec(start_id, start_id, 0, tid);
+            dfs_ite(start_id, tid);
+            // dfs_rec(start_id, start_id, 0, tid);
 
             for (unsigned int j = 0; j < currentJs_len[tid]; ++j)
             {
@@ -518,8 +662,8 @@ int main()
     // E 28W N 25700 A 2896262
     // E 28W N 25000 A 3512444
     // E 28W N 59989 A 2755223
-    char testFile[] = "test_data/3512444/test_data.txt";
-    char resultFile[] = "test_data/3512444/result.txt";
+    char testFile[] = "test_data/1004812/test_data.txt";
+    char resultFile[] = "test_data/1004812/result.txt";
     clock_t start_time = clock();
 #else
     char testFile[] = "/data/test_data.txt";
