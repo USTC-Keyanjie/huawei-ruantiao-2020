@@ -3,13 +3,13 @@
 // 2. open //#define MMAP
 // 3. open //#define NEON
 
-// #define TEST
-#define MMAP // 使用mmap函数
-#define NEON // 打开NEON特性的算子
+#define TEST
+// #define MMAP // 使用mmap函数
+// #define NEON // 打开NEON特性的算子
 
 // open: dfs中生成数字结果，之后再转成结果字符串
 // close: dfs中直接生成字符串结果，之后拼接为结果字符串
-#define DFS2NUM
+// #define DFS2NUM
 
 #include <bits/stdc++.h>
 #include <fcntl.h>
@@ -671,11 +671,11 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
             memcpy_128(
                 results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0],
-                idsComma + (cur_id << 3) + cur_id);
+                idsComma + (cur_id << 3));
 #else
             memcpy(
                 results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0],
-                idsComma + (cur_id << 3) + cur_id,
+                idsComma + (cur_id << 3),
                 idsChar_len[cur_id]);
 #endif
             res_length[tid][0] += idsChar_len[cur_id];
@@ -683,11 +683,11 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
             memcpy_128(
                 results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0],
-                idsComma + (three_uj[tid][index].k1 << 3) + three_uj[tid][index].k1);
+                idsComma + (three_uj[tid][index].k1 << 3));
 #else
             memcpy(
                 results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0],
-                idsComma + (three_uj[tid][index].k1 << 3) + three_uj[tid][index].k1,
+                idsComma + (three_uj[tid][index].k1 << 3),
                 idsChar_len[three_uj[tid][index].k1]);
 #endif
             res_length[tid][0] += idsChar_len[three_uj[tid][index].k1];
@@ -695,11 +695,11 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
             memcpy_128(
                 results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0],
-                idsLF + (three_uj[tid][index].k2 << 3) + three_uj[tid][index].k2);
+                idsLF + (three_uj[tid][index].k2 << 3));
 #else
             memcpy(
                 results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0],
-                idsLF + (three_uj[tid][index].k2 << 3) + three_uj[tid][index].k2,
+                idsLF + (three_uj[tid][index].k2 << 3),
                 idsChar_len[three_uj[tid][index].k2]);
 #endif
             res_length[tid][0] += idsChar_len[three_uj[tid][index].k2];
@@ -766,11 +766,11 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
                                 memcpy_128(
                                     results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                    idsComma + (path[tid][i] << 3) + path[tid][i]);
+                                    idsComma + (path[tid][i] << 3));
 #else
                                 memcpy(
                                     results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                    idsComma + (path[tid][i] << 3) + path[tid][i],
+                                    idsComma + (path[tid][i] << 3),
                                     idsChar_len[path[tid][i]]);
 #endif
                                 res_length[tid][depth + 1] += idsChar_len[path[tid][i]];
@@ -779,11 +779,11 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
                             memcpy_128(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsComma + (next_id << 3) + next_id);
+                                idsComma + (next_id << 3);
 #else
                             memcpy(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsComma + (next_id << 3) + next_id,
+                                idsComma + (next_id << 3),
                                 idsChar_len[next_id]);
 #endif
                             res_length[tid][depth + 1] += idsChar_len[next_id];
@@ -791,11 +791,11 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
                             memcpy_128(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsComma + (three_uj[tid][index].k1 << 3) + three_uj[tid][index].k1);
+                                idsComma + (three_uj[tid][index].k1 << 3);
 #else
                             memcpy(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsComma + (three_uj[tid][index].k1 << 3) + three_uj[tid][index].k1,
+                                idsComma + (three_uj[tid][index].k1 << 3),
                                 idsChar_len[three_uj[tid][index].k1]);
 #endif
                             res_length[tid][depth + 1] += idsChar_len[three_uj[tid][index].k1];
@@ -803,11 +803,11 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
                             memcpy_128(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsLF + (three_uj[tid][index].k2 << 3) + three_uj[tid][index].k2);
+                                idsLF + (three_uj[tid][index].k2 << 3);
 #else
                             memcpy(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsLF + (three_uj[tid][index].k2 << 3) + three_uj[tid][index].k2,
+                                idsLF + (three_uj[tid][index].k2 << 3),
                                 idsChar_len[three_uj[tid][index].k2]);
 #endif
                             res_length[tid][depth + 1] += idsChar_len[three_uj[tid][index].k2];
