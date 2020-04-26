@@ -4,8 +4,8 @@
 // 3. open //#define NEON
 
 // #define TEST
-#define MMAP // 使用mmap函数
-#define NEON // 打开NEON特性的算子
+#define MMAP    // 使用mmap函数
+#define NEON    // 打开NEON特性的算子
 #define DFS2NUM // open: dfs中生成数字结果，之后再转成结果字符串 close: dfs中直接生成字符串结果，之后拼接为结果字符串
 
 #include <bits/stdc++.h>
@@ -384,16 +384,22 @@ void save_fwrite(char *resultFile)
     {
         for (line = 0, line_offset = 0; line < res_count[tid][0]; ++line, line_offset += 3)
         {
-            for (id = 0; id < 2; ++id)
-            {
-                result_id = results[0][thread_offset + line_offset + id];
+            result_id = results[0][thread_offset + line_offset];
 #ifdef NEON
-                memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
 #else
-                memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
 #endif
-                str_len += idsChar_len[result_id];
-            }
+            str_len += idsChar_len[result_id];
+
+            result_id = results[0][thread_offset + line_offset + 1];
+#ifdef NEON
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+#else
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+#endif
+            str_len += idsChar_len[result_id];
+
             result_id = results[0][thread_offset + line_offset + 2];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3));
@@ -410,16 +416,30 @@ void save_fwrite(char *resultFile)
     {
         for (line = 0, line_offset = 0; line < res_count[tid][1]; ++line, line_offset += 4)
         {
-            for (id = 0; id < 3; ++id)
-            {
-                result_id = results[1][thread_offset + line_offset + id];
+            result_id = results[1][thread_offset + line_offset];
 #ifdef NEON
-                memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
 #else
-                memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
 #endif
-                str_len += idsChar_len[result_id];
-            }
+            str_len += idsChar_len[result_id];
+
+            result_id = results[1][thread_offset + line_offset + 1];
+#ifdef NEON
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+#else
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+#endif
+            str_len += idsChar_len[result_id];
+
+            result_id = results[1][thread_offset + line_offset + 2];
+#ifdef NEON
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+#else
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+#endif
+            str_len += idsChar_len[result_id];
+
             result_id = results[1][thread_offset + line_offset + 3];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3));
@@ -436,16 +456,37 @@ void save_fwrite(char *resultFile)
     {
         for (line = 0, line_offset = 0; line < res_count[tid][2]; ++line, line_offset += 5)
         {
-            for (id = 0; id < 4; ++id)
-            {
-                result_id = results[2][thread_offset + line_offset + id];
+            result_id = results[2][thread_offset + line_offset];
 #ifdef NEON
-                memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
 #else
-                memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
 #endif
-                str_len += idsChar_len[result_id];
-            }
+            str_len += idsChar_len[result_id];
+            result_id = results[2][thread_offset + line_offset + 1];
+#ifdef NEON
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+#else
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+#endif
+            str_len += idsChar_len[result_id];
+
+            result_id = results[2][thread_offset + line_offset + 2];
+#ifdef NEON
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+#else
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+#endif
+            str_len += idsChar_len[result_id];
+
+            result_id = results[2][thread_offset + line_offset + 3];
+#ifdef NEON
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+#else
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+#endif
+            str_len += idsChar_len[result_id];
+
             result_id = results[2][thread_offset + line_offset + 4];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3));
@@ -462,16 +503,46 @@ void save_fwrite(char *resultFile)
     {
         for (line = 0, line_offset = 0; line < res_count[tid][3]; ++line, line_offset += 6)
         {
-            for (id = 0; id < 5; ++id)
-            {
-                result_id = results[3][thread_offset + line_offset + id];
+            result_id = results[3][thread_offset + line_offset];
 #ifdef NEON
-                memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
 #else
-                memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
 #endif
-                str_len += idsChar_len[result_id];
-            }
+            str_len += idsChar_len[result_id];
+
+            result_id = results[3][thread_offset + line_offset + 1];
+#ifdef NEON
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+#else
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+#endif
+            str_len += idsChar_len[result_id];
+
+            result_id = results[3][thread_offset + line_offset + 2];
+#ifdef NEON
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+#else
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+#endif
+            str_len += idsChar_len[result_id];
+
+            result_id = results[3][thread_offset + line_offset + 3];
+#ifdef NEON
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+#else
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+#endif
+            str_len += idsChar_len[result_id];
+
+            result_id = results[3][thread_offset + line_offset + 4];
+#ifdef NEON
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+#else
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+#endif
+            str_len += idsChar_len[result_id];
+
             result_id = results[3][thread_offset + line_offset + 5];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3));
@@ -488,16 +559,54 @@ void save_fwrite(char *resultFile)
     {
         for (line = 0, line_offset = 0; line < res_count[tid][4]; ++line, line_offset += 7)
         {
-            for (id = 0; id < 6; ++id)
-            {
-                result_id = results[4][thread_offset + line_offset + id];
+            result_id = results[4][thread_offset + line_offset];
 #ifdef NEON
-                memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
 #else
-                memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
 #endif
-                str_len += idsChar_len[result_id];
-            }
+            str_len += idsChar_len[result_id];
+
+            result_id = results[4][thread_offset + line_offset + 1];
+#ifdef NEON
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+#else
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+#endif
+            str_len += idsChar_len[result_id];
+
+            result_id = results[4][thread_offset + line_offset + 2];
+#ifdef NEON
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+#else
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+#endif
+            str_len += idsChar_len[result_id];
+
+            result_id = results[4][thread_offset + line_offset + 3];
+#ifdef NEON
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+#else
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+#endif
+            str_len += idsChar_len[result_id];
+
+            result_id = results[4][thread_offset + line_offset + 4];
+#ifdef NEON
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+#else
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+#endif
+            str_len += idsChar_len[result_id];
+
+            result_id = results[4][thread_offset + line_offset + 5];
+#ifdef NEON
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+#else
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+#endif
+            str_len += idsChar_len[result_id];
+
             result_id = results[4][thread_offset + line_offset + 6];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3));
@@ -650,14 +759,12 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
             memcpy_128(
                 results[0] + tid * NUM_LEN3_RESULT + (res_count[tid][0] << 1) + res_count[tid][0],
-                &three_uj[tid][index].u
-                );
+                &three_uj[tid][index].u);
 #else
             memcpy(
                 results[0] + tid * NUM_LEN3_RESULT + (res_count[tid][0] << 1) + res_count[tid][0],
                 &three_uj[tid][index].u,
-                12
-                );
+                12);
 #endif
             ++res_count[tid][0];
 
@@ -776,8 +883,7 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
                             memcpy_128(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsComma + (next_id << 3)
-                                );
+                                idsComma + (next_id << 3));
 #else
                             memcpy(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
@@ -789,8 +895,7 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
                             memcpy_128(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsComma + (three_uj[tid][index].k1 << 3)
-                                );
+                                idsComma + (three_uj[tid][index].k1 << 3));
 #else
                             memcpy(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
@@ -802,8 +907,7 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
                             memcpy_128(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsComma + (three_uj[tid][index].k2 << 3)
-                                );
+                                idsComma + (three_uj[tid][index].k2 << 3));
 #else
                             memcpy(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
@@ -933,8 +1037,40 @@ int main()
     }
     id_num = id_count[MAX_NUM_IDS - 1];
 
+    // 获取hash_id，生成ids字符串，生成邻接表与逆邻接表
     register unsigned int u_hash_id, v_hash_id;
-    for (index = 0; index < edge_num; ++index)
+    for (index = 0; index < edge_num - 3; index += 4)
+    {
+        u_hash_id = id_count[u_ids[index]] - 1;
+        v_hash_id = id_count[v_ids[index]] - 1;
+        ids[u_hash_id] = u_ids[index];
+        ids[v_hash_id] = v_ids[index];
+        g_succ[u_hash_id][out_degree[u_hash_id]++] = v_hash_id;
+        g_pred[v_hash_id][in_degree[v_hash_id]++] = u_hash_id;
+
+        u_hash_id = id_count[u_ids[index + 1]] - 1;
+        v_hash_id = id_count[v_ids[index + 1]] - 1;
+        ids[u_hash_id] = u_ids[index + 1];
+        ids[v_hash_id] = v_ids[index + 1];
+        g_succ[u_hash_id][out_degree[u_hash_id]++] = v_hash_id;
+        g_pred[v_hash_id][in_degree[v_hash_id]++] = u_hash_id;
+
+        u_hash_id = id_count[u_ids[index + 2]] - 1;
+        v_hash_id = id_count[v_ids[index + 2]] - 1;
+        ids[u_hash_id] = u_ids[index + 2];
+        ids[v_hash_id] = v_ids[index + 2];
+        g_succ[u_hash_id][out_degree[u_hash_id]++] = v_hash_id;
+        g_pred[v_hash_id][in_degree[v_hash_id]++] = u_hash_id;
+
+        u_hash_id = id_count[u_ids[index + 3]] - 1;
+        v_hash_id = id_count[v_ids[index + 3]] - 1;
+        ids[u_hash_id] = u_ids[index + 3];
+        ids[v_hash_id] = v_ids[index + 3];
+        g_succ[u_hash_id][out_degree[u_hash_id]++] = v_hash_id;
+        g_pred[v_hash_id][in_degree[v_hash_id]++] = u_hash_id;
+    }
+
+    for (; index < edge_num; ++index)
     {
         u_hash_id = id_count[u_ids[index]] - 1;
         v_hash_id = id_count[v_ids[index]] - 1;
@@ -946,7 +1082,34 @@ int main()
         g_pred[v_hash_id][in_degree[v_hash_id]++] = u_hash_id;
     }
 
-    for (index = 0; index < id_num; ++index)
+    for (index = 0; index < id_num - 3; index += 4)
+    {
+        sort(g_succ[index], g_succ[index] + out_degree[index]);
+        sort(g_pred[index], g_pred[index] + in_degree[index]);
+        g_succ[index][out_degree[index]] = MAX_INT;
+        g_pred[index][in_degree[index]] = MAX_INT;
+        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3)) + 1;
+
+        sort(g_succ[index + 1], g_succ[index + 1] + out_degree[index + 1]);
+        sort(g_pred[index + 1], g_pred[index + 1] + in_degree[index + 1]);
+        g_succ[index + 1][out_degree[index + 1]] = MAX_INT;
+        g_pred[index + 1][in_degree[index + 1]] = MAX_INT;
+        idsChar_len[index + 1] = uint2ascii(ids[index + 1], idsComma + ((index + 1) << 3)) + 1;
+
+        sort(g_succ[index + 2], g_succ[index + 2] + out_degree[index + 2]);
+        sort(g_pred[index + 2], g_pred[index + 2] + in_degree[index + 2]);
+        g_succ[index + 2][out_degree[index + 2]] = MAX_INT;
+        g_pred[index + 2][in_degree[index + 2]] = MAX_INT;
+        idsChar_len[index + 2] = uint2ascii(ids[index + 2], idsComma + ((index + 2) << 3)) + 1;
+
+        sort(g_succ[index + 3], g_succ[index + 3] + out_degree[index + 3]);
+        sort(g_pred[index + 3], g_pred[index + 3] + in_degree[index + 3]);
+        g_succ[index + 3][out_degree[index + 3]] = MAX_INT;
+        g_pred[index + 3][in_degree[index + 3]] = MAX_INT;
+        idsChar_len[index + 3] = uint2ascii(ids[index + 3], idsComma + ((index + 3) << 3)) + 1;
+    }
+
+    for (; index < id_num; ++index)
     {
         sort(g_succ[index], g_succ[index] + out_degree[index]);
         sort(g_pred[index], g_pred[index] + in_degree[index]);
