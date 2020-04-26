@@ -114,32 +114,23 @@ char *results[] = {res3, res4, res5, res6, res7};
 char str_res[MAX_OUTPUT_FILE_SIZE];
 
 #ifdef NEON
-// 9个字节的赋值
-void *memcpy_128(void *dest, void *src)
+// 16个字节以内的复制
+void memcpy_128(void *d, void *s)
 {
-    register unsigned int i;
-    unsigned long *s = (unsigned long *)src;
-    unsigned long *d = (unsigned long *)dest;
     vst1q_u64(&d[0], vld1q_u64(&s[0]));
-    return dest;
 }
 
 // 大长度字节的复制
-void *memcpy_128(void *dest, void *src, size_t count)
+void memcpy_128(void *d, void *s, size_t count)
 {
     register unsigned int i;
-    unsigned long *s = (unsigned long *)src;
-    unsigned long *d = (unsigned long *)dest;
-    for (i = 0; i <= (count >> 6); ++i)
+    for (i = 0; i <= (count >> 6); ++i, d += 8, s += 8)
     {
         vst1q_u64(&d[0], vld1q_u64(&s[0]));
         vst1q_u64(&d[2], vld1q_u64(&s[2]));
         vst1q_u64(&d[4], vld1q_u64(&s[4]));
         vst1q_u64(&d[6], vld1q_u64(&s[6]));
-        d += 8;
-        s += 8;
     }
-    return dest;
 }
 #endif
 
@@ -352,7 +343,7 @@ void save_fwrite(char *resultFile)
 #else
         memcpy(str_res + str_len, results[1] + thread_offset, res_length[tid][1]);
 #endif
-            str_len += res_length[tid][1];
+        str_len += res_length[tid][1];
     }
 
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN5_RESULT)
