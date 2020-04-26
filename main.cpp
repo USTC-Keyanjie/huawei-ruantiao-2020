@@ -18,8 +18,8 @@
 #include <sys/mman.h>
 #endif
 
-#define MAX_NUM_EDGES 280000 // 280000
-#define MAX_NUM_IDS 204800   // 204800
+#define MAX_NUM_EDGES 280000   // 280000
+#define MAX_NUM_IDS 204800     // 204800
 #define ID_COUNT_SIZE 75000000 // 太大了，要减少
 #define MAX_OUT_DEGREE 51
 #define MAX_IN_DEGREE 51
@@ -69,7 +69,7 @@ unsigned int in_degree[MAX_NUM_IDS];
 unsigned int path[NUM_THREADS][4];
 bool visited[NUM_THREADS][MAX_NUM_IDS];
 
-char idsChar[MAX_NUM_IDS * 10]; // chars id
+char idsChar[MAX_NUM_IDS * 8]; // chars id
 unsigned int idsChar_len[MAX_NUM_IDS];
 
 Three_pred three_uj[NUM_THREADS][MAX_NUM_THREE_PREDS];
@@ -174,19 +174,13 @@ unsigned int digits10_length(unsigned int k2)
     if (k2 < 1000)
         return 3;
 
-    if (k2 < 1e9)
-    {
-        if (k2 < 1e7)
-        {
-            if (k2 < 1e5)
-            {
-                return 4 + (k2 >= 1e4);
-            }
-            return 6 + (k2 >= 1e6);
-        }
-        return 8 + (k2 >= 1e8);
-    }
-    return 10;
+    if (k2 < 1e5)
+        return 4 + (k2 >= 1e4);
+
+    if (k2 < 1e7)
+        return 6 + (k2 >= 1e6);
+
+    return 8;
 }
 
 unsigned int uint2ascii(unsigned int value, char *dst)
@@ -203,7 +197,7 @@ unsigned int uint2ascii(unsigned int value, char *dst)
 
     while (value >= 100)
     {
-        const unsigned int u = (value % 100) * 2;
+        const unsigned int u = (value % 100) << 1;
         value /= 100;
         dst[next - 1] = digits[u];
         dst[next] = digits[u + 1];
@@ -216,7 +210,7 @@ unsigned int uint2ascii(unsigned int value, char *dst)
     }
     else
     {
-        unsigned int u = value * 2;
+        unsigned int u = value << 1;
         dst[next - 1] = digits[u];
         dst[next] = digits[u + 1];
     }
@@ -257,12 +251,12 @@ void save_fwrite(char *resultFile)
             for (id = 0; id < 2; ++id)
             {
                 result_id = results[0][thread_offset + line_offset + id];
-                memcpy(str_res + str_len, idsChar + (result_id << 3) + (result_id << 1), idsChar_len[result_id]);
+                memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
                 str_len += idsChar_len[result_id];
                 str_res[str_len++] = ',';
             }
             result_id = results[0][thread_offset + line_offset + 2];
-            memcpy(str_res + str_len, idsChar + (result_id << 3) + (result_id << 1), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
             str_len += idsChar_len[result_id];
             str_res[str_len++] = '\n';
         }
@@ -276,12 +270,12 @@ void save_fwrite(char *resultFile)
             for (id = 0; id < 3; ++id)
             {
                 result_id = results[1][thread_offset + line_offset + id];
-                memcpy(str_res + str_len, idsChar + (result_id << 3) + (result_id << 1), idsChar_len[result_id]);
+                memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
                 str_len += idsChar_len[result_id];
                 str_res[str_len++] = ',';
             }
             result_id = results[1][thread_offset + line_offset + 3];
-            memcpy(str_res + str_len, idsChar + (result_id << 3) + (result_id << 1), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
             str_len += idsChar_len[result_id];
             str_res[str_len++] = '\n';
         }
@@ -295,12 +289,12 @@ void save_fwrite(char *resultFile)
             for (id = 0; id < 4; ++id)
             {
                 result_id = results[2][thread_offset + line_offset + id];
-                memcpy(str_res + str_len, idsChar + (result_id << 3) + (result_id << 1), idsChar_len[result_id]);
+                memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
                 str_len += idsChar_len[result_id];
                 str_res[str_len++] = ',';
             }
             result_id = results[2][thread_offset + line_offset + 4];
-            memcpy(str_res + str_len, idsChar + (result_id << 3) + (result_id << 1), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
             str_len += idsChar_len[result_id];
             str_res[str_len++] = '\n';
         }
@@ -314,12 +308,12 @@ void save_fwrite(char *resultFile)
             for (id = 0; id < 5; ++id)
             {
                 result_id = results[3][thread_offset + line_offset + id];
-                memcpy(str_res + str_len, idsChar + (result_id << 3) + (result_id << 1), idsChar_len[result_id]);
+                memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
                 str_len += idsChar_len[result_id];
                 str_res[str_len++] = ',';
             }
             result_id = results[3][thread_offset + line_offset + 5];
-            memcpy(str_res + str_len, idsChar + (result_id << 3) + (result_id << 1), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
             str_len += idsChar_len[result_id];
             str_res[str_len++] = '\n';
         }
@@ -333,12 +327,12 @@ void save_fwrite(char *resultFile)
             for (id = 0; id < 6; ++id)
             {
                 result_id = results[4][thread_offset + line_offset + id];
-                memcpy(str_res + str_len, idsChar + (result_id << 3) + (result_id << 1), idsChar_len[result_id]);
+                memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
                 str_len += idsChar_len[result_id];
                 str_res[str_len++] = ',';
             }
             result_id = results[4][thread_offset + line_offset + 6];
-            memcpy(str_res + str_len, idsChar + (result_id << 3) + (result_id << 1), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
             str_len += idsChar_len[result_id];
             str_res[str_len++] = '\n';
         }
@@ -711,7 +705,7 @@ int main()
         sort(g_pred[index], g_pred[index] + in_degree[index]);
         g_succ[index][out_degree[index]] = MAX_INT;
         g_pred[index][in_degree[index]] = MAX_INT;
-        idsChar_len[index] = uint2ascii(ids[index], idsChar + (index << 3) + (index << 1));
+        idsChar_len[index] = uint2ascii(ids[index], idsChar + (index << 3));
     }
 
     register int tid;
