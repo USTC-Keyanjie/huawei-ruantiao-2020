@@ -3,13 +3,10 @@
 // 2. open //#define MMAP
 // 3. open //#define NEON
 
-#define TEST
-// #define MMAP // 使用mmap函数
-// #define NEON // 打开NEON特性的算子
-
-// open: dfs中生成数字结果，之后再转成结果字符串
-// close: dfs中直接生成字符串结果，之后拼接为结果字符串
-// #define DFS2NUM
+// #define TEST
+#define MMAP // 使用mmap函数
+#define NEON // 打开NEON特性的算子
+#define DFS2NUM // open: dfs中生成数字结果，之后再转成结果字符串 close: dfs中直接生成字符串结果，之后拼接为结果字符串
 
 #include <bits/stdc++.h>
 #include <fcntl.h>
@@ -30,8 +27,8 @@
 #include <stddef.h>
 #endif
 
-#define MAX_NUM_EDGES 280000 // 280000
-#define MAX_NUM_IDS 204800   // 204800
+#define MAX_NUM_EDGES 280000
+#define MAX_NUM_IDS 200005
 #define MAX_OUT_DEGREE 51
 #define MAX_IN_DEGREE 51
 
@@ -74,9 +71,8 @@ unsigned int in_degree[MAX_NUM_IDS];
 unsigned int path[NUM_THREADS][4];
 bool visited[NUM_THREADS][MAX_NUM_IDS];
 
-
 char idsComma[MAX_NUM_IDS * 8]; // id + ','
-char idsLF[MAX_NUM_IDS * 8];    // id + '\n'
+
 unsigned int idsChar_len[MAX_NUM_IDS];
 
 Three_pred three_uj[NUM_THREADS][MAX_NUM_THREE_PREDS];
@@ -256,7 +252,7 @@ unsigned int res_count_digits10_length(unsigned int num)
     return 7;
 }
 
-unsigned int res_count_uint2ascii(unsigned int value, char *dst1)
+unsigned int res_count_uint2ascii(unsigned int value, char *dst)
 {
     static const char digits[] =
         "0001020304050607080910111213141516171819"
@@ -272,20 +268,20 @@ unsigned int res_count_uint2ascii(unsigned int value, char *dst1)
     {
         const unsigned int u = (value % 100) << 1;
         value /= 100;
-        dst1[next - 1] = digits[u];
-        dst1[next] = digits[u + 1];
+        dst[next - 1] = digits[u];
+        dst[next] = digits[u + 1];
         next -= 2;
     }
 
     if (value < 10)
     {
-        dst1[next] = '0' + value;
+        dst[next] = '0' + value;
     }
     else
     {
         unsigned int u = value << 1;
-        dst1[next - 1] = digits[u];
-        dst1[next] = digits[u + 1];
+        dst[next - 1] = digits[u];
+        dst[next] = digits[u + 1];
     }
     return length;
 }
@@ -315,7 +311,7 @@ unsigned int digits10_length(unsigned int num)
     return 6;
 }
 
-unsigned int uint2ascii(unsigned int value, char *dst1, char *dst2)
+unsigned int uint2ascii(unsigned int value, char *dst)
 {
     static const char digits[] =
         "0001020304050607080910111213141516171819"
@@ -325,33 +321,27 @@ unsigned int uint2ascii(unsigned int value, char *dst1, char *dst2)
         "8081828384858687888990919293949596979899";
 
     const unsigned int length = digits10_length(value);
-    dst1[length] = ',';
-    dst2[length] = '\n';
+    dst[length] = ',';
     unsigned int next = length - 1;
 
     while (value >= 100)
     {
         const unsigned int u = (value % 100) << 1;
         value /= 100;
-        dst1[next - 1] = digits[u];
-        dst2[next - 1] = digits[u];
-        dst1[next] = digits[u + 1];
-        dst2[next] = digits[u + 1];
+        dst[next - 1] = digits[u];
+        dst[next] = digits[u + 1];
         next -= 2;
     }
 
     if (value < 10)
     {
-        dst1[next] = '0' + value;
-        dst2[next] = '0' + value;
+        dst[next] = '0' + value;
     }
     else
     {
         unsigned int u = value << 1;
-        dst1[next - 1] = digits[u];
-        dst2[next - 1] = digits[u];
-        dst1[next] = digits[u + 1];
-        dst2[next] = digits[u + 1];
+        dst[next - 1] = digits[u];
+        dst[next] = digits[u + 1];
     }
     return length;
 }
@@ -382,7 +372,6 @@ void save_fwrite(char *resultFile)
 #endif
 
     FILE *fp = fopen(resultFile, "w");
-    // char *str_res = (char *)malloc(MAX_OUTPUT_FILE_SIZE);
 
     register unsigned int str_len = res_count_uint2ascii(all_res_count, str_res);
     str_res[str_len++] = '\n';
@@ -407,11 +396,12 @@ void save_fwrite(char *resultFile)
             }
             result_id = results[0][thread_offset + line_offset + 2];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsLF + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
 #else
-            memcpy(str_res + str_len, idsLF + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
+            str_res[str_len - 1] = '\n';
         }
     }
 
@@ -432,11 +422,12 @@ void save_fwrite(char *resultFile)
             }
             result_id = results[1][thread_offset + line_offset + 3];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsLF + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
 #else
-            memcpy(str_res + str_len, idsLF + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
+            str_res[str_len - 1] = '\n';
         }
     }
 
@@ -457,11 +448,12 @@ void save_fwrite(char *resultFile)
             }
             result_id = results[2][thread_offset + line_offset + 4];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsLF + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
 #else
-            memcpy(str_res + str_len, idsLF + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
+            str_res[str_len - 1] = '\n';
         }
     }
 
@@ -482,11 +474,12 @@ void save_fwrite(char *resultFile)
             }
             result_id = results[3][thread_offset + line_offset + 5];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsLF + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
 #else
-            memcpy(str_res + str_len, idsLF + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
+            str_res[str_len - 1] = '\n';
         }
     }
 
@@ -507,11 +500,12 @@ void save_fwrite(char *resultFile)
             }
             result_id = results[4][thread_offset + line_offset + 6];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsLF + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
 #else
-            memcpy(str_res + str_len, idsLF + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
+            str_res[str_len - 1] = '\n';
         }
     }
 #else
@@ -656,18 +650,20 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
             memcpy_128(
                 results[0] + tid * NUM_LEN3_RESULT + (res_count[tid][0] << 1) + res_count[tid][0],
-                &three_uj[tid][index].u);
+                &three_uj[tid][index].u
+                );
 #else
             memcpy(
                 results[0] + tid * NUM_LEN3_RESULT + (res_count[tid][0] << 1) + res_count[tid][0],
                 &three_uj[tid][index].u,
-                12);
+                12
+                );
 #endif
             ++res_count[tid][0];
 
 #else
-
             res_count[tid]++;
+
 #ifdef NEON
             memcpy_128(
                 results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0],
@@ -695,14 +691,15 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
             memcpy_128(
                 results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0],
-                idsLF + (three_uj[tid][index].k2 << 3));
+                idsComma + (three_uj[tid][index].k2 << 3));
 #else
             memcpy(
                 results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0],
-                idsLF + (three_uj[tid][index].k2 << 3),
+                idsComma + (three_uj[tid][index].k2 << 3),
                 idsChar_len[three_uj[tid][index].k2]);
 #endif
             res_length[tid][0] += idsChar_len[three_uj[tid][index].k2];
+            results[0][tid * NUM_LEN3_RESULT + res_length[tid][0] - 1] = '\n';
 #endif
         }
     }
@@ -779,7 +776,8 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
                             memcpy_128(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsComma + (next_id << 3);
+                                idsComma + (next_id << 3)
+                                );
 #else
                             memcpy(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
@@ -791,7 +789,8 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
                             memcpy_128(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsComma + (three_uj[tid][index].k1 << 3);
+                                idsComma + (three_uj[tid][index].k1 << 3)
+                                );
 #else
                             memcpy(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
@@ -803,14 +802,16 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
                             memcpy_128(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsLF + (three_uj[tid][index].k2 << 3);
+                                idsComma + (three_uj[tid][index].k2 << 3)
+                                );
 #else
                             memcpy(
                                 results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsLF + (three_uj[tid][index].k2 << 3),
+                                idsComma + (three_uj[tid][index].k2 << 3),
                                 idsChar_len[three_uj[tid][index].k2]);
 #endif
                             res_length[tid][depth + 1] += idsChar_len[three_uj[tid][index].k2];
+                            results[depth + 1][tid * thread_offset + res_length[tid][depth + 1] - 1] = '\n';
 #endif
                         }
                     }
@@ -951,7 +952,7 @@ int main()
         sort(g_pred[index], g_pred[index] + in_degree[index]);
         g_succ[index][out_degree[index]] = MAX_INT;
         g_pred[index][in_degree[index]] = MAX_INT;
-        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3), idsLF + (index << 3)) + 1;
+        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3)) + 1;
     }
 
     register unsigned int tid;
