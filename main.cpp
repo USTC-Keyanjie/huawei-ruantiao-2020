@@ -26,11 +26,11 @@
 
 #define MAX_NUM_THREE_PREDS 10000
 
-#define NUM_LEN3_RESULT 1200000
-#define NUM_LEN4_RESULT 1600000
-#define NUM_LEN5_RESULT 4000000
-#define NUM_LEN6_RESULT 9000000
-#define NUM_LEN7_RESULT 14000000
+#define NUM_LEN3_RESULT 1200000 * 8
+#define NUM_LEN4_RESULT 1600000 * 8
+#define NUM_LEN5_RESULT 4000000 * 8
+#define NUM_LEN6_RESULT 9000000 * 8
+#define NUM_LEN7_RESULT 14000000 * 8
 
 #define MAX_OUTPUT_FILE_SIZE 140000000 //submit: 140000000 test: 520000000
 
@@ -78,6 +78,7 @@ unsigned int reachable[NUM_THREADS][MAX_NUM_IDS];
 unsigned int currentJs[NUM_THREADS][MAX_NUM_THREE_PREDS];
 unsigned int currentJs_len[NUM_THREADS];
 
+/*
 //  __attribute__((aligned(64)))
 unsigned int res3[NUM_THREADS * NUM_LEN3_RESULT];
 unsigned int res4[NUM_THREADS * NUM_LEN4_RESULT];
@@ -87,6 +88,18 @@ unsigned int res7[NUM_THREADS * NUM_LEN7_RESULT];
 
 unsigned int res_count[NUM_THREADS][5];
 unsigned int *results[] = {res3, res4, res5, res6, res7};
+*/
+
+// 每个数字字符串8个字节，这样存储结构是原来的两倍大
+char res3[NUM_THREADS * NUM_LEN3_RESULT];
+char res4[NUM_THREADS * NUM_LEN4_RESULT];
+char res5[NUM_THREADS * NUM_LEN5_RESULT];
+char res6[NUM_THREADS * NUM_LEN6_RESULT];
+char res7[NUM_THREADS * NUM_LEN7_RESULT];
+
+unsigned int res_count[NUM_THREADS];
+unsigned int res_length[NUM_THREADS][5];
+char *results[] = {res3, res4, res5, res6, res7};
 
 void input_fstream(char *testFile)
 {
@@ -221,12 +234,10 @@ void save_fwrite(char *resultFile)
 {
     register unsigned int tid;
     unsigned int all_res_count = 0;
-    for (unsigned int res_len = 0; res_len < 5; ++res_len)
+
+    for (tid = 0; tid < NUM_THREADS; ++tid)
     {
-        for (tid = 0; tid < NUM_THREADS; ++tid)
-        {
-            all_res_count += res_count[tid][res_len];
-        }
+        all_res_count += res_count[tid];
     }
 
 #ifdef TEST
@@ -240,102 +251,37 @@ void save_fwrite(char *resultFile)
     register unsigned int str_len = uint2ascii(all_res_count, str_res);
     str_res[str_len++] = '\n';
 
-    register unsigned int thread_offset, line_offset, line, id;
-    unsigned int result_id;
+    register unsigned int thread_offset;
 
     // len 3
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN3_RESULT)
     {
-        for (line = 0, line_offset = 0; line < res_count[tid][0]; ++line, line_offset += 3)
-        {
-            for (id = 0; id < 2; ++id)
-            {
-                result_id = results[0][thread_offset + line_offset + id];
-                memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
-                str_len += idsChar_len[result_id];
-                str_res[str_len++] = ',';
-            }
-            result_id = results[0][thread_offset + line_offset + 2];
-            memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
-            str_len += idsChar_len[result_id];
-            str_res[str_len++] = '\n';
-        }
+        memcpy(str_res + str_len, results[0] + thread_offset, res_length[tid][0]);
+        str_len += res_length[tid][0];
     }
 
-    // len 4
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN4_RESULT)
     {
-        for (line = 0, line_offset = 0; line < res_count[tid][1]; ++line, line_offset += 4)
-        {
-            for (id = 0; id < 3; ++id)
-            {
-                result_id = results[1][thread_offset + line_offset + id];
-                memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
-                str_len += idsChar_len[result_id];
-                str_res[str_len++] = ',';
-            }
-            result_id = results[1][thread_offset + line_offset + 3];
-            memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
-            str_len += idsChar_len[result_id];
-            str_res[str_len++] = '\n';
-        }
+        memcpy(str_res + str_len, results[1] + thread_offset, res_length[tid][1]);
+        str_len += res_length[tid][1];
     }
 
-    // len 5
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN5_RESULT)
     {
-        for (line = 0, line_offset = 0; line < res_count[tid][2]; ++line, line_offset += 5)
-        {
-            for (id = 0; id < 4; ++id)
-            {
-                result_id = results[2][thread_offset + line_offset + id];
-                memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
-                str_len += idsChar_len[result_id];
-                str_res[str_len++] = ',';
-            }
-            result_id = results[2][thread_offset + line_offset + 4];
-            memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
-            str_len += idsChar_len[result_id];
-            str_res[str_len++] = '\n';
-        }
+        memcpy(str_res + str_len, results[2] + thread_offset, res_length[tid][2]);
+        str_len += res_length[tid][2];
     }
 
-    // len 6
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN6_RESULT)
     {
-        for (line = 0, line_offset = 0; line < res_count[tid][3]; ++line, line_offset += 6)
-        {
-            for (id = 0; id < 5; ++id)
-            {
-                result_id = results[3][thread_offset + line_offset + id];
-                memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
-                str_len += idsChar_len[result_id];
-                str_res[str_len++] = ',';
-            }
-            result_id = results[3][thread_offset + line_offset + 5];
-            memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
-            str_len += idsChar_len[result_id];
-            str_res[str_len++] = '\n';
-        }
+        memcpy(str_res + str_len, results[3] + thread_offset, res_length[tid][3]);
+        str_len += res_length[tid][3];
     }
 
-    // len 7
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN7_RESULT)
     {
-        for (line = 0, line_offset = 0; line < res_count[tid][4]; ++line, line_offset += 7)
-        {
-            for (id = 0; id < 6; ++id)
-            {
-                result_id = results[4][thread_offset + line_offset + id];
-                memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
-                str_len += idsChar_len[result_id];
-                str_res[str_len++] = ',';
-            }
-            result_id = results[4][thread_offset + line_offset + 6];
-            memcpy(str_res + str_len, idsChar + (result_id << 3), idsChar_len[result_id]);
-            str_len += idsChar_len[result_id];
-            str_res[str_len++] = '\n';
-        }
+        memcpy(str_res + str_len, results[4] + thread_offset, res_length[tid][4]);
+        str_len += res_length[tid][4];
     }
 
     str_res[str_len] = '\0';
@@ -345,43 +291,6 @@ void save_fwrite(char *resultFile)
 #ifdef TEST
     cout << "fwrite output time " << (double)(clock() - write_time) / CLOCKS_PER_SEC << "s" << endl;
 #endif
-}
-
-// recursion version
-void pre_dfs_rec(unsigned int start_id, unsigned int cur_id, int depth, int tid)
-{
-    unsigned int begin = 0;
-    if (depth < 2)
-    {
-        while (start_id >= g_pred[cur_id][begin])
-            ++begin;
-    }
-    else
-    {
-        while (start_id > g_pred[cur_id][begin])
-            ++begin;
-    }
-
-    for (; begin < in_degree[cur_id]; ++begin)
-    {
-        unsigned int next_id = g_pred[cur_id][begin];
-        if (!visited[tid][next_id])
-        {
-            path[tid][depth] = next_id;
-
-            if (depth == 2)
-            {
-                if (path[tid][2] != path[tid][0])
-                    three_uj[tid][three_uj_len[tid]++] = {path[tid][2], path[tid][1], path[tid][0]};
-            }
-            else
-            {
-                visited[tid][next_id] = true;
-                pre_dfs_rec(start_id, next_id, depth + 1, tid);
-                visited[tid][next_id] = false;
-            }
-        }
-    }
 }
 
 // iteration version
@@ -438,64 +347,6 @@ void pre_dfs_ite(register unsigned int start_id, int tid)
     }
 }
 
-// recursion version
-void dfs_rec(unsigned int start_id, unsigned int cur_id, int depth, int tid)
-{
-    if (reachable[tid][cur_id])
-    {
-        unsigned int thread_offset = 0;
-        switch (depth)
-        {
-        case 0:
-            thread_offset = NUM_LEN3_RESULT;
-            break;
-        case 1:
-            thread_offset = NUM_LEN4_RESULT;
-            break;
-        case 2:
-            thread_offset = NUM_LEN5_RESULT;
-            break;
-        case 3:
-            thread_offset = NUM_LEN6_RESULT;
-            break;
-        case 4:
-            thread_offset = NUM_LEN7_RESULT;
-            break;
-        default:
-            break;
-        }
-        for (unsigned int index = reachable[tid][cur_id] - 1; three_uj[tid][index].u == cur_id; ++index)
-        {
-            if (!visited[tid][three_uj[tid][index].k1] && !visited[tid][three_uj[tid][index].k2])
-            {
-                memcpy(results[depth] + tid * thread_offset + res_count[tid][depth]++ * (depth + 3), path[tid], depth << 2);
-                results[depth][tid * thread_offset + res_count[tid][depth] * (depth + 3) - 3] = cur_id;
-                results[depth][tid * thread_offset + res_count[tid][depth] * (depth + 3) - 2] = three_uj[tid][index].k1;
-                results[depth][tid * thread_offset + res_count[tid][depth] * (depth + 3) - 1] = three_uj[tid][index].k2;
-            }
-        }
-    }
-
-    if (depth < 4)
-    {
-        unsigned int begin = 0;
-        while (start_id >= g_succ[cur_id][begin])
-            ++begin;
-
-        visited[tid][cur_id] = true;
-        path[tid][depth] = cur_id;
-
-        for (; begin < out_degree[cur_id]; ++begin)
-        {
-            if (!visited[tid][g_succ[cur_id][begin]])
-            {
-                dfs_rec(start_id, g_succ[cur_id][begin], depth + 1, tid);
-            }
-        }
-        visited[tid][cur_id] = false;
-    }
-}
-
 // iteration version
 void dfs_ite(unsigned int start_id, int tid)
 {
@@ -517,9 +368,22 @@ void dfs_ite(unsigned int start_id, int tid)
     {
         for (unsigned int index = reachable[tid][cur_id] - 1; three_uj[tid][index].u == cur_id; ++index)
         {
-            results[0][tid * NUM_LEN3_RESULT + ++res_count[tid][0] * 3 - 3] = cur_id;
-            results[0][tid * NUM_LEN3_RESULT + res_count[tid][0] * 3 - 2] = three_uj[tid][index].k1;
-            results[0][tid * NUM_LEN3_RESULT + res_count[tid][0] * 3 - 1] = three_uj[tid][index].k2;
+            // results[0][tid * NUM_LEN3_RESULT + ++res_count[tid][0] * 3 - 3] = cur_id;
+            // results[0][tid * NUM_LEN3_RESULT + res_count[tid][0] * 3 - 2] = three_uj[tid][index].k1;
+            // results[0][tid * NUM_LEN3_RESULT + res_count[tid][0] * 3 - 1] = three_uj[tid][index].k2;
+
+            res_count[tid]++;
+            memcpy(results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0], idsChar + (cur_id << 3), idsChar_len[cur_id]);
+            res_length[tid][0] += idsChar_len[cur_id];
+            results[0][tid * NUM_LEN3_RESULT + res_length[tid][0]++] = ',';
+
+            memcpy(results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0], idsChar + (three_uj[tid][index].k1 << 3), idsChar_len[three_uj[tid][index].k1]);
+            res_length[tid][0] += idsChar_len[three_uj[tid][index].k1];
+            results[0][tid * NUM_LEN3_RESULT + res_length[tid][0]++] = ',';
+
+            memcpy(results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0], idsChar + (three_uj[tid][index].k2 << 3), idsChar_len[three_uj[tid][index].k2]);
+            res_length[tid][0] += idsChar_len[three_uj[tid][index].k2];
+            results[0][tid * NUM_LEN3_RESULT + res_length[tid][0]++] = '\n';
         }
     }
 
@@ -562,10 +426,30 @@ void dfs_ite(unsigned int start_id, int tid)
                     {
                         if (!visited[tid][three_uj[tid][index].k1] && !visited[tid][three_uj[tid][index].k2])
                         {
-                            memcpy(results[depth + 1] + tid * thread_offset + res_count[tid][depth + 1]++ * (depth + 4), path[tid], (depth + 1) << 2);
-                            results[depth + 1][tid * thread_offset + res_count[tid][depth + 1] * (depth + 4) - 3] = next_id;
-                            results[depth + 1][tid * thread_offset + res_count[tid][depth + 1] * (depth + 4) - 2] = three_uj[tid][index].k1;
-                            results[depth + 1][tid * thread_offset + res_count[tid][depth + 1] * (depth + 4) - 1] = three_uj[tid][index].k2;
+                            // memcpy(results[depth + 1] + tid * thread_offset + res_count[tid][depth + 1]++ * (depth + 4), path[tid], (depth + 1) << 2);
+                            // results[depth + 1][tid * thread_offset + res_count[tid][depth + 1] * (depth + 4) - 3] = next_id;
+                            // results[depth + 1][tid * thread_offset + res_count[tid][depth + 1] * (depth + 4) - 2] = three_uj[tid][index].k1;
+                            // results[depth + 1][tid * thread_offset + res_count[tid][depth + 1] * (depth + 4) - 1] = three_uj[tid][index].k2;
+
+                            res_count[tid]++;
+                            for (register int i = 0; i <= depth; ++i)
+                            {
+                                memcpy(results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1], idsChar + (path[tid][i] << 3), idsChar_len[path[tid][i]]);
+                                res_length[tid][depth + 1] += idsChar_len[path[tid][i]];
+                                results[depth + 1][tid * thread_offset + res_length[tid][depth + 1]++] = ',';
+                            }
+
+                            memcpy(results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1], idsChar + (next_id << 3), idsChar_len[next_id]);
+                            res_length[tid][depth + 1] += idsChar_len[next_id];
+                            results[depth + 1][tid * thread_offset + res_length[tid][depth + 1]++] = ',';
+
+                            memcpy(results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1], idsChar + (three_uj[tid][index].k1 << 3), idsChar_len[three_uj[tid][index].k1]);
+                            res_length[tid][depth + 1] += idsChar_len[three_uj[tid][index].k1];
+                            results[depth + 1][tid * thread_offset + res_length[tid][depth + 1]++] = ',';
+
+                            memcpy(results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1], idsChar + (three_uj[tid][index].k2 << 3), idsChar_len[three_uj[tid][index].k2]);
+                            res_length[tid][depth + 1] += idsChar_len[three_uj[tid][index].k2];
+                            results[depth + 1][tid * thread_offset + res_length[tid][depth + 1]++] = '\n';
                         }
                     }
                 }
