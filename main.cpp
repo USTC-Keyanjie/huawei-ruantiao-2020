@@ -3,9 +3,9 @@
 // 2. open //#define MMAP
 // 3. open //#define NEON
 
-// #define TEST
-#define MMAP    // 使用mmap函数
-#define NEON    // 打开NEON特性的算子
+#define TEST
+#define MMAP // 使用mmap函数
+#define NEON // 打开NEON特性的算子
 
 #include <bits/stdc++.h>
 #include <fcntl.h>
@@ -94,7 +94,7 @@ struct Result
     unsigned int res5[NUM_LEN5_RESULT];
     unsigned int res6[NUM_LEN6_RESULT];
     unsigned int res7[NUM_LEN7_RESULT];
-    unsigned int res_count[5];
+    unsigned int res_count[5] = {0};
 } results[NUM_THREADS];
 
 char str_res[MAX_OUTPUT_FILE_SIZE];
@@ -346,7 +346,7 @@ void save_fwrite(char *resultFile)
     register unsigned int str_len = res_count_uint2ascii(all_res_count, str_res);
     str_res[str_len++] = '\n';
 
-    register unsigned int thread_offset, line_offset, line, id, result_id;
+    register unsigned int thread_offset, line_offset, line, result_id;
 
     // len 3
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN3_RESULT)
@@ -677,8 +677,7 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 #ifdef NEON
             memcpy_128(
                 results[tid].res3 + (results[tid].res_count[0] << 1) + results[tid].res_count[0],
-                &results[tid].three_uj[index].u
-                );
+                &results[tid].three_uj[index].u);
 #else
             memcpy(
                 results[tid].res3 + (results[tid].res_count[0] << 1) + results[tid].res_count[0],
@@ -714,11 +713,11 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
                             if (!results[tid].visited[results[tid].three_uj[index].k1] && !results[tid].visited[results[tid].three_uj[index].k2])
                             {
 #ifdef NEON
-                                memcpy_128(results[tid].res4 + results[tid].res_count[1]++ * 4, results[tid].path);
-                                memcpy_128(results[tid].res4 + results[tid].res_count[1] * 4 - 3, &results[tid].three_uj[index].u);
+                                memcpy_128(results[tid].res4 + (results[tid].res_count[1]++ << 2), results[tid].path);
+                                memcpy_128(results[tid].res4 + (results[tid].res_count[1] << 2) - 3, &results[tid].three_uj[index].u);
 #else
-                                memcpy(results[tid].res4 + results[tid].res_count[1]++ * 4, results[tid].path, 4);
-                                memcpy(results[tid].res4 + results[tid].res_count[1] * 4 - 3, &results[tid].three_uj[index].u, 12);
+                                memcpy(results[tid].res4 + (results[tid].res_count[1]++ << 2), results[tid].path, 4);
+                                memcpy(results[tid].res4 + (results[tid].res_count[1] << 2) - 3, &results[tid].three_uj[index].u, 12);
 #endif
                             }
                         }
@@ -730,11 +729,11 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
                             if (!results[tid].visited[results[tid].three_uj[index].k1] && !results[tid].visited[results[tid].three_uj[index].k2])
                             {
 #ifdef NEON
-                                memcpy_128(results[tid].res5 + results[tid].res_count[2]++ * 5, results[tid].path);
-                                memcpy_128(results[tid].res5 + results[tid].res_count[2] * 5 - 3, &results[tid].three_uj[index].u);
+                                memcpy_128(results[tid].res5 + (results[tid].res_count[2] << 2) + results[tid].res_count[2]++, results[tid].path);
+                                memcpy_128(results[tid].res5 + (results[tid].res_count[2] << 2) + results[tid].res_count[2] - 3, &results[tid].three_uj[index].u);
 #else
-                                memcpy(results[tid].res5 + results[tid].res_count[2]++ * 5, results[tid].path, 8);
-                                memcpy(results[tid].res5 + results[tid].res_count[2] * 5 - 3, &results[tid].three_uj[index].u, 12);
+                                memcpy(results[tid].res5 + (results[tid].res_count[2] << 2) + results[tid].res_count[2]++, results[tid].path, 8);
+                                memcpy(results[tid].res5 + (results[tid].res_count[2] << 2) + results[tid].res_count[2] - 3, &results[tid].three_uj[index].u, 12);
 #endif
                             }
                         }
@@ -746,11 +745,11 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
                             if (!results[tid].visited[results[tid].three_uj[index].k1] && !results[tid].visited[results[tid].three_uj[index].k2])
                             {
 #ifdef NEON
-                                memcpy_128(results[tid].res6 + results[tid].res_count[3]++ * 6, results[tid].path);
-                                memcpy_128(results[tid].res6 + results[tid].res_count[3] * 6 - 3, &results[tid].three_uj[index].u);
+                                memcpy_128(results[tid].res6 + (results[tid].res_count[3] << 2) + (results[tid].res_count[3]++ << 1), results[tid].path);
+                                memcpy_128(results[tid].res6 + (results[tid].res_count[3] << 2) + (results[tid].res_count[3] << 1) - 3, &results[tid].three_uj[index].u);
 #else
-                                memcpy(results[tid].res6 + results[tid].res_count[3]++ * 6, results[tid].path, 12);
-                                memcpy(results[tid].res6 + results[tid].res_count[3] * 6 - 3, &results[tid].three_uj[index].u, 12);
+                                memcpy(results[tid].res6 + (results[tid].res_count[3] << 2) + (results[tid].res_count[3]++ << 1), results[tid].path, 12);
+                                memcpy(results[tid].res6 + (results[tid].res_count[3] << 2) + (results[tid].res_count[3] << 1) - 3, &results[tid].three_uj[index].u, 12);
 #endif
                             }
                         }
@@ -761,11 +760,11 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
                             if (!results[tid].visited[results[tid].three_uj[index].k1] && !results[tid].visited[results[tid].three_uj[index].k2])
                             {
 #ifdef NEON
-                                memcpy_128(results[tid].res7 + results[tid].res_count[4]++ * 7, results[tid].path);
-                                memcpy_128(results[tid].res7 + results[tid].res_count[4] * 7 - 3, &results[tid].three_uj[index].u);
+                                memcpy_128(results[tid].res7 + (results[tid].res_count[4] << 2) + (results[tid].res_count[4] << 1) + results[tid].res_count[4]++, results[tid].path);
+                                memcpy_128(results[tid].res7 + (results[tid].res_count[4] << 2) + (results[tid].res_count[4] << 1) + results[tid].res_count[4] - 3, &results[tid].three_uj[index].u);
 #else
-                                memcpy(results[tid].res7 + results[tid].res_count[4]++ * 7, results[tid].path, 16);
-                                memcpy(results[tid].res7 + results[tid].res_count[4] * 7 - 3, &results[tid].three_uj[index].u, 12);
+                                memcpy(results[tid].res7 + (results[tid].res_count[4] << 2) + (results[tid].res_count[4] << 1) + results[tid].res_count[4]++, results[tid].path, 16);
+                                memcpy(results[tid].res7 + (results[tid].res_count[4] << 2) + (results[tid].res_count[4] << 1) + results[tid].res_count[4] - 3, &results[tid].three_uj[index].u, 12);
 #endif
                             }
                         }
