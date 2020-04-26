@@ -6,7 +6,7 @@
 // #define TEST
 #define MMAP    // 使用mmap函数
 #define NEON    // 打开NEON特性的算子
-#define DFS2NUM // open: dfs中生成数字结果，之后再转成结果字符串 close: dfs中直接生成字符串结果，之后拼接为结果字符串
+// #define DFS2NUM // open: dfs中生成数字结果，之后再转成结果字符串 close: dfs中直接生成字符串结果，之后拼接为结果字符串
 
 #include <bits/stdc++.h>
 #include <fcntl.h>
@@ -86,7 +86,7 @@ unsigned int currentJs_len[NUM_THREADS];
 #define NUM_LEN4_RESULT 1600000
 #define NUM_LEN5_RESULT 4000000
 #define NUM_LEN6_RESULT 9000000
-#define NUM_LEN7_RESULT 14000000
+#define NUM_LEN7_RESULT 13000000
 
 unsigned int res3[NUM_THREADS * NUM_LEN3_RESULT];
 unsigned int res4[NUM_THREADS * NUM_LEN4_RESULT];
@@ -103,7 +103,7 @@ unsigned int *results[] = {res3, res4, res5, res6, res7};
 #define NUM_LEN4_RESULT 1600000 * 8
 #define NUM_LEN5_RESULT 4000000 * 8
 #define NUM_LEN6_RESULT 9000000 * 8
-#define NUM_LEN7_RESULT 14000000 * 8
+#define NUM_LEN7_RESULT 13000000 * 8
 
 // 每个数字字符串8个字节，这样存储结构是原来的两倍大
 char res3[NUM_THREADS * NUM_LEN3_RESULT];
@@ -377,7 +377,7 @@ void save_fwrite(char *resultFile)
     str_res[str_len++] = '\n';
 
 #ifdef DFS2NUM
-    register unsigned int thread_offset, line_offset, line, id, result_id;
+    register unsigned int thread_offset, line_offset, line, result_id;
 
     // len 3
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN3_RESULT)
@@ -744,7 +744,7 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
     while (start_id >= g_succ[start_id][begin_pos[0]])
         ++begin_pos[0];
 
-    register unsigned int cur_id = start_id, next_id, thread_offset = 0;
+    register unsigned int cur_id = start_id, next_id;
     register int depth = 0;
     register unsigned int *stack[4];
     stack[0] = g_succ[cur_id];
@@ -831,93 +831,369 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
                     switch (depth)
                     {
                     case 0:
-                        thread_offset = NUM_LEN4_RESULT;
+                        for (unsigned int index = reachable[tid][next_id] - 1; three_uj[tid][index].u == next_id; ++index)
+                        {
+                            if (!visited[tid][three_uj[tid][index].k1] && !visited[tid][three_uj[tid][index].k2])
+                            {
+#ifdef DFS2NUM
+#ifdef NEON
+                                memcpy_128(
+                                    results[1] + tid * NUM_LEN4_RESULT + res_count[tid][1]++ * (depth + 4),
+                                    path[tid]);
+                                memcpy_128(
+                                    results[1] + tid * NUM_LEN4_RESULT + res_count[tid][1] * (depth + 4) - 3,
+                                    &three_uj[tid][index].u);
+#else
+                                memcpy(results[1] + tid * NUM_LEN4_RESULT + res_count[tid][1]++ * (depth + 4), path[tid], 2);
+                                memcpy(results[1] + tid * NUM_LEN4_RESULT + res_count[tid][1] * (depth + 4) - 3, &three_uj[tid][index].u, 12);
+#endif
+
+#else
+                                res_count[tid]++;
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[1] + tid * NUM_LEN4_RESULT + res_length[tid][1],
+                                    idsComma + (path[tid][0] << 3));
+#else
+                                memcpy(
+                                    results[1] + tid * NUM_LEN4_RESULT + res_length[tid][1],
+                                    idsComma + (path[tid][0] << 3),
+                                    idsChar_len[path[tid][0]]);
+#endif
+                                res_length[tid][1] += idsChar_len[path[tid][0]];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[1] + tid * NUM_LEN4_RESULT + res_length[tid][1],
+                                    idsComma + (next_id << 3));
+#else
+                                memcpy(
+                                    results[1] + tid * NUM_LEN4_RESULT + res_length[tid][1],
+                                    idsComma + (next_id << 3),
+                                    idsChar_len[next_id]);
+#endif
+                                res_length[tid][1] += idsChar_len[next_id];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[1] + tid * NUM_LEN4_RESULT + res_length[tid][1],
+                                    idsComma + (three_uj[tid][index].k1 << 3));
+#else
+                                memcpy(
+                                    results[1] + tid * NUM_LEN4_RESULT + res_length[tid][1],
+                                    idsComma + (three_uj[tid][index].k1 << 3),
+                                    idsChar_len[three_uj[tid][index].k1]);
+#endif
+                                res_length[tid][1] += idsChar_len[three_uj[tid][index].k1];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[1] + tid * NUM_LEN4_RESULT + res_length[tid][1],
+                                    idsComma + (three_uj[tid][index].k2 << 3));
+#else
+                                memcpy(
+                                    results[1] + tid * NUM_LEN4_RESULT + res_length[tid][1],
+                                    idsComma + (three_uj[tid][index].k2 << 3),
+                                    idsChar_len[three_uj[tid][index].k2]);
+#endif
+                                res_length[tid][1] += idsChar_len[three_uj[tid][index].k2];
+                                results[1][tid * NUM_LEN4_RESULT + res_length[tid][1] - 1] = '\n';
+#endif
+                            }
+                        }
                         break;
                     case 1:
-                        thread_offset = NUM_LEN5_RESULT;
+                        for (unsigned int index = reachable[tid][next_id] - 1; three_uj[tid][index].u == next_id; ++index)
+                        {
+                            if (!visited[tid][three_uj[tid][index].k1] && !visited[tid][three_uj[tid][index].k2])
+                            {
+#ifdef DFS2NUM
+#ifdef NEON
+                                memcpy_128(
+                                    results[2] + tid * NUM_LEN5_RESULT + res_count[tid][2]++ * (depth + 4),
+                                    path[tid]);
+                                memcpy_128(
+                                    results[2] + tid * NUM_LEN5_RESULT + res_count[tid][2] * (depth + 4) - 3,
+                                    &three_uj[tid][index].u);
+#else
+                                memcpy(results[2] + tid * NUM_LEN5_RESULT + res_count[tid][2]++ * (depth + 4), path[tid], 4);
+                                memcpy(results[2] + tid * NUM_LEN5_RESULT + res_count[tid][2] * (depth + 4) - 3, &three_uj[tid][index].u, 12);
+#endif
+
+#else
+                                res_count[tid]++;
+#ifdef NEON
+                                memcpy_128(
+                                    results[2] + tid * NUM_LEN5_RESULT + res_length[tid][2],
+                                    idsComma + (path[tid][0] << 3));
+#else
+                                memcpy(
+                                    results[2] + tid * NUM_LEN5_RESULT + res_length[tid][2],
+                                    idsComma + (path[tid][0] << 3),
+                                    idsChar_len[path[tid][0]]);
+#endif
+                                res_length[tid][2] += idsChar_len[path[tid][0]];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[2] + tid * NUM_LEN5_RESULT + res_length[tid][2],
+                                    idsComma + (path[tid][1] << 3));
+#else
+                                memcpy(
+                                    results[2] + tid * NUM_LEN5_RESULT + res_length[tid][2],
+                                    idsComma + (path[tid][1] << 3),
+                                    idsChar_len[path[tid][1]]);
+#endif
+                                res_length[tid][2] += idsChar_len[path[tid][1]];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[2] + tid * NUM_LEN5_RESULT + res_length[tid][2],
+                                    idsComma + (next_id << 3));
+#else
+                                memcpy(
+                                    results[2] + tid * NUM_LEN5_RESULT + res_length[tid][2],
+                                    idsComma + (next_id << 3),
+                                    idsChar_len[next_id]);
+#endif
+                                res_length[tid][2] += idsChar_len[next_id];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[2] + tid * NUM_LEN5_RESULT + res_length[tid][2],
+                                    idsComma + (three_uj[tid][index].k1 << 3));
+#else
+                                memcpy(
+                                    results[2] + tid * NUM_LEN5_RESULT + res_length[tid][2],
+                                    idsComma + (three_uj[tid][index].k1 << 3),
+                                    idsChar_len[three_uj[tid][index].k1]);
+#endif
+                                res_length[tid][2] += idsChar_len[three_uj[tid][index].k1];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[2] + tid * NUM_LEN5_RESULT + res_length[tid][2],
+                                    idsComma + (three_uj[tid][index].k2 << 3));
+#else
+                                memcpy(
+                                    results[2] + tid * NUM_LEN5_RESULT + res_length[tid][2],
+                                    idsComma + (three_uj[tid][index].k2 << 3),
+                                    idsChar_len[three_uj[tid][index].k2]);
+#endif
+                                res_length[tid][2] += idsChar_len[three_uj[tid][index].k2];
+                                results[2][tid * NUM_LEN5_RESULT + res_length[tid][2] - 1] = '\n';
+#endif
+                            }
+                        }
                         break;
                     case 2:
-                        thread_offset = NUM_LEN6_RESULT;
+                        for (unsigned int index = reachable[tid][next_id] - 1; three_uj[tid][index].u == next_id; ++index)
+                        {
+                            if (!visited[tid][three_uj[tid][index].k1] && !visited[tid][three_uj[tid][index].k2])
+                            {
+#ifdef DFS2NUM
+#ifdef NEON
+                                memcpy_128(
+                                    results[3] + tid * NUM_LEN6_RESULT + res_count[tid][3]++ * (depth + 4),
+                                    path[tid]);
+                                memcpy_128(
+                                    results[3] + tid * NUM_LEN6_RESULT + res_count[tid][3] * (depth + 4) - 3,
+                                    &three_uj[tid][index].u);
+#else
+                                memcpy(results[3] + tid * NUM_LEN6_RESULT + res_count[tid][3]++ * (depth + 4), path[tid], 6);
+                                memcpy(results[3] + tid * NUM_LEN6_RESULT + res_count[tid][3] * (depth + 4) - 3, &three_uj[tid][index].u, 12);
+#endif
+
+#else
+                                res_count[tid]++;
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[3] + tid * NUM_LEN6_RESULT + res_length[tid][3],
+                                    idsComma + (path[tid][0] << 3));
+#else
+                                memcpy(
+                                    results[3] + tid * NUM_LEN6_RESULT + res_length[tid][3],
+                                    idsComma + (path[tid][0] << 3),
+                                    idsChar_len[path[tid][0]]);
+#endif
+                                res_length[tid][3] += idsChar_len[path[tid][0]];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[3] + tid * NUM_LEN6_RESULT + res_length[tid][3],
+                                    idsComma + (path[tid][1] << 3));
+#else
+                                memcpy(
+                                    results[3] + tid * NUM_LEN6_RESULT + res_length[tid][3],
+                                    idsComma + (path[tid][1] << 3),
+                                    idsChar_len[path[tid][1]]);
+#endif
+                                res_length[tid][3] += idsChar_len[path[tid][1]];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[3] + tid * NUM_LEN6_RESULT + res_length[tid][3],
+                                    idsComma + (path[tid][2] << 3));
+#else
+                                memcpy(
+                                    results[3] + tid * NUM_LEN6_RESULT + res_length[tid][3],
+                                    idsComma + (path[tid][2] << 3),
+                                    idsChar_len[path[tid][2]]);
+#endif
+                                res_length[tid][3] += idsChar_len[path[tid][2]];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[3] + tid * NUM_LEN6_RESULT + res_length[tid][3],
+                                    idsComma + (next_id << 3));
+#else
+                                memcpy(
+                                    results[3] + tid * NUM_LEN6_RESULT + res_length[tid][3],
+                                    idsComma + (next_id << 3),
+                                    idsChar_len[next_id]);
+#endif
+                                res_length[tid][3] += idsChar_len[next_id];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[3] + tid * NUM_LEN6_RESULT + res_length[tid][3],
+                                    idsComma + (three_uj[tid][index].k1 << 3));
+#else
+                                memcpy(
+                                    results[3] + tid * NUM_LEN6_RESULT + res_length[tid][3],
+                                    idsComma + (three_uj[tid][index].k1 << 3),
+                                    idsChar_len[three_uj[tid][index].k1]);
+#endif
+                                res_length[tid][3] += idsChar_len[three_uj[tid][index].k1];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[3] + tid * NUM_LEN6_RESULT + res_length[tid][3],
+                                    idsComma + (three_uj[tid][index].k2 << 3));
+#else
+                                memcpy(
+                                    results[3] + tid * NUM_LEN6_RESULT + res_length[tid][3],
+                                    idsComma + (three_uj[tid][index].k2 << 3),
+                                    idsChar_len[three_uj[tid][index].k2]);
+#endif
+                                res_length[tid][3] += idsChar_len[three_uj[tid][index].k2];
+                                results[3][tid * NUM_LEN6_RESULT + res_length[tid][3] - 1] = '\n';
+#endif
+                            }
+                        }
                         break;
                     case 3:
-                        thread_offset = NUM_LEN7_RESULT;
+                        for (unsigned int index = reachable[tid][next_id] - 1; three_uj[tid][index].u == next_id; ++index)
+                        {
+                            if (!visited[tid][three_uj[tid][index].k1] && !visited[tid][three_uj[tid][index].k2])
+                            {
+#ifdef DFS2NUM
+#ifdef NEON
+                                memcpy_128(
+                                    results[4] + tid * NUM_LEN7_RESULT + res_count[tid][4]++ * (depth + 4),
+                                    path[tid]);
+                                memcpy_128(
+                                    results[4] + tid * NUM_LEN7_RESULT + res_count[tid][4] * (depth + 4) - 3,
+                                    &three_uj[tid][index].u);
+#else
+                                memcpy(results[4] + tid * NUM_LEN7_RESULT + res_count[tid][4]++ * (depth + 4), path[tid], 8);
+                                memcpy(results[4] + tid * NUM_LEN7_RESULT + res_count[tid][4] * (depth + 4) - 3, &three_uj[tid][index].u, 12);
+#endif
+
+#else
+                                res_count[tid]++;
+#ifdef NEON
+                                memcpy_128(
+                                    results[4] + tid * NUM_LEN7_RESULT + res_length[tid][4],
+                                    idsComma + (path[tid][0] << 3));
+#else
+                                memcpy(
+                                    results[4] + tid * NUM_LEN7_RESULT + res_length[tid][4],
+                                    idsComma + (path[tid][0] << 3),
+                                    idsChar_len[path[tid][0]]);
+#endif
+                                res_length[tid][4] += idsChar_len[path[tid][0]];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[4] + tid * NUM_LEN7_RESULT + res_length[tid][4],
+                                    idsComma + (path[tid][1] << 3));
+#else
+                                memcpy(
+                                    results[4] + tid * NUM_LEN7_RESULT + res_length[tid][4],
+                                    idsComma + (path[tid][1] << 3),
+                                    idsChar_len[path[tid][1]]);
+#endif
+                                res_length[tid][4] += idsChar_len[path[tid][1]];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[4] + tid * NUM_LEN7_RESULT + res_length[tid][4],
+                                    idsComma + (path[tid][2] << 3));
+#else
+                                memcpy(
+                                    results[4] + tid * NUM_LEN7_RESULT + res_length[tid][4],
+                                    idsComma + (path[tid][2] << 3),
+                                    idsChar_len[path[tid][2]]);
+#endif
+                                res_length[tid][4] += idsChar_len[path[tid][2]];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[4] + tid * NUM_LEN7_RESULT + res_length[tid][4],
+                                    idsComma + (path[tid][3] << 3));
+#else
+                                memcpy(
+                                    results[4] + tid * NUM_LEN7_RESULT + res_length[tid][4],
+                                    idsComma + (path[tid][3] << 3),
+                                    idsChar_len[path[tid][3]]);
+#endif
+                                res_length[tid][4] += idsChar_len[path[tid][3]];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[4] + tid * NUM_LEN7_RESULT + res_length[tid][4],
+                                    idsComma + (next_id << 3));
+#else
+                                memcpy(
+                                    results[4] + tid * NUM_LEN7_RESULT + res_length[tid][4],
+                                    idsComma + (next_id << 3),
+                                    idsChar_len[next_id]);
+#endif
+                                res_length[tid][4] += idsChar_len[next_id];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[4] + tid * NUM_LEN7_RESULT + res_length[tid][4],
+                                    idsComma + (three_uj[tid][index].k1 << 3));
+#else
+                                memcpy(
+                                    results[4] + tid * NUM_LEN7_RESULT + res_length[tid][4],
+                                    idsComma + (three_uj[tid][index].k1 << 3),
+                                    idsChar_len[three_uj[tid][index].k1]);
+#endif
+                                res_length[tid][4] += idsChar_len[three_uj[tid][index].k1];
+
+#ifdef NEON
+                                memcpy_128(
+                                    results[4] + tid * NUM_LEN7_RESULT + res_length[tid][4],
+                                    idsComma + (three_uj[tid][index].k2 << 3));
+#else
+                                memcpy(
+                                    results[4] + tid * NUM_LEN7_RESULT + res_length[tid][4],
+                                    idsComma + (three_uj[tid][index].k2 << 3),
+                                    idsChar_len[three_uj[tid][index].k2]);
+#endif
+                                res_length[tid][4] += idsChar_len[three_uj[tid][index].k2];
+                                results[4][tid * NUM_LEN7_RESULT + res_length[tid][4] - 1] = '\n';
+#endif
+                            }
+                        }
                         break;
                     default:
                         break;
-                    }
-
-                    for (unsigned int index = reachable[tid][next_id] - 1; three_uj[tid][index].u == next_id; ++index)
-                    {
-                        if (!visited[tid][three_uj[tid][index].k1] && !visited[tid][three_uj[tid][index].k2])
-                        {
-#ifdef DFS2NUM
-#ifdef NEON
-                            memcpy_128(
-                                results[depth + 1] + tid * thread_offset + res_count[tid][depth + 1]++ * (depth + 4),
-                                path[tid]);
-                            memcpy_128(
-                                results[depth + 1] + tid * thread_offset + res_count[tid][depth + 1] * (depth + 4) - 3,
-                                &three_uj[tid][index].u);
-#else
-                            memcpy(results[depth + 1] + tid * thread_offset + res_count[tid][depth + 1]++ * (depth + 4), path[tid], (depth + 1) << 2);
-                            memcpy(results[depth + 1] + tid * thread_offset + res_count[tid][depth + 1] * (depth + 4) - 3, &three_uj[tid][index].u, 12);
-#endif
-
-#else
-                            res_count[tid]++;
-                            for (register int i = 0; i <= depth; ++i)
-                            {
-#ifdef NEON
-                                memcpy_128(
-                                    results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                    idsComma + (path[tid][i] << 3));
-#else
-                                memcpy(
-                                    results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                    idsComma + (path[tid][i] << 3),
-                                    idsChar_len[path[tid][i]]);
-#endif
-                                res_length[tid][depth + 1] += idsChar_len[path[tid][i]];
-                            }
-
-#ifdef NEON
-                            memcpy_128(
-                                results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsComma + (next_id << 3));
-#else
-                            memcpy(
-                                results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsComma + (next_id << 3),
-                                idsChar_len[next_id]);
-#endif
-                            res_length[tid][depth + 1] += idsChar_len[next_id];
-
-#ifdef NEON
-                            memcpy_128(
-                                results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsComma + (three_uj[tid][index].k1 << 3));
-#else
-                            memcpy(
-                                results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsComma + (three_uj[tid][index].k1 << 3),
-                                idsChar_len[three_uj[tid][index].k1]);
-#endif
-                            res_length[tid][depth + 1] += idsChar_len[three_uj[tid][index].k1];
-
-#ifdef NEON
-                            memcpy_128(
-                                results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsComma + (three_uj[tid][index].k2 << 3));
-#else
-                            memcpy(
-                                results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
-                                idsComma + (three_uj[tid][index].k2 << 3),
-                                idsChar_len[three_uj[tid][index].k2]);
-#endif
-                            res_length[tid][depth + 1] += idsChar_len[three_uj[tid][index].k2];
-                            results[depth + 1][tid * thread_offset + res_length[tid][depth + 1] - 1] = '\n';
-#endif
-                        }
                     }
                 }
 
