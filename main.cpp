@@ -1,9 +1,11 @@
 // submit:
 // 1. delete #define TEST.
 // 2. open //#define MMAP
+// 3. open //#define NEON
 
-#define TEST
-// #define MMAP
+// #define TEST
+#define MMAP
+#define NEON
 #include <bits/stdc++.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -16,6 +18,11 @@
 #include <linux/fb.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#endif
+
+#ifdef NEON
+#include <arm_neon.h>
+#include <stddef.h>
 #endif
 
 #define MAX_NUM_EDGES 280000   // 280000
@@ -69,7 +76,10 @@ unsigned int in_degree[MAX_NUM_IDS];
 unsigned int path[NUM_THREADS][4];
 bool visited[NUM_THREADS][MAX_NUM_IDS];
 
-char idsChar[MAX_NUM_IDS * 8]; // chars id
+// char idsChar[MAX_NUM_IDS * 8]; // chars id
+
+char idsComma[MAX_NUM_IDS * 9]; // id + ','
+char idsLF[MAX_NUM_IDS * 9];    // id + '\n'
 unsigned int idsChar_len[MAX_NUM_IDS];
 
 Three_pred three_uj[NUM_THREADS][MAX_NUM_THREE_PREDS];
@@ -100,6 +110,38 @@ char res7[NUM_THREADS * NUM_LEN7_RESULT];
 unsigned int res_count[NUM_THREADS];
 unsigned int res_length[NUM_THREADS][5];
 char *results[] = {res3, res4, res5, res6, res7};
+
+char str_res[MAX_OUTPUT_FILE_SIZE];
+
+#ifdef NEON
+// 9个字节的赋值
+void *memcpy_128(void *dest, void *src)
+{
+    register unsigned int i;
+    unsigned long *s = (unsigned long *)src;
+    unsigned long *d = (unsigned long *)dest;
+    vst1q_u64(&d[0], vld1q_u64(&s[0]));
+    return dest;
+}
+
+// 大长度字节的复制
+void *memcpy_128(void *dest, void *src, size_t count)
+{
+    register unsigned int i;
+    unsigned long *s = (unsigned long *)src;
+    unsigned long *d = (unsigned long *)dest;
+    for (i = 0; i <= (count >> 6); ++i)
+    {
+        vst1q_u64(&d[0], vld1q_u64(&s[0]));
+        vst1q_u64(&d[2], vld1q_u64(&s[2]));
+        vst1q_u64(&d[4], vld1q_u64(&s[4]));
+        vst1q_u64(&d[6], vld1q_u64(&s[6]));
+        d += 8;
+        s += 8;
+    }
+    return dest;
+}
+#endif
 
 void input_fstream(char *testFile)
 {
@@ -196,7 +238,7 @@ unsigned int digits10_length(unsigned int k2)
     return 8;
 }
 
-unsigned int uint2ascii(unsigned int value, char *dst)
+unsigned int uint2ascii(unsigned int value, char *dst1)
 {
     static const char digits[] =
         "0001020304050607080910111213141516171819"
@@ -212,20 +254,61 @@ unsigned int uint2ascii(unsigned int value, char *dst)
     {
         const unsigned int u = (value % 100) << 1;
         value /= 100;
-        dst[next - 1] = digits[u];
-        dst[next] = digits[u + 1];
+        dst1[next - 1] = digits[u];
+        dst1[next] = digits[u + 1];
         next -= 2;
     }
 
     if (value < 10)
     {
-        dst[next] = '0' + value;
+        dst1[next] = '0' + value;
     }
     else
     {
         unsigned int u = value << 1;
-        dst[next - 1] = digits[u];
-        dst[next] = digits[u + 1];
+        dst1[next - 1] = digits[u];
+        dst1[next] = digits[u + 1];
+    }
+    return length;
+}
+
+unsigned int uint2ascii(unsigned int value, char *dst1, char *dst2)
+{
+    static const char digits[] =
+        "0001020304050607080910111213141516171819"
+        "2021222324252627282930313233343536373839"
+        "4041424344454647484950515253545556575859"
+        "6061626364656667686970717273747576777879"
+        "8081828384858687888990919293949596979899";
+
+    const unsigned int length = digits10_length(value);
+    dst1[length] = ',';
+    dst2[length] = '\n';
+    unsigned int next = length - 1;
+
+    while (value >= 100)
+    {
+        const unsigned int u = (value % 100) << 1;
+        value /= 100;
+        dst1[next - 1] = digits[u];
+        dst2[next - 1] = digits[u];
+        dst1[next] = digits[u + 1];
+        dst2[next] = digits[u + 1];
+        next -= 2;
+    }
+
+    if (value < 10)
+    {
+        dst1[next] = '0' + value;
+        dst2[next] = '0' + value;
+    }
+    else
+    {
+        unsigned int u = value << 1;
+        dst1[next - 1] = digits[u];
+        dst2[next - 1] = digits[u];
+        dst1[next] = digits[u + 1];
+        dst2[next] = digits[u + 1];
     }
     return length;
 }
@@ -246,41 +329,59 @@ void save_fwrite(char *resultFile)
 #endif
 
     FILE *fp = fopen(resultFile, "w");
-    char *str_res = (char *)malloc(MAX_OUTPUT_FILE_SIZE);
+    // char *str_res = (char *)malloc(MAX_OUTPUT_FILE_SIZE);
 
-    register unsigned int str_len = uint2ascii(all_res_count, str_res);
+    register unsigned int str_len = uint2ascii(all_res_count, str_res), thread_offset;
     str_res[str_len++] = '\n';
-
-    register unsigned int thread_offset;
 
     // len 3
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN3_RESULT)
     {
+#ifdef NEON
+        memcpy_128(str_res + str_len, results[0] + thread_offset, res_length[tid][0]);
+#else
         memcpy(str_res + str_len, results[0] + thread_offset, res_length[tid][0]);
+#endif
         str_len += res_length[tid][0];
     }
 
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN4_RESULT)
     {
+#ifdef NEON
+        memcpy_128(str_res + str_len, results[1] + thread_offset, res_length[tid][1]);
+#else
         memcpy(str_res + str_len, results[1] + thread_offset, res_length[tid][1]);
-        str_len += res_length[tid][1];
+#endif
+            str_len += res_length[tid][1];
     }
 
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN5_RESULT)
     {
+#ifdef NEON
+        memcpy_128(str_res + str_len, results[2] + thread_offset, res_length[tid][2]);
+#else
         memcpy(str_res + str_len, results[2] + thread_offset, res_length[tid][2]);
+#endif
         str_len += res_length[tid][2];
     }
 
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN6_RESULT)
     {
+#ifdef NEON
+        memcpy_128(str_res + str_len, results[3] + thread_offset, res_length[tid][3]);
+#else
         memcpy(str_res + str_len, results[3] + thread_offset, res_length[tid][3]);
+#endif
         str_len += res_length[tid][3];
     }
 
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN7_RESULT)
     {
+#ifdef NEON
+        memcpy_128(str_res + str_len, results[4] + thread_offset, res_length[tid][4]);
+#else
         memcpy(str_res + str_len, results[4] + thread_offset, res_length[tid][4]);
+#endif
         str_len += res_length[tid][4];
     }
 
@@ -373,17 +474,41 @@ void dfs_ite(unsigned int start_id, int tid)
             // results[0][tid * NUM_LEN3_RESULT + res_count[tid][0] * 3 - 1] = three_uj[tid][index].k2;
 
             res_count[tid]++;
-            memcpy(results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0], idsChar + (cur_id << 3), idsChar_len[cur_id]);
+#ifdef NEON
+            memcpy_128(
+                results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0],
+                idsComma + (cur_id << 3) + cur_id);
+#else
+            memcpy(
+                results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0],
+                idsComma + (cur_id << 3) + cur_id,
+                idsChar_len[cur_id]);
+#endif
             res_length[tid][0] += idsChar_len[cur_id];
-            results[0][tid * NUM_LEN3_RESULT + res_length[tid][0]++] = ',';
 
-            memcpy(results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0], idsChar + (three_uj[tid][index].k1 << 3), idsChar_len[three_uj[tid][index].k1]);
+#ifdef NEON
+            memcpy_128(
+                results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0],
+                idsComma + (three_uj[tid][index].k1 << 3) + three_uj[tid][index].k1);
+#else
+            memcpy(
+                results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0],
+                idsComma + (three_uj[tid][index].k1 << 3) + three_uj[tid][index].k1,
+                idsChar_len[three_uj[tid][index].k1]);
+#endif
             res_length[tid][0] += idsChar_len[three_uj[tid][index].k1];
-            results[0][tid * NUM_LEN3_RESULT + res_length[tid][0]++] = ',';
 
-            memcpy(results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0], idsChar + (three_uj[tid][index].k2 << 3), idsChar_len[three_uj[tid][index].k2]);
+#ifdef NEON
+            memcpy_128(
+                results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0],
+                idsLF + (three_uj[tid][index].k2 << 3) + three_uj[tid][index].k2);
+#else
+            memcpy(
+                results[0] + tid * NUM_LEN3_RESULT + res_length[tid][0],
+                idsLF + (three_uj[tid][index].k2 << 3) + three_uj[tid][index].k2,
+                idsChar_len[three_uj[tid][index].k2]);
+#endif
             res_length[tid][0] += idsChar_len[three_uj[tid][index].k2];
-            results[0][tid * NUM_LEN3_RESULT + res_length[tid][0]++] = '\n';
         }
     }
 
@@ -434,22 +559,54 @@ void dfs_ite(unsigned int start_id, int tid)
                             res_count[tid]++;
                             for (register int i = 0; i <= depth; ++i)
                             {
-                                memcpy(results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1], idsChar + (path[tid][i] << 3), idsChar_len[path[tid][i]]);
+#ifdef NEON
+                                memcpy_128(
+                                    results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
+                                    idsComma + (path[tid][i] << 3) + path[tid][i]);
+#else
+                                memcpy(
+                                    results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
+                                    idsComma + (path[tid][i] << 3) + path[tid][i],
+                                    idsChar_len[path[tid][i]]);
+#endif
                                 res_length[tid][depth + 1] += idsChar_len[path[tid][i]];
-                                results[depth + 1][tid * thread_offset + res_length[tid][depth + 1]++] = ',';
                             }
 
-                            memcpy(results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1], idsChar + (next_id << 3), idsChar_len[next_id]);
+#ifdef NEON
+                            memcpy_128(
+                                results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
+                                idsComma + (next_id << 3) + next_id);
+#else
+                            memcpy(
+                                results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
+                                idsComma + (next_id << 3) + next_id,
+                                idsChar_len[next_id]);
+#endif
                             res_length[tid][depth + 1] += idsChar_len[next_id];
-                            results[depth + 1][tid * thread_offset + res_length[tid][depth + 1]++] = ',';
 
-                            memcpy(results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1], idsChar + (three_uj[tid][index].k1 << 3), idsChar_len[three_uj[tid][index].k1]);
+#ifdef NEON
+                            memcpy_128(
+                                results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
+                                idsComma + (three_uj[tid][index].k1 << 3) + three_uj[tid][index].k1);
+#else
+                            memcpy(
+                                results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
+                                idsComma + (three_uj[tid][index].k1 << 3) + three_uj[tid][index].k1,
+                                idsChar_len[three_uj[tid][index].k1]);
+#endif
                             res_length[tid][depth + 1] += idsChar_len[three_uj[tid][index].k1];
-                            results[depth + 1][tid * thread_offset + res_length[tid][depth + 1]++] = ',';
 
-                            memcpy(results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1], idsChar + (three_uj[tid][index].k2 << 3), idsChar_len[three_uj[tid][index].k2]);
+#ifdef NEON
+                            memcpy_128(
+                                results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
+                                idsLF + (three_uj[tid][index].k2 << 3) + three_uj[tid][index].k2);
+#else
+                            memcpy(
+                                results[depth + 1] + tid * thread_offset + res_length[tid][depth + 1],
+                                idsLF + (three_uj[tid][index].k2 << 3) + three_uj[tid][index].k2,
+                                idsChar_len[three_uj[tid][index].k2]);
+#endif
                             res_length[tid][depth + 1] += idsChar_len[three_uj[tid][index].k2];
-                            results[depth + 1][tid * thread_offset + res_length[tid][depth + 1]++] = '\n';
                         }
                     }
                 }
@@ -589,7 +746,7 @@ int main()
         sort(g_pred[index], g_pred[index] + in_degree[index]);
         g_succ[index][out_degree[index]] = MAX_INT;
         g_pred[index][in_degree[index]] = MAX_INT;
-        idsChar_len[index] = uint2ascii(ids[index], idsChar + (index << 3));
+        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3) + index, idsLF + (index << 3) + index) + 1;
     }
 
     register int tid;
