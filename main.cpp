@@ -44,8 +44,17 @@ using namespace std;
 unsigned int id_num = 0, edge_num = 0;
 
 // float seg_ratio[] = {0, 1};
+
+// 4线程任务分配比例
 // float seg_ratio[] = {0, 0.068, 0.148, 0.284, 1};
-unsigned int seg_id[32];
+
+// 18线程任务分配比例
+float seg_ratio[] = {
+    0,
+    0.0113, 0.0227, 0.034, 0.0453, 0.057, 0.068,
+    0.084, 0.1, 0.116, 0.132, 0.148,
+    0.182, 0.216, 0.25, 0.284,
+    0.523, 0.761, 1};
 
 struct Three_pred
 {
@@ -805,9 +814,8 @@ void *thread_process(void *t)
     // 先把指针类型恢复, 然后取值
     register unsigned int tid = *((unsigned int *)t);
 
-    // unsigned int end_id = (unsigned int)(seg_ratio[tid + 1] * id_num);
-    // for (unsigned int start_id = (unsigned int)(seg_ratio[tid] * id_num); start_id < end_id; ++start_id)
-    for (unsigned int start_id = seg_id[tid]; start_id < seg_id[tid + 1]; ++start_id)
+    unsigned int end_id = (unsigned int)(seg_ratio[tid + 1] * id_num);
+    for (unsigned int start_id = (unsigned int)(seg_ratio[tid] * id_num); start_id < end_id; ++start_id)
     {
 #ifdef TEST
         // if (start_id % 100 == 0)
@@ -981,15 +989,6 @@ int main()
     // 这样操作后, 主main 需要等待子线程完成后才进行后一步
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-
-    // 均分节点任务
-    unsigned int w = (unsigned int)(id_num * 1.0 / NUM_THREADS);
-    unsigned int left = w;
-    for (index = 1; index < NUM_THREADS; ++index, left += w)
-    {
-        seg_id[index] = left;
-    }
-    seg_id[NUM_THREADS] = id_num;
 
     // 创建NUM_THREADS个数的线程
     for (tid = 0; tid < NUM_THREADS; tid++)
