@@ -3,7 +3,7 @@
 // 2. open //#define MMAP
 // 3. open //#define NEON
 
-#define TEST
+// #define TEST
 #define MMAP // 使用mmap函数
 #define NEON // 打开NEON特性的算子
 
@@ -44,7 +44,7 @@ using namespace std;
 unsigned int id_num = 0, edge_num = 0;
 
 // float seg_ratio[] = {0, 1};
-float seg_ratio[] = {0, 0.068, 0.148, 0.284, 1};
+// float seg_ratio[] = {0, 0.068, 0.148, 0.284, 1};
 unsigned int seg_id[32];
 
 struct Three_pred
@@ -664,7 +664,7 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
     while (start_id >= g_succ[start_id][begin_pos[0]])
         ++begin_pos[0];
 
-    register unsigned int cur_id = start_id, next_id, thread_offset = 0;
+    register unsigned int cur_id = start_id, next_id;
     register int depth = 0;
     register unsigned int *stack[4];
     stack[0] = g_succ[cur_id];
@@ -723,7 +723,6 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
                         }
                         break;
                     case 1:
-                        thread_offset = NUM_LEN5_RESULT;
                         for (unsigned int index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
                         {
                             if (!results[tid].visited[results[tid].three_uj[index].k1] && !results[tid].visited[results[tid].three_uj[index].k2])
@@ -791,12 +790,7 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 
 bool three_uj_cmp(Three_pred &a, Three_pred &b)
 {
-    if (a.u != b.u)
-        return a.u < b.u;
-    else if (a.k1 != b.k1)
-        return a.k1 < b.k1;
-    else
-        return a.k2 < b.k2;
+    return a.u != b.u ? a.u < b.u : (a.k1 != b.k1 ? a.k1 < b.k1 : a.k2 < b.k2);
 }
 
 // 这里定义子线程函数, 如果处理不同分段的数据不一样,那就写多个函数
