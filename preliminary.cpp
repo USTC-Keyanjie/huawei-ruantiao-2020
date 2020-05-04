@@ -4,8 +4,8 @@
 // 3. open //#define NEON
 
 #define TEST
-#define MMAP // 使用mmap函数
-#define NEON // 打开NEON特性的算子
+// #define MMAP // 使用mmap函数
+// #define NEON // 打开NEON特性的算子
 
 #include <bits/stdc++.h>
 #include <fcntl.h>
@@ -26,23 +26,25 @@
 #include <stddef.h>
 #endif
 
-#define MAX_NUM_EDGES 280000
-#define MAX_NUM_IDS 200005
-#define MAX_OUT_DEGREE 51
-#define MAX_IN_DEGREE 51
+#define MAX_NUM_EDGES 280000 // 最大可接受边数
+#define MAX_NUM_IDS 200005   // 最大可接受id数
+#define MAX_OUT_DEGREE 51    // 最大可接受出度
+#define MAX_IN_DEGREE 51     // 最大可接受入度
 
-#define MAX_NUM_THREE_PREDS 10000
+#define MAX_NUM_THREE_PREDS 10000 // 反向三级跳表的长度
 
-#define MAX_OUTPUT_FILE_SIZE 134217728 //submit: 134217728 test: 520000000
+#define MAX_OUTPUT_FILE_SIZE 134217728 // 输出文件的最大大小 128 * 1024 * 1024 B
 
-#define MAX_INT 2147483647
+#define MAX_INT 2147483647 // 2^31 - 1
 
-#define NUM_THREADS 18
+#define NUM_THREADS 18 // 线程数
 
 using namespace std;
 
+// 总id数，总边数
 unsigned int id_num = 0, edge_num = 0;
 
+// 单线程任务分配比例
 // float seg_ratio[] = {0, 1};
 
 // 4线程任务分配比例
@@ -56,6 +58,7 @@ float seg_ratio[] = {
     0.182, 0.216, 0.25, 0.284,
     0.523, 0.761, 1};
 
+// 反向三级跳表元素结构体，可以通过 u -> k1 -> k2 -> 起点
 struct Three_pred
 {
     unsigned int u;
@@ -66,47 +69,50 @@ struct Three_pred
     Three_pred(unsigned int u, unsigned int k1, unsigned int k2) : u(u), k1(k1), k2(k2) {}
 };
 
+// 输入信息，从u_ids到v_ids
 unsigned int u_ids[MAX_NUM_EDGES];
 unsigned int v_ids[MAX_NUM_EDGES];
 
-unsigned int id_count[MAX_NUM_IDS];
+unsigned int id_count[MAX_NUM_IDS]; // 计数排序辅助数组
+// index: regular ids (0, 1, 2, ...)
+// value: really ids
 unsigned int ids[MAX_NUM_IDS];
 
-unsigned int g_succ[MAX_NUM_IDS][MAX_OUT_DEGREE];
-unsigned int out_degree[MAX_NUM_IDS];
-unsigned int g_pred[MAX_NUM_IDS][MAX_IN_DEGREE];
-unsigned int in_degree[MAX_NUM_IDS];
+unsigned int g_succ[MAX_NUM_IDS][MAX_OUT_DEGREE]; // 邻接表
+unsigned int out_degree[MAX_NUM_IDS];             // 每个节点的出度
+unsigned int g_pred[MAX_NUM_IDS][MAX_IN_DEGREE];  // 逆邻接表
+unsigned int in_degree[MAX_NUM_IDS];              // 每个节点的入度
 
-char idsComma[MAX_NUM_IDS * 8]; // id + ','
+char idsComma[MAX_NUM_IDS * 8];        // id + ','
+unsigned int idsChar_len[MAX_NUM_IDS]; // 每个id的字符串长度
 
-unsigned int idsChar_len[MAX_NUM_IDS];
+#define NUM_LEN3_RESULT 1200000  // 长度为3结果的总id数
+#define NUM_LEN4_RESULT 1600000  // 长度为4结果的总id数
+#define NUM_LEN5_RESULT 4000000  // 长度为5结果的总id数
+#define NUM_LEN6_RESULT 9000000  // 长度为6结果的总id数
+#define NUM_LEN7_RESULT 13000000 // 长度为7结果的总id数
 
-#define NUM_LEN3_RESULT 1200000
-#define NUM_LEN4_RESULT 1600000
-#define NUM_LEN5_RESULT 4000000
-#define NUM_LEN6_RESULT 9000000
-#define NUM_LEN7_RESULT 13000000
-
+// 每个线程专属区域
 struct Result
 {
-    unsigned int path[4];
-    bool visited[MAX_NUM_IDS];
+    unsigned int path[4];      // 已经走过的节点信息
+    bool visited[MAX_NUM_IDS]; // 访问标记数组
 
-    Three_pred three_uj[MAX_NUM_THREE_PREDS];
-    unsigned int three_uj_len;
-    unsigned int reachable[MAX_NUM_IDS];
-    unsigned int currentJs[MAX_NUM_THREE_PREDS];
-    unsigned int currentJs_len;
+    Three_pred three_uj[MAX_NUM_THREE_PREDS];    // 反向三级跳表
+    unsigned int three_uj_len;                   // 三级跳表长度
+    unsigned int reachable[MAX_NUM_IDS];         // 若此点可达起点，则记录其在三级跳表中的index + 1，否则记录0
+    unsigned int currentUs[MAX_NUM_THREE_PREDS]; // 可以通过三次跳跃回起点的点
+    unsigned int currentUs_len;                  // 当前可以通过三次跳跃回起点的点数量
 
-    unsigned int res3[NUM_LEN3_RESULT];
-    unsigned int res4[NUM_LEN4_RESULT];
-    unsigned int res5[NUM_LEN5_RESULT];
-    unsigned int res6[NUM_LEN6_RESULT];
-    unsigned int res7[NUM_LEN7_RESULT];
-    unsigned int res_count[5] = {0};
+    unsigned int res3[NUM_LEN3_RESULT]; // 长度为3的结果
+    unsigned int res4[NUM_LEN4_RESULT]; // 长度为4的结果
+    unsigned int res5[NUM_LEN5_RESULT]; // 长度为5的结果
+    unsigned int res6[NUM_LEN6_RESULT]; // 长度为6的结果
+    unsigned int res7[NUM_LEN7_RESULT]; // 长度为7的结果
+    unsigned int res_count[5] = {0};    // 各个长度结果数量记录
 } results[NUM_THREADS];
 
-char str_res[MAX_OUTPUT_FILE_SIZE];
+char str_res[MAX_OUTPUT_FILE_SIZE]; // 最终答案字符串
 
 #ifdef NEON
 // 16个字节以内的复制
@@ -135,6 +141,7 @@ void *memcpy_128(void *dest, void *src, size_t count)
 }
 #endif
 
+// fstream方式输入
 void input_fstream(char *testFile)
 {
 #ifdef TEST
@@ -156,7 +163,7 @@ void input_fstream(char *testFile)
 }
 
 #ifdef MMAP
-
+// MMAP方式输入
 void input_mmap(char *testFile)
 {
 #ifdef TEST
@@ -177,7 +184,7 @@ void input_mmap(char *testFile)
     {
         if (*p != ',')
         {
-            // atoi
+            // 位运算符方式将字符串转int
             temp = (temp << 1) + (temp << 3) + *p - '0';
         }
         else
@@ -212,6 +219,7 @@ void input_mmap(char *testFile)
 
 #endif
 
+// 计算总结果数长度
 unsigned int res_count_digits10_length(unsigned int num)
 {
     if (num < 1e6)
@@ -241,6 +249,7 @@ unsigned int res_count_digits10_length(unsigned int num)
     return 7;
 }
 
+// 将结果数量转为字符串
 unsigned int res_count_uint2ascii(unsigned int value, char *dst)
 {
     static const char digits[] =
@@ -275,6 +284,7 @@ unsigned int res_count_uint2ascii(unsigned int value, char *dst)
     return length;
 }
 
+// 获得unsigned int的长度，由于共计20w个节点，可知大概有10w个6位数，9w个5位数，根据哈夫曼树设计思想，设计判断分支，力求判断数最少
 unsigned int digits10_length(unsigned int num)
 {
     if (num < 1e5)
@@ -300,6 +310,7 @@ unsigned int digits10_length(unsigned int num)
     return 6;
 }
 
+// unsigned int转字符串
 unsigned int uint2ascii(unsigned int value, char *dst)
 {
     static const char digits[] =
@@ -335,6 +346,7 @@ unsigned int uint2ascii(unsigned int value, char *dst)
     return length;
 }
 
+// fwrite方式写
 void save_fwrite(char *resultFile)
 {
     register unsigned int tid;
@@ -610,6 +622,7 @@ void save_fwrite(char *resultFile)
 }
 
 // iteration version
+// 反向三级dfs的迭代版本
 void pre_dfs_ite(register unsigned int start_id, register unsigned int tid)
 {
     register unsigned int begin_pos[3] = {0};
@@ -618,35 +631,43 @@ void pre_dfs_ite(register unsigned int start_id, register unsigned int tid)
     register unsigned int *stack[3];
     stack[0] = g_pred[cur_id];
 
+    // 寻找遍历起始位置
     while (start_id > g_pred[cur_id][begin_pos[depth]])
         ++begin_pos[depth];
 
     while (depth >= 0)
     {
-        // no valid succ
+        // 无前驱
         if (begin_pos[depth] == in_degree[cur_id])
         {
             results[tid].visited[cur_id] = false;
             cur_id = --depth > 0 ? results[tid].path[depth - 1] : start_id;
         }
+        // 有前驱
         else
         {
             next_id = stack[depth][begin_pos[depth]++];
             if (!results[tid].visited[next_id])
             {
                 results[tid].path[depth] = next_id;
+                // 深度为2，装载反向三级跳表
                 if (depth == 2)
                 {
                     if (results[tid].path[2] != results[tid].path[0])
                         results[tid].three_uj[results[tid].three_uj_len++] = {results[tid].path[2], results[tid].path[1], results[tid].path[0]};
                 }
+                // 深度不足2，继续搜索
                 else
                 {
+                    // 进入下一层dfs
                     stack[++depth] = g_pred[next_id];
                     cur_id = next_id;
                     results[tid].visited[cur_id] = true;
                     results[tid].path[depth] = cur_id;
                     begin_pos[depth] = 0;
+
+                    // 寻找起始点
+                    // 深度为2时，允许下一个节点等于起始点，这是为了兼容长度为3的环
                     if (depth < 2)
                     {
                         while (start_id >= stack[depth][begin_pos[depth]])
@@ -664,6 +685,7 @@ void pre_dfs_ite(register unsigned int start_id, register unsigned int tid)
 }
 
 // iteration version
+// 正向dfs的迭代版本
 void dfs_ite(register unsigned int start_id, register unsigned int tid)
 {
     results[tid].visited[start_id] = true;
@@ -675,10 +697,12 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 
     register unsigned int cur_id = start_id, next_id;
     register int depth = 0;
+    // 递归栈
     register unsigned int *stack[4];
     stack[0] = g_succ[cur_id];
 
     // length 3 result
+    // 首先查找所有长度为3的结果，因为不需要搜索就可以得到
     if (results[tid].reachable[cur_id])
     {
         for (unsigned int index = results[tid].reachable[cur_id] - 1; results[tid].three_uj[index].u == cur_id; ++index)
@@ -697,25 +721,29 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
         }
     }
 
+    // dfs搜索
     while (depth >= 0)
     {
-        // no valid succ
+        // 无后继
         if (begin_pos[depth] == out_degree[cur_id])
         {
+            // 回溯
             results[tid].visited[cur_id] = false;
             if (--depth >= 0)
                 cur_id = results[tid].path[depth];
         }
+        // 有后继
         else
         {
             next_id = stack[depth][begin_pos[depth]++];
             if (!results[tid].visited[next_id])
             {
-                // find a circuit
+                // 找到环
                 if (results[tid].reachable[next_id])
                 {
                     switch (depth)
                     {
+                    // 长度为4
                     case 0:
                         for (unsigned int index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
                         {
@@ -725,12 +753,15 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
                                 memcpy_128(results[tid].res4 + (results[tid].res_count[1]++ << 2), results[tid].path);
                                 memcpy_128(results[tid].res4 + (results[tid].res_count[1] << 2) - 3, &results[tid].three_uj[index].u);
 #else
+                                // 保存已经走过的点
                                 memcpy(results[tid].res4 + (results[tid].res_count[1]++ << 2), results[tid].path, 4);
+                                // 保存反向三级跳表
                                 memcpy(results[tid].res4 + (results[tid].res_count[1] << 2) - 3, &results[tid].three_uj[index].u, 12);
 #endif
                             }
                         }
                         break;
+                    // 长度为5
                     case 1:
                         for (unsigned int index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
                         {
@@ -747,6 +778,7 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
                         }
 
                         break;
+                    // 长度为6
                     case 2:
                         for (unsigned int index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
                         {
@@ -762,6 +794,7 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
                             }
                         }
                         break;
+                    // 长度为7
                     case 3:
                         for (unsigned int index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
                         {
@@ -784,11 +817,13 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 
                 if (depth < 3)
                 {
+                    // 向更深一层dfs
                     stack[++depth] = g_succ[next_id];
                     cur_id = next_id;
                     results[tid].visited[cur_id] = true;
                     results[tid].path[depth] = cur_id;
                     begin_pos[depth] = 0;
+                    // 寻找起始位置
                     while (start_id >= stack[depth][begin_pos[depth]])
                         ++begin_pos[depth];
                 }
@@ -797,6 +832,7 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
     }
 }
 
+// 反向三级跳表排序
 bool three_uj_cmp(Three_pred &a, Three_pred &b)
 {
     return a.u != b.u ? a.u < b.u : (a.k1 != b.k1 ? a.k1 < b.k1 : a.k2 < b.k2);
@@ -828,26 +864,30 @@ void *thread_process(void *t)
         // 有直达的点才继续搜下去
         if (results[tid].three_uj_len)
         {
+            // 反向三级跳表排序
             sort(results[tid].three_uj, results[tid].three_uj + results[tid].three_uj_len, three_uj_cmp);
+            // 设置哨兵
             results[tid].three_uj[results[tid].three_uj_len] = {MAX_INT, MAX_INT, MAX_INT};
+            // 设置reachable和currentUs数组
             for (unsigned int index = 0; index < results[tid].three_uj_len; ++index)
             {
                 if (!results[tid].reachable[results[tid].three_uj[index].u])
                 {
                     results[tid].reachable[results[tid].three_uj[index].u] = index + 1;
-                    results[tid].currentJs[results[tid].currentJs_len++] = results[tid].three_uj[index].u;
+                    results[tid].currentUs[results[tid].currentUs_len++] = results[tid].three_uj[index].u;
                 }
             }
 
             dfs_ite(start_id, tid);
             // dfs_rec(start_id, start_id, 0, tid);
 
-            for (unsigned int j = 0; j < results[tid].currentJs_len; ++j)
+            // reachable和currentUs还原
+            for (unsigned int j = 0; j < results[tid].currentUs_len; ++j)
             {
-                results[tid].reachable[results[tid].currentJs[j]] = 0;
+                results[tid].reachable[results[tid].currentUs[j]] = 0;
             }
             results[tid].three_uj_len = 0;
-            results[tid].currentJs_len = 0;
+            results[tid].currentUs_len = 0;
         }
     }
 
@@ -926,6 +966,7 @@ int main()
         g_pred[v_hash_id][in_degree[v_hash_id]++] = u_hash_id;
     }
 
+    // 循环展开剩余部分
     for (; index < edge_num; ++index)
     {
         u_hash_id = id_count[u_ids[index]] - 1;
@@ -940,10 +981,13 @@ int main()
 
     for (index = 0; index < id_num - 3; index += 4)
     {
+        // 邻接表和逆邻接表排序
         sort(g_succ[index], g_succ[index] + out_degree[index]);
         sort(g_pred[index], g_pred[index] + in_degree[index]);
+        // 设置哨兵
         g_succ[index][out_degree[index]] = MAX_INT;
         g_pred[index][in_degree[index]] = MAX_INT;
+        // 转字符串
         idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3)) + 1;
 
         sort(g_succ[index + 1], g_succ[index + 1] + out_degree[index + 1]);
