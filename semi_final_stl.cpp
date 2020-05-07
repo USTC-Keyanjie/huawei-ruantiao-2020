@@ -1,9 +1,11 @@
 // submit:
-// 1. delete #define TEST.
-// 2. open //#define MMAP
-// 3. open //#define NEON
+// 1. close #define TEST.
+// 2. close CS should be better
+// 3. open //#define MMAP
+// 4. open //#define NEON
 
 #define TEST
+// #define CS   // 使用计数排序
 #define MMAP // 使用mmap函数
 #define NEON // 打开NEON特性的算子
 
@@ -26,14 +28,14 @@
 #include <stddef.h>
 #endif
 
-#define MAX_NUM_EDGES 2000000 // 最大可接受边数
-#define MAX_NUM_IDS 5000000   // 最大可接受id数
-#define MAX_OUT_DEGREE 100    // 最大可接受出度
-#define MAX_IN_DEGREE 100     // 最大可接受入度
+#define MAX_NUM_EDGES 2000000 // 最大可接受边数 确定
+#define MAX_NUM_IDS 2000000   // 最大可接受id数 90%确定
+#define MAX_OUT_DEGREE 100    // 最大可接受出度 不确定
+#define MAX_IN_DEGREE 100     // 最大可接受入度 不确定
 
-#define MAX_NUM_THREE_PREDS 10000 // 反向三级跳表的长度
+#define MAX_NUM_THREE_PREDS 50000 // 反向三级跳表的长度 不确定
 
-#define MAX_OUTPUT_FILE_SIZE 1024 * 1024 * 1024 // 输出文件的最大大小 1024 * 1024 * 1024 B
+#define MAX_OUTPUT_FILE_SIZE 2147483648 // 输出文件的最大大小 2GB 确定
 
 #define MAX_INT 2147483647 // 2^31 - 1
 
@@ -45,23 +47,27 @@
 // #define NUM_LEN6_RESULT 9000000  // 长度为6结果的总id数
 // #define NUM_LEN7_RESULT 13000000 // 长度为7结果的总id数
 
-#define NUM_LEN3_RESULT 3000000  // 长度为3结果的总id数
-#define NUM_LEN4_RESULT 3000000  // 长度为4结果的总id数
-#define NUM_LEN5_RESULT 8000000  // 长度为5结果的总id数
-#define NUM_LEN6_RESULT 15000000 // 长度为6结果的总id数
-#define NUM_LEN7_RESULT 30000000 // 长度为7结果的总id数
+// 均为50%确信
+#define NUM_LEN3_RESULT 1500000  // 长度为3结果的总id数 
+#define NUM_LEN4_RESULT 2000000  // 长度为4结果的总id数
+#define NUM_LEN5_RESULT 5000000  // 长度为5结果的总id数
+#define NUM_LEN6_RESULT 12000000 // 长度为6结果的总id数
+#define NUM_LEN7_RESULT 21000000 // 长度为7结果的总id数
 
 using namespace std;
 
 // 总id数，总边数
 unsigned int id_num = 0, edge_num = 0;
 
+#if NUM_THREADS == 1
 // 单线程任务分配比例
-// float seg_ratio[] = {0, 1};
+float seg_ratio[] = {0, 1};
 
+#elif NUM_THREADS == 4
 // 4线程任务分配比例
-// float seg_ratio[] = {0, 0.068, 0.148, 0.284, 1};
+float seg_ratio[] = {0, 0.068, 0.148, 0.284, 1};
 
+#elif NUM_THREADS == 18
 // 18线程任务分配比例
 float seg_ratio[] = {
     0,
@@ -69,6 +75,7 @@ float seg_ratio[] = {
     0.084, 0.1, 0.116, 0.132, 0.148,
     0.182, 0.216, 0.25, 0.284,
     0.523, 0.761, 1};
+#endif
 
 struct Node
 {
@@ -96,31 +103,33 @@ struct Three_pred
         unsigned int last_money) : u(u), k1(k1), k2(k2), first_money(first_money), last_money(last_money) {}
 };
 
-// 输入信息，从u_ids到v_ids
+// 输入信息，从u_ids到v_ids，全部保留
 unsigned int u_ids[MAX_NUM_EDGES];
 unsigned int v_ids[MAX_NUM_EDGES];
 unsigned int money[MAX_NUM_EDGES];
 
-unsigned int id_count[MAX_NUM_IDS]; // 计数排序辅助数组
-// index: regular ids (0, 1, 2, ...)
-// value: really ids
-unsigned int ids[MAX_NUM_IDS];
+// 保留
+unsigned int ids[MAX_NUM_EDGES * 2];
 
+// 图信息换vector
 Node g_succ[MAX_NUM_IDS][MAX_OUT_DEGREE]; // 邻接表
 unsigned int out_degree[MAX_NUM_IDS];     // 每个节点的出度
 Node g_pred[MAX_NUM_IDS][MAX_IN_DEGREE];  // 逆邻接表
 unsigned int in_degree[MAX_NUM_IDS];      // 每个节点的入度
 
-char idsComma[MAX_NUM_IDS * 8];        // id + ','
+// 保留
+char idsComma[MAX_NUM_IDS * 11];       // id + ','
 unsigned int idsChar_len[MAX_NUM_IDS]; // 每个id的字符串长度
 
 // 每个线程专属区域
 struct Result
 {
+    // 保留
     unsigned int path[4];      // 已经走过的节点信息
     unsigned int m_path[4];    // 已经走过点的金额信息
     bool visited[MAX_NUM_IDS]; // 访问标记数组
 
+    // 换 unordered_map
     Three_pred three_uj[MAX_NUM_THREE_PREDS];    // 反向三级跳表
     unsigned int three_uj_len;                   // 三级跳表长度
     unsigned int reachable[MAX_NUM_IDS];         // 若此点可达起点，则记录其在三级跳表中的index + 1，否则记录0
@@ -164,6 +173,7 @@ void *memcpy_128(void *dest, void *src, size_t count)
 }
 #endif
 
+#ifdef CS
 // fstream方式输入
 void input_fstream(char *testFile)
 {
@@ -242,10 +252,92 @@ void input_mmap(char *testFile)
     cout << "mmap input time " << (double)(clock() - input_time) / CLOCKS_PER_SEC << "s" << endl;
 #endif
 }
+#endif
+
+#else
+// 不使用计数排序方案
+void input_fstream(char *testFile)
+{
+#ifdef TEST
+    clock_t input_time = clock();
+#endif
+
+    FILE *file = fopen(testFile, "r");
+    while (fscanf(file, "%d,%d,%d\n", u_ids + edge_num, v_ids + edge_num, money + edge_num) != EOF)
+    {
+        ids[(edge_num << 1)] = u_ids[edge_num];
+        ids[(edge_num << 1) + 1] = v_ids[edge_num];
+        ++edge_num;
+    }
+    fclose(file);
+#ifdef TEST
+    cout << "fscanf input time " << (double)(clock() - input_time) / CLOCKS_PER_SEC << "s" << endl;
+#endif
+}
+
+#ifdef MMAP
+
+void input_mmap(char *testFile)
+{
+#ifdef TEST
+    clock_t input_time = clock();
+#endif
+    int fd = open(testFile, O_RDONLY);
+    //get the size of the document
+    long length = lseek(fd, 0, SEEK_END);
+
+    //mmap
+    char *buf = (char *)mmap(NULL, length, PROT_READ, MAP_PRIVATE, fd, 0);
+
+    register int id_pos = 0;
+    register int sign = 0;
+    register unsigned int temp = 0;
+
+    for (char *p = buf; *p && p - buf < length; ++p)
+    {
+        if (*p != ',' && *p != '\n')
+        {
+            // atoi
+            temp = (temp << 1) + (temp << 3) + *p - '0';
+        }
+        else
+        {
+            ++sign;
+            switch (sign)
+            {
+            case 1: //读取 id1
+                u_ids[edge_num] = temp;
+                ids[id_pos++] = temp;
+                temp = 0;
+                break;
+            case 2: //读取 id2
+                v_ids[edge_num] = temp;
+                ids[id_pos++] = temp;
+                temp = 0;
+                break;
+            case 3: // 读取 money
+                money[edge_num++] = temp;
+                temp = 0;
+                sign = 0; // 开始读取下一行
+                break;
+            default:
+                break;
+            }
+        }
+    }
+
+    close(fd);
+    munmap(buf, length);
+#ifdef TEST
+    cout << "mmap input time " << (double)(clock() - input_time) / CLOCKS_PER_SEC << "s" << endl;
+#endif
+}
 
 #endif
 
-// 计算总结果数长度
+#endif
+
+// 计算总结果数长度，不超过2000w，那么最多8位数
 unsigned int res_count_digits10_length(unsigned int num)
 {
     if (num < 1e7)
@@ -314,7 +406,7 @@ unsigned int res_count_uint2ascii(unsigned int value, char *dst)
     return length;
 }
 
-// 先预留10位数
+// 先预留10位数，这总该够了吧
 unsigned int digits10_length(unsigned int num)
 {
     if (num < 1e9)
@@ -423,27 +515,27 @@ void save_fwrite(char *resultFile)
             // result_id = results[0][thread_offset + line_offset];
             result_id = results[tid].res3[line_offset];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             // result_id = results[0][thread_offset + line_offset + 1];
             result_id = results[tid].res3[line_offset + 1];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             // result_id = results[0][thread_offset + line_offset + 2];
             result_id = results[tid].res3[line_offset + 2];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
             str_res[str_len - 1] = '\n';
@@ -457,33 +549,33 @@ void save_fwrite(char *resultFile)
         {
             result_id = results[tid].res4[line_offset];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res4[line_offset + 1];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res4[line_offset + 2];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res4[line_offset + 3];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
             str_res[str_len - 1] = '\n';
@@ -497,41 +589,41 @@ void save_fwrite(char *resultFile)
         {
             result_id = results[tid].res5[line_offset];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res5[line_offset + 1];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res5[line_offset + 2];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res5[line_offset + 3];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res5[line_offset + 4];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
             str_res[str_len - 1] = '\n';
@@ -545,49 +637,49 @@ void save_fwrite(char *resultFile)
         {
             result_id = results[tid].res6[line_offset];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res6[line_offset + 1];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res6[line_offset + 2];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res6[line_offset + 3];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res6[line_offset + 4];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res6[line_offset + 5];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
             str_res[str_len - 1] = '\n';
@@ -601,57 +693,57 @@ void save_fwrite(char *resultFile)
         {
             result_id = results[tid].res7[line_offset];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res7[line_offset + 1];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res7[line_offset + 2];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res7[line_offset + 3];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res7[line_offset + 4];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res7[line_offset + 5];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
 
             result_id = results[tid].res7[line_offset + 6];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3));
+            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
-            memcpy(str_res + str_len, idsComma + (result_id << 3), idsChar_len[result_id]);
+            memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
             str_len += idsChar_len[result_id];
             str_res[str_len - 1] = '\n';
@@ -669,24 +761,24 @@ void save_fwrite(char *resultFile)
 
 bool is_money_valid(unsigned int x, unsigned int y)
 {
-    if (x > y)
-    {
-        // 会越界
-        if (y & 0x40000000)
-        {
-            return true;
-        }
-        else
-        {
-            return x - y <= (y << 2);
-        }
-    }
-    else
-    {
-        return y - x <= (x << 1);
-    }
+    // if (x > y)
+    // {
+    //     // 会越界
+    //     if (y & 0x40000000)
+    //     {
+    //         return true;
+    //     }
+    //     else
+    //     {
+    //         return x - y <= (y << 2);
+    //     }
+    // }
+    // else
+    // {
+    //     return y - x <= (x << 1);
+    // }
 
-    // return x > y ? (y & 0x40000000 ? true : x - y <= (y << 2)) : y - x <= (x << 1);
+    return x > y ? (y & 0x40000000 ? true : x - y <= (y << 2)) : y - x <= (x << 1);
 }
 
 // iteration version
@@ -916,7 +1008,7 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
 }
 
 // 反向三级跳表排序
-bool three_uj_cmp(Three_pred &a, Three_pred &b)
+bool cmp_three_uj(Three_pred &a, Three_pred &b)
 {
     return a.u != b.u ? a.u < b.u : (a.k1 != b.k1 ? a.k1 < b.k1 : a.k2 < b.k2);
     // return a.k1 < b.k1;
@@ -949,7 +1041,7 @@ void *thread_process(void *t)
         if (results[tid].three_uj_len)
         {
             // 反向三级跳表排序
-            sort(results[tid].three_uj, results[tid].three_uj + results[tid].three_uj_len, three_uj_cmp);
+            sort(results[tid].three_uj, results[tid].three_uj + results[tid].three_uj_len, cmp_three_uj);
             // stable_sort(results[tid].three_uj, results[tid].three_uj + results[tid].three_uj_len, three_uj_cmp);
 
             // 设置哨兵
@@ -984,9 +1076,47 @@ void *thread_process(void *t)
     pthread_exit(NULL);
 }
 
-bool node_cmp(Node &a, Node &b)
+bool cmp_node(Node &a, Node &b)
 {
     return a.id < b.id;
+}
+
+unsigned int binary_search(unsigned int target)
+{
+    register unsigned int left = 0;
+    register unsigned int right = id_num - 1;
+    register unsigned int mid;
+
+    while (left <= right)
+    {
+        mid = (right + left) >> 1;
+        if (ids[mid] == target)
+        {
+            return mid;
+        }
+        else if (target > ids[mid])
+        {
+            left = mid + 1;
+        }
+        else if (target < ids[mid])
+        {
+            right = mid - 1;
+        }
+    }
+    return -1;
+}
+
+void duplicate_removal()
+{
+    register unsigned int slow = 0, fast = 1;
+    register unsigned int double_edge_num = edge_num << 1;
+    while (fast < double_edge_num)
+    {
+        if (ids[fast] != ids[slow])
+            ids[++slow] = ids[fast];
+        fast++;
+    }
+    id_num = slow + 1;
 }
 
 int main()
@@ -1018,6 +1148,7 @@ int main()
 
     register unsigned int index;
 
+#ifdef CS
     for (index = 1; index < MAX_NUM_IDS; ++index)
     {
         id_count[index] += id_count[index - 1];
@@ -1084,41 +1215,115 @@ int main()
     for (index = 0; index < id_num - 3; index += 4)
     {
         // 邻接表和逆邻接表排序
-        sort(g_succ[index], g_succ[index] + out_degree[index], node_cmp);
-        sort(g_pred[index], g_pred[index] + in_degree[index], node_cmp);
+        sort(g_succ[index], g_succ[index] + out_degree[index], cmp_node);
+        sort(g_pred[index], g_pred[index] + in_degree[index], cmp_node);
         // 设置哨兵
         g_succ[index][out_degree[index]] = {MAX_INT, MAX_INT};
         g_pred[index][in_degree[index]] = {MAX_INT, MAX_INT};
         // 转字符串
-        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3)) + 1;
+        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3) + (index << 1) + index) + 1;
 
-        sort(g_succ[index + 1], g_succ[index + 1] + out_degree[index + 1], node_cmp);
-        sort(g_pred[index + 1], g_pred[index + 1] + in_degree[index + 1], node_cmp);
+        sort(g_succ[index + 1], g_succ[index + 1] + out_degree[index + 1], cmp_node);
+        sort(g_pred[index + 1], g_pred[index + 1] + in_degree[index + 1], cmp_node);
         g_succ[index + 1][out_degree[index + 1]] = {MAX_INT, MAX_INT};
         g_pred[index + 1][in_degree[index + 1]] = {MAX_INT, MAX_INT};
-        idsChar_len[index + 1] = uint2ascii(ids[index + 1], idsComma + ((index + 1) << 3)) + 1;
+        idsChar_len[index + 1] = uint2ascii(ids[index + 1], idsComma + ((index + 1) << 3) + ((index + 1) << 1) + (index + 1)) + 1;
 
-        sort(g_succ[index + 2], g_succ[index + 2] + out_degree[index + 2], node_cmp);
-        sort(g_pred[index + 2], g_pred[index + 2] + in_degree[index + 2], node_cmp);
+        sort(g_succ[index + 2], g_succ[index + 2] + out_degree[index + 2], cmp_node);
+        sort(g_pred[index + 2], g_pred[index + 2] + in_degree[index + 2], cmp_node);
         g_succ[index + 2][out_degree[index + 2]] = {MAX_INT, MAX_INT};
         g_pred[index + 2][in_degree[index + 2]] = {MAX_INT, MAX_INT};
-        idsChar_len[index + 2] = uint2ascii(ids[index + 2], idsComma + ((index + 2) << 3)) + 1;
+        idsChar_len[index + 2] = uint2ascii(ids[index + 2], idsComma + ((index + 2) << 3) + ((index + 2) << 1) + (index + 2)) + 1;
 
-        sort(g_succ[index + 3], g_succ[index + 3] + out_degree[index + 3], node_cmp);
-        sort(g_pred[index + 3], g_pred[index + 3] + in_degree[index + 3], node_cmp);
+        sort(g_succ[index + 3], g_succ[index + 3] + out_degree[index + 3], cmp_node);
+        sort(g_pred[index + 3], g_pred[index + 3] + in_degree[index + 3], cmp_node);
         g_succ[index + 3][out_degree[index + 3]] = {MAX_INT, MAX_INT};
         g_pred[index + 3][in_degree[index + 3]] = {MAX_INT, MAX_INT};
-        idsChar_len[index + 3] = uint2ascii(ids[index + 3], idsComma + ((index + 3) << 3)) + 1;
+        idsChar_len[index + 3] = uint2ascii(ids[index + 3], idsComma + ((index + 3) << 3) + ((index + 3) << 1) + (index + 3)) + 1;
     }
 
     for (; index < id_num; ++index)
     {
-        sort(g_succ[index], g_succ[index] + out_degree[index], node_cmp);
-        sort(g_pred[index], g_pred[index] + in_degree[index], node_cmp);
+        sort(g_succ[index], g_succ[index] + out_degree[index], cmp_node);
+        sort(g_pred[index], g_pred[index] + in_degree[index], cmp_node);
         g_succ[index][out_degree[index]] = {MAX_INT, MAX_INT};
         g_pred[index][in_degree[index]] = {MAX_INT, MAX_INT};
-        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3)) + 1;
+        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3) + (index << 1) + index) + 1;
     }
+
+#else
+    sort(ids, ids + (edge_num << 1));
+    duplicate_removal();
+
+    register unsigned int u_id, v_id;
+    for (index = 0; index < edge_num - 3; index += 4)
+    {
+        u_id = binary_search(u_ids[index]);
+        v_id = binary_search(v_ids[index]);
+        g_succ[u_id][out_degree[u_id]++] = {v_id, money[index]};
+        g_pred[v_id][in_degree[v_id]++] = {u_id, money[index]};
+
+        u_id = binary_search(u_ids[index + 1]);
+        v_id = binary_search(v_ids[index + 1]);
+        g_succ[u_id][out_degree[u_id]++] = {v_id, money[index + 1]};
+        g_pred[v_id][in_degree[v_id]++] = {u_id, money[index + 1]};
+
+        u_id = binary_search(u_ids[index + 2]);
+        v_id = binary_search(v_ids[index + 2]);
+        g_succ[u_id][out_degree[u_id]++] = {v_id, money[index + 2]};
+        g_pred[v_id][in_degree[v_id]++] = {u_id, money[index + 2]};
+
+        u_id = binary_search(u_ids[index + 3]);
+        v_id = binary_search(v_ids[index + 3]);
+        g_succ[u_id][out_degree[u_id]++] = {v_id, money[index + 3]};
+        g_pred[v_id][in_degree[v_id]++] = {u_id, money[index + 3]};
+    }
+
+    // 循环展开剩余部分
+    for (; index < edge_num; ++index)
+    {
+        u_id = binary_search(u_ids[index]);
+        v_id = binary_search(v_ids[index]);
+        g_succ[u_id][out_degree[u_id]++] = {v_id, money[index]};
+        g_pred[v_id][in_degree[v_id]++] = {u_id, money[index]};
+    }
+
+    for (index = 0; index < id_num - 3; index += 4)
+    {
+        sort(g_succ[index], g_succ[index] + out_degree[index], cmp_node);
+        sort(g_pred[index], g_pred[index] + in_degree[index], cmp_node);
+        g_succ[index][out_degree[index]] = {MAX_INT, MAX_INT};
+        g_pred[index][in_degree[index]] = {MAX_INT, MAX_INT};
+        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3) + (index << 1) + index) + 1;
+
+        sort(g_succ[index + 1], g_succ[index + 1] + out_degree[index + 1], cmp_node);
+        sort(g_pred[index + 1], g_pred[index + 1] + in_degree[index + 1], cmp_node);
+        g_succ[index + 1][out_degree[index + 1]] = {MAX_INT, MAX_INT};
+        g_pred[index + 1][in_degree[index + 1]] = {MAX_INT, MAX_INT};
+        idsChar_len[index + 1] = uint2ascii(ids[index + 1], idsComma + ((index + 1) << 3) + ((index + 1) << 1) + (index + 1)) + 1;
+
+        sort(g_succ[index + 2], g_succ[index + 2] + out_degree[index + 2], cmp_node);
+        sort(g_pred[index + 2], g_pred[index + 2] + in_degree[index + 2], cmp_node);
+        g_succ[index + 2][out_degree[index + 2]] = {MAX_INT, MAX_INT};
+        g_pred[index + 2][in_degree[index + 2]] = {MAX_INT, MAX_INT};
+        idsChar_len[index + 2] = uint2ascii(ids[index + 2], idsComma + ((index + 2) << 3) + ((index + 2) << 1) + (index + 2)) + 1;
+
+        sort(g_succ[index + 3], g_succ[index + 3] + out_degree[index + 3], cmp_node);
+        sort(g_pred[index + 3], g_pred[index + 3] + in_degree[index + 3], cmp_node);
+        g_succ[index + 3][out_degree[index + 3]] = {MAX_INT, MAX_INT};
+        g_pred[index + 3][in_degree[index + 3]] = {MAX_INT, MAX_INT};
+        idsChar_len[index + 3] = uint2ascii(ids[index + 3], idsComma + ((index + 3) << 3) + ((index + 3) << 1) + (index + 3)) + 1;
+    }
+
+    for (; index < id_num; ++index)
+    {
+        sort(g_succ[index], g_succ[index] + out_degree[index], cmp_node);
+        sort(g_pred[index], g_pred[index] + in_degree[index], cmp_node);
+        g_succ[index][out_degree[index]] = {MAX_INT, MAX_INT};
+        g_pred[index][in_degree[index]] = {MAX_INT, MAX_INT};
+        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3) + (index << 1) + index) + 1;
+    }
+#endif
 
     register unsigned int tid;
     // 创建子线程的标识符 就是线程 的id,放在数组中
