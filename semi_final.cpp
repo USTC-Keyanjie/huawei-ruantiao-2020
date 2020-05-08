@@ -28,8 +28,8 @@
 #include <stddef.h>
 #endif
 
-#define MAX_NUM_EDGES 100000 // 最大可接受边数 确定
-#define MAX_NUM_IDS 100000   // 最大可接受id数 90%确定
+#define MAX_NUM_EDGES 2000000 // 最大可接受边数 确定
+#define MAX_NUM_IDS 2000000   // 最大可接受id数 90%确定
 #define MAX_OUT_DEGREE 100    // 最大可接受出度 不确定
 #define MAX_IN_DEGREE 100     // 最大可接受入度 不确定
 
