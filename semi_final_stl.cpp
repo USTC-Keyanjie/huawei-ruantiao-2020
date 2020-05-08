@@ -39,7 +39,7 @@
 
 #define MAX_INT 2147483647 // 2^31 - 1
 
-#define NUM_THREADS 1 // 线程数
+#define NUM_THREADS 18 // 线程数
 
 // #define NUM_LEN3_RESULT 1200000  // 长度为3结果的总id数
 // #define NUM_LEN4_RESULT 1600000  // 长度为4结果的总id数
@@ -882,13 +882,12 @@ void dfs_ite(register ui start_id, register ui tid)
     // 首先查找所有长度为3的结果，因为不需要搜索就可以得到
     if (results[tid].three_uj.find(cur_id) != results[tid].three_uj.end())
     {
-        for (auto it1 = results[tid].three_uj[cur_id].begin(); it1 != results[tid].three_uj[cur_id].begin(); ++it1)
+        for (auto it1 = results[tid].three_uj[cur_id].begin(); it1 != results[tid].three_uj[cur_id].end(); ++it1)
         {
             for (auto it2 = it1->second.begin(); it2 != it1->second.end(); ++it2)
             {
-                if (is_money_valid(it1->first, *it2))
+                if (is_money_valid(*it2, it1->first))
                 {
-                    // results[tid].res3.insert(results[tid].res3.end(), &results[tid].three_uj[index].u, &results[tid].three_uj[index].u + 3);
                     results[tid].res3.push_back(cur_id);
                     results[tid].res3.push_back(it1->first >> 32);
                     results[tid].res3.push_back(*it2 >> 32);
@@ -896,25 +895,6 @@ void dfs_ite(register ui start_id, register ui tid)
                 }
             }
         }
-
-        //         for (ui index = results[tid].reachable[cur_id] - 1; results[tid].three_uj[index].u == cur_id; ++index)
-        //         {
-        //             if (is_money_valid(results[tid].three_uj[index].last_money, results[tid].three_uj[index].first_money))
-        //             {
-        // #ifdef NEON
-        //                 // memcpy_128(
-        //                 //     results[tid].res3 + (results[tid].res_count[0] << 1) + results[tid].res_count[0],
-        //                 //     &results[tid].three_uj[index].u);
-        // #else
-        //                 // memcpy(
-        //                 //     results[tid].res3 + (results[tid].res_count[0] << 1) + results[tid].res_count[0],
-        //                 //     &results[tid].three_uj[index].u,
-        //                 //     12);
-        //                 results[tid].res3.insert(results[tid].res3.end(), &results[tid].three_uj[index].u, &results[tid].three_uj[index].u + 3);
-        // #endif
-        //                 ++results[tid].res_count[0];
-        //             }
-        //         }
     }
 
     // dfs搜索
@@ -943,14 +923,15 @@ void dfs_ite(register ui start_id, register ui tid)
                     {
                     // 长度为4
                     case 0:
-                        for (auto it1 = results[tid].three_uj[next_id].begin(); it1 != results[tid].three_uj[next_id].begin(); ++it1)
+                        for (auto it1 = results[tid].three_uj[next_id].begin(); it1 != results[tid].three_uj[next_id].end(); ++it1)
                         {
                             for (auto it2 = it1->second.begin(); it2 != it1->second.end(); ++it2)
                             {
-                                if (is_money_valid(it1->first, *it2))
+                                if (is_money_valid(results[tid].m_path[0], it1->first) && is_money_valid(*it2, results[tid].m_path[0]) &&
+                                    !results[tid].visited[it1->first >> 32] && !results[tid].visited[*it2 >> 32])
                                 {
                                     results[tid].res4.insert(results[tid].res4.end(), results[tid].path, results[tid].path + 1);
-                                    results[tid].res4.push_back(cur_id);
+                                    results[tid].res4.push_back(next_id);
                                     results[tid].res4.push_back(it1->first >> 32);
                                     results[tid].res4.push_back(*it2 >> 32);
                                     ++results[tid].res_count[1];
@@ -960,69 +941,55 @@ void dfs_ite(register ui start_id, register ui tid)
                         break;
                     // 长度为5
                     case 1:
-                        for (ui index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
+                        for (auto it1 = results[tid].three_uj[next_id].begin(); it1 != results[tid].three_uj[next_id].end(); ++it1)
                         {
-                            if (is_money_valid(results[tid].m_path[1], results[tid].three_uj[index].first_money) &&
-                                is_money_valid(results[tid].three_uj[index].last_money, results[tid].m_path[0]) &&
-                                !results[tid].visited[results[tid].three_uj[index].k1] && !results[tid].visited[results[tid].three_uj[index].k2])
+                            for (auto it2 = it1->second.begin(); it2 != it1->second.end(); ++it2)
                             {
-#ifdef NEON
-                                memcpy_128(results[tid].res5 + (results[tid].res_count[2] << 2) + results[tid].res_count[2]++, results[tid].path);
-                                memcpy_128(results[tid].res5 + (results[tid].res_count[2] << 2) + results[tid].res_count[2] - 3, &results[tid].three_uj[index].u);
-#else
-                                // memcpy(results[tid].res5 + (results[tid].res_count[2] << 2) + results[tid].res_count[2]++, results[tid].path, 8);
-                                // memcpy(results[tid].res5 + (results[tid].res_count[2] << 2) + results[tid].res_count[2] - 3, &results[tid].three_uj[index].u, 12);
-
-                                results[tid].res5.insert(results[tid].res5.end(), results[tid].path, results[tid].path + 2);
-                                results[tid].res5.insert(results[tid].res5.end(), &results[tid].three_uj[index].u, &results[tid].three_uj[index].u + 3);
-
-#endif
-                                ++results[tid].res_count[2];
+                                if (is_money_valid(results[tid].m_path[1], it1->first) && is_money_valid(*it2, results[tid].m_path[0]) &&
+                                    !results[tid].visited[it1->first >> 32] && !results[tid].visited[*it2 >> 32])
+                                {
+                                    results[tid].res5.insert(results[tid].res5.end(), results[tid].path, results[tid].path + 2);
+                                    results[tid].res5.push_back(next_id);
+                                    results[tid].res5.push_back(it1->first >> 32);
+                                    results[tid].res5.push_back(*it2 >> 32);
+                                    ++results[tid].res_count[2];
+                                }
                             }
                         }
-
                         break;
                     // 长度为6
                     case 2:
-                        for (ui index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
+                        for (auto it1 = results[tid].three_uj[next_id].begin(); it1 != results[tid].three_uj[next_id].end(); ++it1)
                         {
-                            if (is_money_valid(results[tid].m_path[2], results[tid].three_uj[index].first_money) &&
-                                is_money_valid(results[tid].three_uj[index].last_money, results[tid].m_path[0]) &&
-                                !results[tid].visited[results[tid].three_uj[index].k1] && !results[tid].visited[results[tid].three_uj[index].k2])
+                            for (auto it2 = it1->second.begin(); it2 != it1->second.end(); ++it2)
                             {
-#ifdef NEON
-                                memcpy_128(results[tid].res6 + (results[tid].res_count[3] << 2) + (results[tid].res_count[3]++ << 1), results[tid].path);
-                                memcpy_128(results[tid].res6 + (results[tid].res_count[3] << 2) + (results[tid].res_count[3] << 1) - 3, &results[tid].three_uj[index].u);
-#else
-                                // memcpy(results[tid].res6 + (results[tid].res_count[3] << 2) + (results[tid].res_count[3]++ << 1), results[tid].path, 12);
-                                // memcpy(results[tid].res6 + (results[tid].res_count[3] << 2) + (results[tid].res_count[3] << 1) - 3, &results[tid].three_uj[index].u, 12);
-
-                                results[tid].res6.insert(results[tid].res6.end(), results[tid].path, results[tid].path + 3);
-                                results[tid].res6.insert(results[tid].res6.end(), &results[tid].three_uj[index].u, &results[tid].three_uj[index].u + 3);
-#endif
-                                ++results[tid].res_count[3];
+                                if (is_money_valid(results[tid].m_path[2], it1->first) && is_money_valid(*it2, results[tid].m_path[0]) &&
+                                    !results[tid].visited[it1->first >> 32] && !results[tid].visited[*it2 >> 32])
+                                {
+                                    results[tid].res6.insert(results[tid].res6.end(), results[tid].path, results[tid].path + 3);
+                                    results[tid].res6.push_back(next_id);
+                                    results[tid].res6.push_back(it1->first >> 32);
+                                    results[tid].res6.push_back(*it2 >> 32);
+                                    ++results[tid].res_count[3];
+                                }
                             }
                         }
                         break;
                     // 长度为7
                     case 3:
-                        for (ui index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
+                        for (auto it1 = results[tid].three_uj[next_id].begin(); it1 != results[tid].three_uj[next_id].end(); ++it1)
                         {
-                            if (is_money_valid(results[tid].m_path[3], results[tid].three_uj[index].first_money) &&
-                                is_money_valid(results[tid].three_uj[index].last_money, results[tid].m_path[0]) &&
-                                !results[tid].visited[results[tid].three_uj[index].k1] && !results[tid].visited[results[tid].three_uj[index].k2])
+                            for (auto it2 = it1->second.begin(); it2 != it1->second.end(); ++it2)
                             {
-#ifdef NEON
-                                memcpy_128(results[tid].res7 + (results[tid].res_count[4] << 2) + (results[tid].res_count[4] << 1) + results[tid].res_count[4]++, results[tid].path);
-                                memcpy_128(results[tid].res7 + (results[tid].res_count[4] << 2) + (results[tid].res_count[4] << 1) + results[tid].res_count[4] - 3, &results[tid].three_uj[index].u);
-#else
-                                // memcpy(results[tid].res7 + (results[tid].res_count[4] << 2) + (results[tid].res_count[4] << 1) + results[tid].res_count[4]++, results[tid].path, 16);
-                                // memcpy(results[tid].res7 + (results[tid].res_count[4] << 2) + (results[tid].res_count[4] << 1) + results[tid].res_count[4] - 3, &results[tid].three_uj[index].u, 12);
-
-                                results[tid].res7.insert(results[tid].res7.end(), results[tid].path, results[tid].path + 4);
-                                results[tid].res7.insert(results[tid].res7.end(), &results[tid].three_uj[index].u, &results[tid].three_uj[index].u + 3);
-#endif
-                                ++results[tid].res_count[4];
+                                if (is_money_valid(results[tid].m_path[3], it1->first) && is_money_valid(*it2, results[tid].m_path[0]) &&
+                                    !results[tid].visited[it1->first >> 32] && !results[tid].visited[*it2 >> 32])
+                                {
+                                    results[tid].res7.insert(results[tid].res7.end(), results[tid].path, results[tid].path + 4);
+                                    results[tid].res7.push_back(next_id);
+                                    results[tid].res7.push_back(it1->first >> 32);
+                                    results[tid].res7.push_back(*it2 >> 32);
+                                    ++results[tid].res_count[4];
+                                }
                             }
                         }
                         break;
@@ -1070,43 +1037,17 @@ void *thread_process(void *t)
     for (ui start_id = (ui)(seg_ratio[tid] * id_num); start_id < end_id; ++start_id)
     {
 #ifdef TEST
-        // if (start_id % 100 == 0)
-        // {
-        //     printf("%d/%d ~ %.2lfs ~ %2.lf%%\n", start_id, id_num, (double)(clock() - search_time) / CLOCKS_PER_SEC, (double)(start_id) / id_num * 100);
-        // }
+        if (start_id % 100 == 0)
+        {
+            printf("%d/%d ~ %.2lfs ~ %2.lf%%\n", start_id, id_num, (double)(clock() - search_time) / CLOCKS_PER_SEC, (double)(start_id) / id_num * 100);
+        }
 #endif
         results[tid].three_uj.clear();
         pre_dfs_ite(start_id, tid);
-        // pre_dfs_rec(start_id, start_id, 0, tid);
         // 有直达的点才继续搜下去
         if (results[tid].three_uj.size())
         {
-            // 反向三级跳表排序
-            // sort(results[tid].three_uj, results[tid].three_uj + results[tid].three_uj_len, cmp_three_uj);
-            // stable_sort(results[tid].three_uj, results[tid].three_uj + results[tid].three_uj_len, three_uj_cmp);
-
-            // 设置哨兵
-            // results[tid].three_uj[results[tid].three_uj_len] = {MAX_INT, MAX_INT, MAX_INT, MAX_INT, MAX_INT};
-            // 设置reachable和currentUs数组
-            // for (ui index = 0; index < results[tid].three_uj_len; ++index)
-            // {
-            //     if (!results[tid].reachable[results[tid].three_uj[index].u])
-            //     {
-            //         results[tid].reachable[results[tid].three_uj[index].u] = index + 1;
-            //         results[tid].currentUs[results[tid].currentUs_len++] = results[tid].three_uj[index].u;
-            //     }
-            // }
-
             dfs_ite(start_id, tid);
-            // dfs_rec(start_id, start_id, 0, tid);
-
-            // reachable和currentUs还原
-            // for (ui j = 0; j < results[tid].currentUs_len; ++j)
-            // {
-            //     results[tid].reachable[results[tid].currentUs[j]] = 0;
-            // }
-            // results[tid].three_uj_len = 0;
-            // results[tid].currentUs_len = 0;
         }
     }
 

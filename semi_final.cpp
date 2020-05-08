@@ -30,30 +30,29 @@
 
 #define MAX_NUM_EDGES 2000000 // 最大可接受边数 确定
 #define MAX_NUM_IDS 2000000   // 最大可接受id数 90%确定
-#define MAX_OUT_DEGREE 100    // 最大可接受出度 不确定
-#define MAX_IN_DEGREE 100     // 最大可接受入度 不确定
+#define MAX_OUT_DEGREE 100   // 最大可接受出度 不确定
+#define MAX_IN_DEGREE 100    // 最大可接受入度 不确定
 
 #define MAX_NUM_THREE_PREDS 10000 // 反向三级跳表的长度 不确定
 
-// #define MAX_OUTPUT_FILE_SIZE 2147483648 // 输出文件的最大大小 2GB 确定
-#define MAX_OUTPUT_FILE_SIZE 128 * 1024 * 1024 // 输出文件的最大大小 2GB 确定
+#define MAX_OUTPUT_FILE_SIZE 1540000000 // 输出文件的最大大小 2000w*7*11B 确定
 
 #define MAX_INT 2147483647 // 2^31 - 1
 
 #define NUM_THREADS 1 // 线程数
 
-#define NUM_LEN3_RESULT 1200000  // 长度为3结果的总id数
-#define NUM_LEN4_RESULT 1600000  // 长度为4结果的总id数
-#define NUM_LEN5_RESULT 4000000  // 长度为5结果的总id数
-#define NUM_LEN6_RESULT 9000000  // 长度为6结果的总id数
-#define NUM_LEN7_RESULT 13000000 // 长度为7结果的总id数
+// #define NUM_LEN3_RESULT 1200000  // 长度为3结果的总id数
+// #define NUM_LEN4_RESULT 1600000  // 长度为4结果的总id数
+// #define NUM_LEN5_RESULT 4000000  // 长度为5结果的总id数
+// #define NUM_LEN6_RESULT 9000000  // 长度为6结果的总id数
+// #define NUM_LEN7_RESULT 13000000 // 长度为7结果的总id数
 
 // 均为50%确信
-// #define NUM_LEN3_RESULT 5000000  // 长度为3结果的总id数 
-// #define NUM_LEN4_RESULT 5000000  // 长度为4结果的总id数
-// #define NUM_LEN5_RESULT 10000000  // 长度为5结果的总id数
-// #define NUM_LEN6_RESULT 30000000 // 长度为6结果的总id数
-// #define NUM_LEN7_RESULT 50000000 // 长度为7结果的总id数
+#define NUM_LEN3_RESULT 20000000 // 长度为3结果的总id数
+#define NUM_LEN4_RESULT 20000000 // 长度为4结果的总id数
+#define NUM_LEN5_RESULT 20000000 // 长度为5结果的总id数
+#define NUM_LEN6_RESULT 30000000 // 长度为6结果的总id数
+#define NUM_LEN7_RESULT 50000000 // 长度为7结果的总id数
 
 using namespace std;
 
@@ -1135,8 +1134,8 @@ int main()
     // 881420
     // 2408026
     // 2541581
-    char testFile[] = "test_data_fs/51532/test_data.txt";
-    char resultFile[] = "test_data_fs/51532/result.txt";
+    char testFile[] = "test_data_fs/2541581/test_data.txt";
+    char resultFile[] = "test_data_fs/2541581/result.txt";
     clock_t start_time = clock();
 #else
     char testFile[] = "/data/test_data.txt";
