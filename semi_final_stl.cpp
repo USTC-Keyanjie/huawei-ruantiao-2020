@@ -4,8 +4,8 @@
 // 3. open //#define MMAP
 // 4. open //#define NEON
 
-#define TEST
-// #define CS   // 使用计数排序
+// #define TEST
+// #define CS   // 使用计数排序 STL模式下暂不支持
 // #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子 STL模式下不能开
 
@@ -1114,8 +1114,9 @@ int main()
     // 881420
     // 2408026
     // 2541581
-    char testFile[] = "test_data_fs/2541581/test_data.txt";
-    char resultFile[] = "test_data_fs/2541581/result.txt";
+    // 19630345
+    char testFile[] = "test_data_fs/639096/test_data.txt";
+    char resultFile[] = "test_data_fs/639096/result.txt";
     clock_t start_time = clock();
 #else
     char testFile[] = "/data/test_data.txt";
