@@ -4,10 +4,10 @@
 // 3. open //#define MMAP
 // 4. open //#define NEON
 
-// #define TEST
+#define TEST
 // #define CS   // 使用计数排序 STL模式下暂不支持
 // #define MMAP // 使用mmap函数
-// #define NEON // 打开NEON特性的算子 STL模式下不能开
+// #define NEON // 打开NEON特性的算子 STL模式下暂不支持
 
 #include <bits/stdc++.h>
 #include <fcntl.h>
