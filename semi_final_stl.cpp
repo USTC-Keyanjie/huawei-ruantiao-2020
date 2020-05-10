@@ -4,9 +4,9 @@
 // 3. open //#define MMAP
 // 4. open //#define NEON
 
-#define TEST
+// #define TEST
 // #define CS   // 使用计数排序 STL模式下暂不支持
-// #define MMAP // 使用mmap函数
+#define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子 STL模式下暂不支持
 
 #include <bits/stdc++.h>
@@ -37,7 +37,7 @@
 
 #define MAX_OUTPUT_FILE_SIZE 1540000000 // 输出文件的最大大小 2000w*7*11B 确定
 
-#define MAX_INT 2147483647 // 2^31 - 1
+#define MAX_INT 2147483648 // 2^31
 
 #define NUM_THREADS 18 // 线程数
 
@@ -231,34 +231,35 @@ void input_mmap(char *testFile)
 
     for (char *p = buf; *p && p - buf < length; ++p)
     {
-        if (*p != ',' && *p != '\n')
+        switch (*p)
         {
-            // 位运算符方式将字符串转int
-            temp = (temp << 1) + (temp << 3) + *p - '0';
-        }
-        else
-        {
-            ++sign;
-            switch (sign)
+        case ',':
+            switch (sign++ & 1)
             {
-            case 1: //读取 id1
+            case 0: //读取 id1
                 u_ids[edge_num] = temp;
                 id_count[temp] = 1;
                 temp = 0;
                 break;
-            case 2: //读取 id2
+            case 1: //读取 id2
                 v_ids[edge_num] = temp;
                 id_count[temp] = 1;
                 temp = 0;
                 break;
-            case 3: // 读取money
-                money[edge_num++] = temp;
-                temp = 0;
-                sign = 0; // 开始读取下一行
-                break;
             default:
                 break;
             }
+            break;
+        case '\n':
+            money[edge_num++] = temp;
+            temp = 0;
+            break;
+        case '\r':
+            break;
+        default:
+            // 位运算符方式将字符串转int
+            temp = (temp << 1) + (temp << 3) + *p - '0';
+            break;
         }
     }
 
@@ -306,40 +307,41 @@ void input_mmap(char *testFile)
     char *buf = (char *)mmap(NULL, length, PROT_READ, MAP_PRIVATE, fd, 0);
 
     register int id_pos = 0;
-    register int sign = 0;
     register ui temp = 0;
 
     for (char *p = buf; *p && p - buf < length; ++p)
     {
-        if (*p != ',' && *p != '\n')
+        switch (*p)
         {
-            // atoi
-            temp = (temp << 1) + (temp << 3) + *p - '0';
-        }
-        else
-        {
-            ++sign;
-            switch (sign)
+        case ',':
+            switch (id_pos & 1)
             {
-            case 1: //读取 id1
+            case 0: //读取 id1
                 u_ids[edge_num] = temp;
                 ids[id_pos++] = temp;
                 temp = 0;
                 break;
-            case 2: //读取 id2
+            case 1: //读取 id2
                 v_ids[edge_num] = temp;
                 ids[id_pos++] = temp;
                 temp = 0;
                 break;
-            case 3: // 读取 money
-                money[edge_num++] = temp;
-                temp = 0;
-                sign = 0; // 开始读取下一行
-                break;
             default:
                 break;
             }
+            break;
+        case '\n':
+            money[edge_num++] = temp;
+            temp = 0;
+            break;
+        case '\r':
+            break;
+        default:
+            // atoi
+            temp = (temp << 1) + (temp << 3) + *p - '0';
+            break;
         }
+        cout << "temp: " << temp << endl;
     }
 
     close(fd);
@@ -813,7 +815,7 @@ void pre_dfs_ite(register ui start_id, register ui tid)
     while (depth >= 0)
     {
         // 无前驱
-        if (!(~(begin_pos[depth]->id | 0x80000000)))
+        if (begin_pos[depth]->id & 0x80000000)
         {
             results[tid].visited[cur_id] = false;
             cur_id = --depth > 0 ? results[tid].path[depth - 1] : start_id;
@@ -901,7 +903,7 @@ void dfs_ite(register ui start_id, register ui tid)
     while (depth >= 0)
     {
         // 无后继
-        if (!(~(begin_pos[depth]->id | 0x80000000)))
+        if (begin_pos[depth]->id & 0x80000000)
         {
             // 回溯
             results[tid].visited[cur_id] = false;
@@ -1037,10 +1039,10 @@ void *thread_process(void *t)
     for (ui start_id = (ui)(seg_ratio[tid] * id_num); start_id < end_id; ++start_id)
     {
 #ifdef TEST
-        if (start_id % 100 == 0)
-        {
-            printf("%d/%d ~ %.2lfs ~ %2.lf%%\n", start_id, id_num, (double)(clock() - search_time) / CLOCKS_PER_SEC, (double)(start_id) / id_num * 100);
-        }
+        // if (start_id % 100 == 0)
+        // {
+        //     printf("%d/%d ~ %.2lfs ~ %2.lf%%\n", start_id, id_num, (double)(clock() - search_time) / CLOCKS_PER_SEC, (double)(start_id) / id_num * 100);
+        // }
 #endif
         results[tid].three_uj.clear();
         pre_dfs_ite(start_id, tid);

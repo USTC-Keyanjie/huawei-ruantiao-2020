@@ -28,36 +28,39 @@
 #include <stddef.h>
 #endif
 
-#define MAX_NUM_EDGES 280000 // 最大可接受边数 确定
-#define MAX_NUM_IDS 30000   // 最大可接受id数 90%确定
-#define MAX_OUT_DEGREE 100    // 最大可接受出度 不确定
-#define MAX_IN_DEGREE 100     // 最大可接受入度 不确定
+#define MAX_NUM_EDGES 2000000 // 最大可接受边数 确定够用
+#define MAX_NUM_IDS 250000    // 最大可接受id数 不确定
+#define MAX_OUT_DEGREE 2000   // 最大可接受出度 不确定
+#define MAX_IN_DEGREE 2000    // 最大可接受入度 不确定
 
-#define MAX_NUM_THREE_PREDS 10000 // 反向三级跳表的长度 不确定
+#define MAX_NUM_THREE_PREDS 2000000 // 反向三级跳表的长度 不确定够用
 
-#define MAX_OUTPUT_FILE_SIZE 1540000000 // 输出文件的最大大小 2000w*7*11B 确定
+#define MAX_OUTPUT_FILE_SIZE 1540000000 // 输出文件的最大大小 2000w*7*11B 够用
 
-#define MAX_INT 2147483647 // 2^31 - 1
+#define MAX_INT 2147483648 // 2^31
 
-#define NUM_THREADS 1 // 线程数
+#define NUM_THREADS 18 // 线程数
 
-#define NUM_LEN3_RESULT 1200000  // 长度为3结果的总id数
-#define NUM_LEN4_RESULT 1600000  // 长度为4结果的总id数
-#define NUM_LEN5_RESULT 4000000  // 长度为5结果的总id数
-#define NUM_LEN6_RESULT 9000000  // 长度为6结果的总id数
-#define NUM_LEN7_RESULT 13000000 // 长度为7结果的总id数
+// #define NUM_LEN3_RESULT 1200000  // 长度为3结果的总id数
+// #define NUM_LEN4_RESULT 1600000  // 长度为4结果的总id数
+// #define NUM_LEN5_RESULT 4000000  // 长度为5结果的总id数
+// #define NUM_LEN6_RESULT 9000000  // 长度为6结果的总id数
+// #define NUM_LEN7_RESULT 13000000 // 长度为7结果的总id数
 
-// 均为50%确信
-// #define NUM_LEN3_RESULT 20000000 // 长度为3结果的总id数
-// #define NUM_LEN4_RESULT 20000000 // 长度为4结果的总id数
-// #define NUM_LEN5_RESULT 20000000 // 长度为5结果的总id数
-// #define NUM_LEN6_RESULT 20000000 // 长度为6结果的总id数
-// #define NUM_LEN7_RESULT 20000000 // 长度为7结果的总id数
+// 应该够用
+#define NUM_LEN3_RESULT 6000000  // 长度为3结果的总id数
+#define NUM_LEN4_RESULT 8000000  // 长度为4结果的总id数
+#define NUM_LEN5_RESULT 10000000 // 长度为5结果的总id数
+#define NUM_LEN6_RESULT 12000000 // 长度为6结果的总id数
+#define NUM_LEN7_RESULT 14000000 // 长度为7结果的总id数
 
 using namespace std;
 
+typedef unsigned long long ull;
+typedef unsigned int ui;
+
 // 总id数，总边数
-unsigned int id_num = 0, edge_num = 0;
+ui id_num = 0, edge_num = 0;
 
 #if NUM_THREADS == 1
 // 单线程任务分配比例
@@ -79,8 +82,8 @@ float seg_ratio[] = {
 
 struct Node
 {
-    unsigned int id;
-    unsigned int money;
+    ui id;
+    ui money;
 };
 
 // 反向三级跳表元素结构体，可以通过 u -> k1 -> k2 -> 起点
@@ -88,62 +91,62 @@ struct Node
 // k1 -> 起点的转账金额记录在last_money里
 struct Three_pred
 {
-    unsigned int u;
-    unsigned int k1;
-    unsigned int k2;
-    unsigned int first_money;
-    unsigned int last_money;
+    ui u;
+    ui k1;
+    ui k2;
+    ui first_money;
+    ui last_money;
 
     Three_pred() : u(), k1(), k2(), first_money(), last_money() {}
     Three_pred(
-        unsigned int u,
-        unsigned int k1,
-        unsigned int k2,
-        unsigned int first_money,
-        unsigned int last_money) : u(u), k1(k1), k2(k2), first_money(first_money), last_money(last_money) {}
+        ui u,
+        ui k1,
+        ui k2,
+        ui first_money,
+        ui last_money) : u(u), k1(k1), k2(k2), first_money(first_money), last_money(last_money) {}
 };
 
 // 输入信息，从u_ids到v_ids
-unsigned int u_ids[MAX_NUM_EDGES];
-unsigned int v_ids[MAX_NUM_EDGES];
-unsigned int money[MAX_NUM_EDGES];
+ui u_ids[MAX_NUM_EDGES];
+ui v_ids[MAX_NUM_EDGES];
+ui money[MAX_NUM_EDGES];
 
 #ifdef CS
-unsigned int id_count[MAX_NUM_IDS]; // 计数排序辅助数组
+ui id_count[MAX_NUM_IDS]; // 计数排序辅助数组
 // index: regular ids (0, 1, 2, ...)
 // value: really ids
-unsigned int ids[MAX_NUM_IDS];
+ui ids[MAX_NUM_IDS];
 #else
-unsigned int ids[MAX_NUM_EDGES * 2];
+ui ids[MAX_NUM_EDGES * 2];
 #endif
 
 Node g_succ[MAX_NUM_IDS][MAX_OUT_DEGREE]; // 邻接表
-unsigned int out_degree[MAX_NUM_IDS];     // 每个节点的出度
+ui out_degree[MAX_NUM_IDS];               // 每个节点的出度
 Node g_pred[MAX_NUM_IDS][MAX_IN_DEGREE];  // 逆邻接表
-unsigned int in_degree[MAX_NUM_IDS];      // 每个节点的入度
+ui in_degree[MAX_NUM_IDS];                // 每个节点的入度
 
-char idsComma[MAX_NUM_IDS * 11];       // id + ','
-unsigned int idsChar_len[MAX_NUM_IDS]; // 每个id的字符串长度
+char idsComma[MAX_NUM_IDS * 11]; // id + ','
+ui idsChar_len[MAX_NUM_IDS];     // 每个id的字符串长度
 
 // 每个线程专属区域
 struct Result
 {
-    unsigned int path[4];      // 已经走过的节点信息
-    unsigned int m_path[4];    // 已经走过点的金额信息
+    ui path[4];                // 已经走过的节点信息
+    ui m_path[4];              // 已经走过点的金额信息
     bool visited[MAX_NUM_IDS]; // 访问标记数组
 
-    Three_pred three_uj[MAX_NUM_THREE_PREDS];    // 反向三级跳表
-    unsigned int three_uj_len;                   // 三级跳表长度
-    unsigned int reachable[MAX_NUM_IDS];         // 若此点可达起点，则记录其在三级跳表中的index + 1，否则记录0
-    unsigned int currentUs[MAX_NUM_THREE_PREDS]; // 可以通过三次跳跃回起点的点
-    unsigned int currentUs_len;                  // 当前可以通过三次跳跃回起点的点数量
+    Three_pred three_uj[MAX_NUM_THREE_PREDS]; // 反向三级跳表
+    ui three_uj_len;                          // 三级跳表长度
+    ui reachable[MAX_NUM_IDS];                // 若此点可达起点，则记录其在三级跳表中的index + 1，否则记录0
+    ui currentUs[MAX_NUM_THREE_PREDS];        // 可以通过三次跳跃回起点的点
+    ui currentUs_len;                         // 当前可以通过三次跳跃回起点的点数量
 
-    unsigned int res3[NUM_LEN3_RESULT]; // 长度为3的结果
-    unsigned int res4[NUM_LEN4_RESULT]; // 长度为4的结果
-    unsigned int res5[NUM_LEN5_RESULT]; // 长度为5的结果
-    unsigned int res6[NUM_LEN6_RESULT]; // 长度为6的结果
-    unsigned int res7[NUM_LEN7_RESULT]; // 长度为7的结果
-    unsigned int res_count[5] = {0};    // 各个长度结果数量记录
+    ui res3[NUM_LEN3_RESULT]; // 长度为3的结果
+    ui res4[NUM_LEN4_RESULT]; // 长度为4的结果
+    ui res5[NUM_LEN5_RESULT]; // 长度为5的结果
+    ui res6[NUM_LEN6_RESULT]; // 长度为6的结果
+    ui res7[NUM_LEN7_RESULT]; // 长度为7的结果
+    ui res_count[5] = {0};    // 各个长度结果数量记录
 } results[NUM_THREADS];
 
 char str_res[MAX_OUTPUT_FILE_SIZE]; // 最终答案字符串
@@ -161,7 +164,7 @@ void *memcpy_128(void *dest, void *src)
 // 大长度字节的复制
 void *memcpy_128(void *dest, void *src, size_t count)
 {
-    register unsigned int i;
+    register ui i;
     unsigned long *s = (unsigned long *)src;
     unsigned long *d = (unsigned long *)dest;
     for (i = 0; i <= (count >> 6); ++i, d += 8, s += 8)
@@ -184,7 +187,7 @@ void input_fstream(char *testFile)
 #endif
 
     FILE *file = fopen(testFile, "r");
-    // unsigned int money;
+    // ui money;
     while (fscanf(file, "%d,%d,%d\n", u_ids + edge_num, v_ids + edge_num, money + edge_num) != EOF)
     {
         id_count[u_ids[edge_num]] = 1;
@@ -213,38 +216,39 @@ void input_mmap(char *testFile)
 
     register int id_pos = 0;
     register int sign = 0;
-    register unsigned int temp = 0;
+    register ui temp = 0;
 
     for (char *p = buf; *p && p - buf < length; ++p)
     {
-        if (*p != ',' && *p != '\n')
+        switch (*p)
         {
-            // 位运算符方式将字符串转int
-            temp = (temp << 1) + (temp << 3) + *p - '0';
-        }
-        else
-        {
-            ++sign;
-            switch (sign)
+        case ',':
+            switch (sign++ & 1)
             {
-            case 1: //读取 id1
+            case 0: //读取 id1
                 u_ids[edge_num] = temp;
                 id_count[temp] = 1;
                 temp = 0;
                 break;
-            case 2: //读取 id2
+            case 1: //读取 id2
                 v_ids[edge_num] = temp;
                 id_count[temp] = 1;
                 temp = 0;
                 break;
-            case 3: // 读取money
-                money[edge_num++] = temp;
-                temp = 0;
-                sign = 0; // 开始读取下一行
-                break;
             default:
                 break;
             }
+            break;
+        case '\n':
+            money[edge_num++] = temp;
+            temp = 0;
+            break;
+        case '\r':
+            break;
+        default:
+            // 位运算符方式将字符串转int
+            temp = (temp << 1) + (temp << 3) + *p - '0';
+            break;
         }
     }
 
@@ -292,39 +296,39 @@ void input_mmap(char *testFile)
     char *buf = (char *)mmap(NULL, length, PROT_READ, MAP_PRIVATE, fd, 0);
 
     register int id_pos = 0;
-    register int sign = 0;
-    register unsigned int temp = 0;
+    register ui temp = 0;
 
     for (char *p = buf; *p && p - buf < length; ++p)
     {
-        if (*p != ',' && *p != '\n')
+        switch (*p)
         {
-            // atoi
-            temp = (temp << 1) + (temp << 3) + *p - '0';
-        }
-        else
-        {
-            ++sign;
-            switch (sign)
+        case ',':
+            switch (id_pos & 1)
             {
-            case 1: //读取 id1
+            case 0: //读取 id1
                 u_ids[edge_num] = temp;
                 ids[id_pos++] = temp;
                 temp = 0;
                 break;
-            case 2: //读取 id2
+            case 1: //读取 id2
                 v_ids[edge_num] = temp;
                 ids[id_pos++] = temp;
                 temp = 0;
                 break;
-            case 3: // 读取 money
-                money[edge_num++] = temp;
-                temp = 0;
-                sign = 0; // 开始读取下一行
-                break;
             default:
                 break;
             }
+            break;
+        case '\n':
+            money[edge_num++] = temp;
+            temp = 0;
+            break;
+        case '\r':
+            break;
+        default:
+            // atoi
+            temp = (temp << 1) + (temp << 3) + *p - '0';
+            break;
         }
     }
 
@@ -340,7 +344,7 @@ void input_mmap(char *testFile)
 #endif
 
 // 计算总结果数长度，不超过2000w，那么最多8位数
-unsigned int res_count_digits10_length(unsigned int num)
+ui res_count_digits10_length(ui num)
 {
     if (num < 1e7)
     {
@@ -374,7 +378,7 @@ unsigned int res_count_digits10_length(unsigned int num)
 }
 
 // 将结果数量转为字符串
-unsigned int res_count_uint2ascii(unsigned int value, char *dst)
+ui res_count_uint2ascii(ui value, char *dst)
 {
     static const char digits[] =
         "0001020304050607080910111213141516171819"
@@ -383,12 +387,12 @@ unsigned int res_count_uint2ascii(unsigned int value, char *dst)
         "6061626364656667686970717273747576777879"
         "8081828384858687888990919293949596979899";
 
-    const unsigned int length = res_count_digits10_length(value);
-    unsigned int next = length - 1;
+    const ui length = res_count_digits10_length(value);
+    ui next = length - 1;
 
     while (value >= 100)
     {
-        const unsigned int u = (value % 100) << 1;
+        const ui u = (value % 100) << 1;
         value /= 100;
         dst[next - 1] = digits[u];
         dst[next] = digits[u + 1];
@@ -401,7 +405,7 @@ unsigned int res_count_uint2ascii(unsigned int value, char *dst)
     }
     else
     {
-        unsigned int u = value << 1;
+        ui u = value << 1;
         dst[next - 1] = digits[u];
         dst[next] = digits[u + 1];
     }
@@ -409,7 +413,7 @@ unsigned int res_count_uint2ascii(unsigned int value, char *dst)
 }
 
 // 先预留10位数，这总该够了吧
-unsigned int digits10_length(unsigned int num)
+ui digits10_length(ui num)
 {
     if (num < 1e9)
     {
@@ -450,8 +454,8 @@ unsigned int digits10_length(unsigned int num)
     return 10;
 }
 
-// unsigned int转字符串
-unsigned int uint2ascii(unsigned int value, char *dst)
+// ui转字符串
+ui uint2ascii(ui value, char *dst)
 {
     static const char digits[] =
         "0001020304050607080910111213141516171819"
@@ -460,13 +464,13 @@ unsigned int uint2ascii(unsigned int value, char *dst)
         "6061626364656667686970717273747576777879"
         "8081828384858687888990919293949596979899";
 
-    const unsigned int length = digits10_length(value);
+    const ui length = digits10_length(value);
     dst[length] = ',';
-    unsigned int next = length - 1;
+    ui next = length - 1;
 
     while (value >= 100)
     {
-        const unsigned int u = (value % 100) << 1;
+        const ui u = (value % 100) << 1;
         value /= 100;
         dst[next - 1] = digits[u];
         dst[next] = digits[u + 1];
@@ -479,7 +483,7 @@ unsigned int uint2ascii(unsigned int value, char *dst)
     }
     else
     {
-        unsigned int u = value << 1;
+        ui u = value << 1;
         dst[next - 1] = digits[u];
         dst[next] = digits[u + 1];
     }
@@ -489,8 +493,8 @@ unsigned int uint2ascii(unsigned int value, char *dst)
 // fwrite方式写
 void save_fwrite(char *resultFile)
 {
-    register unsigned int tid;
-    unsigned int all_res_count = 0;
+    register ui tid;
+    ui all_res_count = 0;
 
     for (tid = 0; tid < NUM_THREADS; ++tid)
     {
@@ -504,10 +508,10 @@ void save_fwrite(char *resultFile)
 
     FILE *fp = fopen(resultFile, "w");
 
-    register unsigned int str_len = res_count_uint2ascii(all_res_count, str_res);
+    register ui str_len = res_count_uint2ascii(all_res_count, str_res);
     str_res[str_len++] = '\n';
 
-    register unsigned int thread_offset, line_offset, line, result_id;
+    register ui thread_offset, line_offset, line, result_id;
 
     // len 3
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN3_RESULT)
@@ -761,7 +765,7 @@ void save_fwrite(char *resultFile)
 #endif
 }
 
-bool is_money_valid(unsigned int x, unsigned int y)
+bool is_money_valid(ui x, ui y)
 {
     // if (x > y)
     // {
@@ -785,10 +789,10 @@ bool is_money_valid(unsigned int x, unsigned int y)
 
 // iteration version
 // 反向三级dfs的迭代版本
-void pre_dfs_ite(register unsigned int start_id, register unsigned int tid)
+void pre_dfs_ite(register ui start_id, register ui tid)
 {
-    register unsigned int begin_pos[3] = {0};
-    register unsigned int cur_id = start_id, next_id;
+    register ui begin_pos[3] = {0};
+    register ui cur_id = start_id, next_id;
     register int depth = 0;
     register Node *stack[3];
     stack[0] = g_pred[cur_id];
@@ -850,16 +854,16 @@ void pre_dfs_ite(register unsigned int start_id, register unsigned int tid)
 
 // iteration version
 // 正向dfs的迭代版本
-void dfs_ite(register unsigned int start_id, register unsigned int tid)
+void dfs_ite(register ui start_id, register ui tid)
 {
     results[tid].visited[start_id] = true;
     results[tid].path[0] = start_id;
 
-    register unsigned int begin_pos[4] = {0};
+    register ui begin_pos[4] = {0};
     while (start_id >= g_succ[start_id][begin_pos[0]].id)
         ++begin_pos[0];
 
-    register unsigned int cur_id = start_id, next_id;
+    register ui cur_id = start_id, next_id;
     register int depth = 0;
     // 递归栈
     register Node *stack[4];
@@ -869,7 +873,7 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
     // 首先查找所有长度为3的结果，因为不需要搜索就可以得到
     if (results[tid].reachable[cur_id])
     {
-        for (unsigned int index = results[tid].reachable[cur_id] - 1; results[tid].three_uj[index].u == cur_id; ++index)
+        for (ui index = results[tid].reachable[cur_id] - 1; results[tid].three_uj[index].u == cur_id; ++index)
         {
             if (is_money_valid(results[tid].three_uj[index].last_money, results[tid].three_uj[index].first_money))
             {
@@ -914,7 +918,7 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
                     {
                     // 长度为4
                     case 0:
-                        for (unsigned int index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
+                        for (ui index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
                         {
                             if (is_money_valid(results[tid].m_path[0], results[tid].three_uj[index].first_money) &&
                                 is_money_valid(results[tid].three_uj[index].last_money, results[tid].m_path[0]) &&
@@ -934,7 +938,7 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
                         break;
                     // 长度为5
                     case 1:
-                        for (unsigned int index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
+                        for (ui index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
                         {
                             if (is_money_valid(results[tid].m_path[1], results[tid].three_uj[index].first_money) &&
                                 is_money_valid(results[tid].three_uj[index].last_money, results[tid].m_path[0]) &&
@@ -953,7 +957,7 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
                         break;
                     // 长度为6
                     case 2:
-                        for (unsigned int index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
+                        for (ui index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
                         {
                             if (is_money_valid(results[tid].m_path[2], results[tid].three_uj[index].first_money) &&
                                 is_money_valid(results[tid].three_uj[index].last_money, results[tid].m_path[0]) &&
@@ -971,7 +975,7 @@ void dfs_ite(register unsigned int start_id, register unsigned int tid)
                         break;
                     // 长度为7
                     case 3:
-                        for (unsigned int index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
+                        for (ui index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
                         {
                             if (is_money_valid(results[tid].m_path[3], results[tid].three_uj[index].first_money) &&
                                 is_money_valid(results[tid].three_uj[index].last_money, results[tid].m_path[0]) &&
@@ -1026,10 +1030,10 @@ void *thread_process(void *t)
 #endif
 
     // 先把指针类型恢复, 然后取值
-    register unsigned int tid = *((unsigned int *)t);
+    register ui tid = *((ui *)t);
 
-    unsigned int end_id = (unsigned int)(seg_ratio[tid + 1] * id_num);
-    for (unsigned int start_id = (unsigned int)(seg_ratio[tid] * id_num); start_id < end_id; ++start_id)
+    ui end_id = (ui)(seg_ratio[tid + 1] * id_num);
+    for (ui start_id = (ui)(seg_ratio[tid] * id_num); start_id < end_id; ++start_id)
     {
 #ifdef TEST
         // if (start_id % 100 == 0)
@@ -1049,7 +1053,7 @@ void *thread_process(void *t)
             // 设置哨兵
             results[tid].three_uj[results[tid].three_uj_len] = {MAX_INT, MAX_INT, MAX_INT, MAX_INT, MAX_INT};
             // 设置reachable和currentUs数组
-            for (unsigned int index = 0; index < results[tid].three_uj_len; ++index)
+            for (ui index = 0; index < results[tid].three_uj_len; ++index)
             {
                 if (!results[tid].reachable[results[tid].three_uj[index].u])
                 {
@@ -1062,7 +1066,7 @@ void *thread_process(void *t)
             // dfs_rec(start_id, start_id, 0, tid);
 
             // reachable和currentUs还原
-            for (unsigned int j = 0; j < results[tid].currentUs_len; ++j)
+            for (ui j = 0; j < results[tid].currentUs_len; ++j)
             {
                 results[tid].reachable[results[tid].currentUs[j]] = 0;
             }
@@ -1083,11 +1087,11 @@ bool cmp_node(Node &a, Node &b)
     return a.id < b.id;
 }
 
-unsigned int binary_search(unsigned int target)
+ui binary_search(ui target)
 {
-    register unsigned int left = 0;
-    register unsigned int right = id_num - 1;
-    register unsigned int mid;
+    register ui left = 0;
+    register ui right = id_num - 1;
+    register ui mid;
 
     while (left <= right)
     {
@@ -1110,8 +1114,8 @@ unsigned int binary_search(unsigned int target)
 
 void duplicate_removal()
 {
-    register unsigned int slow = 0, fast = 1;
-    register unsigned int double_edge_num = edge_num << 1;
+    register ui slow = 0, fast = 1;
+    register ui double_edge_num = edge_num << 1;
     while (fast < double_edge_num)
     {
         if (ids[fast] != ids[slow])
@@ -1135,8 +1139,8 @@ int main()
     // 2408026
     // 2541581
     // 19630345
-    char testFile[] = "test_data_fs/639096/test_data.txt";
-    char resultFile[] = "test_data_fs/639096/result.txt";
+    char testFile[] = "test_data_fs/19630345/test_data.txt";
+    char resultFile[] = "test_data_fs/19630345/result.txt";
     clock_t start_time = clock();
 #else
     char testFile[] = "/data/test_data.txt";
@@ -1149,7 +1153,7 @@ int main()
     input_fstream(testFile);
 #endif
 
-    register unsigned int index;
+    register ui index;
 
 #ifdef CS
     for (index = 1; index < MAX_NUM_IDS; ++index)
@@ -1159,7 +1163,7 @@ int main()
     id_num = id_count[MAX_NUM_IDS - 1];
 
     // 获取hash_id，生成ids字符串，生成邻接表与逆邻接表
-    register unsigned int u_hash_id, v_hash_id;
+    register ui u_hash_id, v_hash_id;
     for (index = 0; index < edge_num - 3; index += 4)
     {
         u_hash_id = id_count[u_ids[index]] - 1;
@@ -1258,7 +1262,7 @@ int main()
     sort(ids, ids + (edge_num << 1));
     duplicate_removal();
 
-    register unsigned int u_id, v_id;
+    register ui u_id, v_id;
     for (index = 0; index < edge_num - 3; index += 4)
     {
         u_id = binary_search(u_ids[index]);
@@ -1328,7 +1332,7 @@ int main()
     }
 #endif
 
-    register unsigned int tid;
+    register ui tid;
     // 创建子线程的标识符 就是线程 的id,放在数组中
     pthread_t threads[NUM_THREADS];
     // 线程的属性
