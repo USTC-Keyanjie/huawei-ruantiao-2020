@@ -28,14 +28,12 @@
 #include <stddef.h>
 #endif
 
-#define MAX_NUM_EDGES 2000000 // 最大可接受边数 确定够用
-#define MAX_NUM_IDS 250000    // 最大可接受id数 不确定
-#define MAX_OUT_DEGREE 2000   // 最大可接受出度 不确定
-#define MAX_IN_DEGREE 2000    // 最大可接受入度 不确定
+#define MAX_NUM_EDGES 2000005 // 最大可接受边数 200w+5 确定够用
+#define MAX_NUM_IDS 2000005   // 最大可接受id数 200w+5 确定够用
 
-#define MAX_NUM_THREE_PREDS 2000000 // 反向三级跳表的长度 不确定够用
+#define MAX_NUM_THREE_PREDS 10000000 // 反向三级跳表的长度 应该够用
 
-#define MAX_OUTPUT_FILE_SIZE 1540000000 // 输出文件的最大大小 2000w*7*11B 够用
+#define MAX_OUTPUT_FILE_SIZE 1540000000 // 输出文件的最大大小 2000w*7*11B 确定够用
 
 #define MAX_INT 2147483648 // 2^31
 
@@ -48,11 +46,11 @@
 // #define NUM_LEN7_RESULT 13000000 // 长度为7结果的总id数
 
 // 应该够用
-#define NUM_LEN3_RESULT 6000000  // 长度为3结果的总id数
-#define NUM_LEN4_RESULT 8000000  // 长度为4结果的总id数
-#define NUM_LEN5_RESULT 10000000 // 长度为5结果的总id数
-#define NUM_LEN6_RESULT 12000000 // 长度为6结果的总id数
-#define NUM_LEN7_RESULT 14000000 // 长度为7结果的总id数
+#define NUM_LEN3_RESULT 10000000 // 长度为3结果的总id数
+#define NUM_LEN4_RESULT 10000000 // 长度为4结果的总id数
+#define NUM_LEN5_RESULT 12000000 // 长度为5结果的总id数
+#define NUM_LEN6_RESULT 15000000 // 长度为6结果的总id数
+#define NUM_LEN7_RESULT 20000000 // 长度为7结果的总id数
 
 using namespace std;
 
@@ -82,7 +80,8 @@ float seg_ratio[] = {
 
 struct Node
 {
-    ui id;
+    ui u_id;
+    ui v_id;
     ui money;
 };
 
@@ -120,10 +119,10 @@ ui ids[MAX_NUM_IDS];
 ui ids[MAX_NUM_EDGES * 2];
 #endif
 
-Node g_succ[MAX_NUM_IDS][MAX_OUT_DEGREE]; // 邻接表
-ui out_degree[MAX_NUM_IDS];               // 每个节点的出度
-Node g_pred[MAX_NUM_IDS][MAX_IN_DEGREE];  // 逆邻接表
-ui in_degree[MAX_NUM_IDS];                // 每个节点的入度
+Node g_succ[MAX_NUM_EDGES];     // 邻接表
+ui begin_pos_succ[MAX_NUM_IDS]; // 邻接表每个节点的起始index
+Node g_pred[MAX_NUM_EDGES];     // 逆邻接表
+ui begin_pos_pred[MAX_NUM_IDS]; // 逆邻接表每个节点的起始index
 
 char idsComma[MAX_NUM_IDS * 11]; // id + ','
 ui idsChar_len[MAX_NUM_IDS];     // 每个id的字符串长度
@@ -343,76 +342,7 @@ void input_mmap(char *testFile)
 
 #endif
 
-// 计算总结果数长度，不超过2000w，那么最多8位数
-ui res_count_digits10_length(ui num)
-{
-    if (num < 1e7)
-    {
-        if (num < 1e6)
-        {
-            if (num < 1e5)
-            {
-                if (num < 1e4)
-                {
-                    if (num < 1000)
-                    {
-                        if (num < 100)
-                        {
-                            if (num < 10)
-                            {
-                                return 1;
-                            }
-                            return 2;
-                        }
-                        return 3;
-                    }
-                    return 4;
-                }
-                return 5;
-            }
-            return 6;
-        }
-        return 7;
-    }
-    return 8;
-}
-
-// 将结果数量转为字符串
-ui res_count_uint2ascii(ui value, char *dst)
-{
-    static const char digits[] =
-        "0001020304050607080910111213141516171819"
-        "2021222324252627282930313233343536373839"
-        "4041424344454647484950515253545556575859"
-        "6061626364656667686970717273747576777879"
-        "8081828384858687888990919293949596979899";
-
-    const ui length = res_count_digits10_length(value);
-    ui next = length - 1;
-
-    while (value >= 100)
-    {
-        const ui u = (value % 100) << 1;
-        value /= 100;
-        dst[next - 1] = digits[u];
-        dst[next] = digits[u + 1];
-        next -= 2;
-    }
-
-    if (value < 10)
-    {
-        dst[next] = '0' + value;
-    }
-    else
-    {
-        ui u = value << 1;
-        dst[next - 1] = digits[u];
-        dst[next] = digits[u + 1];
-    }
-    return length;
-}
-
-// 先预留10位数，这总该够了吧
+// 预留10位数，这总该够了吧
 ui digits10_length(ui num)
 {
     if (num < 1e9)
@@ -508,7 +438,7 @@ void save_fwrite(char *resultFile)
 
     FILE *fp = fopen(resultFile, "w");
 
-    register ui str_len = res_count_uint2ascii(all_res_count, str_res);
+    register ui str_len = uint2ascii(all_res_count, str_res);
     str_res[str_len++] = '\n';
 
     register ui thread_offset, line_offset, line, result_id;
@@ -791,29 +721,35 @@ bool is_money_valid(ui x, ui y)
 // 反向三级dfs的迭代版本
 void pre_dfs_ite(register ui start_id, register ui tid)
 {
-    register ui begin_pos[3] = {0};
     register ui cur_id = start_id, next_id;
     register int depth = 0;
+    // 递归栈
     register Node *stack[3];
-    stack[0] = g_pred[cur_id];
+
+    // 起点没有前驱
+    if (!begin_pos_pred[start_id])
+        return;
+
+    stack[0] = g_pred + begin_pos_pred[start_id] - 1;
 
     // 寻找遍历起始位置
-    while (start_id > g_pred[cur_id][begin_pos[depth]].id)
-        ++begin_pos[depth];
+    while (stack[0]->v_id == start_id && start_id > stack[0]->u_id)
+        ++stack[0];
 
     while (depth >= 0)
     {
         // 无前驱
-        if (begin_pos[depth] == in_degree[cur_id])
+        if (stack[depth]->v_id != cur_id)
         {
+            // 回溯
             results[tid].visited[cur_id] = false;
             cur_id = --depth > 0 ? results[tid].path[depth - 1] : start_id;
         }
         // 有前驱
         else
         {
-            next_id = stack[depth][begin_pos[depth]].id;
-            results[tid].m_path[depth] = stack[depth][begin_pos[depth]++].money;
+            next_id = stack[depth]->u_id;
+            results[tid].m_path[depth] = (stack[depth]++)->money;
 
             if (!results[tid].visited[next_id] && (!depth || is_money_valid(results[tid].m_path[depth], results[tid].m_path[depth - 1])))
             {
@@ -824,27 +760,26 @@ void pre_dfs_ite(register ui start_id, register ui tid)
                     if (results[tid].path[2] != results[tid].path[0])
                         results[tid].three_uj[results[tid].three_uj_len++] = {results[tid].path[2], results[tid].path[1], results[tid].path[0], results[tid].m_path[2], results[tid].m_path[0]};
                 }
-                // 深度不足2，继续搜索
-                else
+                // 深度不足2，且next_id还有前驱，则继续搜索
+                else if (begin_pos_pred[next_id])
                 {
                     // 进入下一层dfs
-                    stack[++depth] = g_pred[next_id];
+                    stack[++depth] = g_pred + begin_pos_pred[next_id] - 1;
                     cur_id = next_id;
                     results[tid].visited[cur_id] = true;
                     results[tid].path[depth] = cur_id;
-                    begin_pos[depth] = 0;
 
                     // 寻找起始点
                     // 深度为2时，允许下一个节点等于起始点，这是为了兼容长度为3的环
                     if (depth < 2)
                     {
-                        while (start_id >= stack[depth][begin_pos[depth]].id)
-                            ++begin_pos[depth];
+                        while (stack[depth]->v_id == cur_id && start_id >= stack[depth]->u_id)
+                            ++stack[depth];
                     }
                     else
                     {
-                        while (start_id > stack[depth][begin_pos[depth]].id)
-                            ++begin_pos[depth];
+                        while (stack[depth]->v_id == cur_id && start_id > stack[depth]->u_id)
+                            ++stack[depth];
                     }
                 }
             }
@@ -859,15 +794,18 @@ void dfs_ite(register ui start_id, register ui tid)
     results[tid].visited[start_id] = true;
     results[tid].path[0] = start_id;
 
-    register ui begin_pos[4] = {0};
-    while (start_id >= g_succ[start_id][begin_pos[0]].id)
-        ++begin_pos[0];
-
     register ui cur_id = start_id, next_id;
     register int depth = 0;
     // 递归栈
     register Node *stack[4];
-    stack[0] = g_succ[cur_id];
+
+    // 起点没有后继
+    if (!begin_pos_pred[start_id])
+        return;
+
+    stack[0] = g_succ + begin_pos_succ[start_id] - 1;
+    while (stack[0]->u_id == start_id && start_id > stack[0]->v_id)
+        ++stack[0];
 
     // length 3 result
     // 首先查找所有长度为3的结果，因为不需要搜索就可以得到
@@ -896,18 +834,17 @@ void dfs_ite(register ui start_id, register ui tid)
     while (depth >= 0)
     {
         // 无后继
-        if (begin_pos[depth] == out_degree[cur_id])
+        if (stack[depth]->u_id != cur_id)
         {
             // 回溯
             results[tid].visited[cur_id] = false;
-            if (--depth >= 0)
-                cur_id = results[tid].path[depth];
+            cur_id = --depth >= 0 ? results[tid].path[depth] : start_id;
         }
         // 有后继
         else
         {
-            next_id = stack[depth][begin_pos[depth]].id;
-            results[tid].m_path[depth] = stack[depth][begin_pos[depth]++].money;
+            next_id = stack[depth]->v_id;
+            results[tid].m_path[depth] = (stack[depth]++)->money;
 
             if (!results[tid].visited[next_id] && (!depth || is_money_valid(results[tid].m_path[depth - 1], results[tid].m_path[depth])))
             {
@@ -995,18 +932,17 @@ void dfs_ite(register ui start_id, register ui tid)
                         break;
                     }
                 }
-
-                if (depth < 3)
+                // 深度不足3，且next_id还有后继，则继续搜索
+                if (depth < 3 && begin_pos_succ[next_id])
                 {
                     // 向更深一层dfs
-                    stack[++depth] = g_succ[next_id];
+                    stack[++depth] = g_succ + begin_pos_succ[next_id] - 1;
                     cur_id = next_id;
                     results[tid].visited[cur_id] = true;
                     results[tid].path[depth] = cur_id;
-                    begin_pos[depth] = 0;
                     // 寻找起始位置
-                    while (start_id >= stack[depth][begin_pos[depth]].id)
-                        ++begin_pos[depth];
+                    while (stack[depth]->u_id == cur_id && start_id > stack[depth]->v_id)
+                        ++stack[depth];
                 }
             }
         }
@@ -1037,9 +973,8 @@ void *thread_process(void *t)
     {
 #ifdef TEST
         // if (start_id % 100 == 0)
-        // {
         //     printf("%d/%d ~ %.2lfs ~ %2.lf%%\n", start_id, id_num, (double)(clock() - search_time) / CLOCKS_PER_SEC, (double)(start_id) / id_num * 100);
-        // }
+
 #endif
         pre_dfs_ite(start_id, tid);
         // pre_dfs_rec(start_id, start_id, 0, tid);
@@ -1082,9 +1017,14 @@ void *thread_process(void *t)
     pthread_exit(NULL);
 }
 
-bool cmp_node(Node &a, Node &b)
+bool cmp_succ(Node &a, Node &b)
 {
-    return a.id < b.id;
+    return a.u_id < b.u_id || (a.u_id == b.u_id && a.v_id < b.v_id);
+}
+
+bool cmp_pred(Node &a, Node &b)
+{
+    return a.v_id < b.v_id || (a.v_id == b.v_id && a.u_id < b.u_id);
 }
 
 ui binary_search(ui target)
@@ -1139,8 +1079,8 @@ int main()
     // 2408026
     // 2541581
     // 19630345
-    char testFile[] = "test_data_fs/19630345/test_data.txt";
-    char resultFile[] = "test_data_fs/19630345/result.txt";
+    char testFile[] = "test_data_fs/639096/test_data.txt";
+    char resultFile[] = "test_data_fs/639096/result.txt";
     clock_t start_time = clock();
 #else
     char testFile[] = "/data/test_data.txt";
@@ -1155,110 +1095,6 @@ int main()
 
     register ui index;
 
-#ifdef CS
-    for (index = 1; index < MAX_NUM_IDS; ++index)
-    {
-        id_count[index] += id_count[index - 1];
-    }
-    id_num = id_count[MAX_NUM_IDS - 1];
-
-    // 获取hash_id，生成ids字符串，生成邻接表与逆邻接表
-    register ui u_hash_id, v_hash_id;
-    for (index = 0; index < edge_num - 3; index += 4)
-    {
-        u_hash_id = id_count[u_ids[index]] - 1;
-        v_hash_id = id_count[v_ids[index]] - 1;
-        ids[u_hash_id] = u_ids[index];
-        ids[v_hash_id] = v_ids[index];
-        // TODO: 可以使用neon_memcpy一起赋值
-        g_succ[u_hash_id][out_degree[u_hash_id]].id = v_hash_id;
-        g_succ[u_hash_id][out_degree[u_hash_id]++].money = money[index];
-        g_pred[v_hash_id][in_degree[v_hash_id]].id = u_hash_id;
-        g_pred[v_hash_id][in_degree[v_hash_id]++].money = money[index];
-
-        u_hash_id = id_count[u_ids[index + 1]] - 1;
-        v_hash_id = id_count[v_ids[index + 1]] - 1;
-        ids[u_hash_id] = u_ids[index + 1];
-        ids[v_hash_id] = v_ids[index + 1];
-        g_succ[u_hash_id][out_degree[u_hash_id]].id = v_hash_id;
-        g_succ[u_hash_id][out_degree[u_hash_id]++].money = money[index + 1];
-        g_pred[v_hash_id][in_degree[v_hash_id]].id = u_hash_id;
-        g_pred[v_hash_id][in_degree[v_hash_id]++].money = money[index + 1];
-
-        u_hash_id = id_count[u_ids[index + 2]] - 1;
-        v_hash_id = id_count[v_ids[index + 2]] - 1;
-        ids[u_hash_id] = u_ids[index + 2];
-        ids[v_hash_id] = v_ids[index + 2];
-        g_succ[u_hash_id][out_degree[u_hash_id]].id = v_hash_id;
-        g_succ[u_hash_id][out_degree[u_hash_id]++].money = money[index + 2];
-        g_pred[v_hash_id][in_degree[v_hash_id]].id = u_hash_id;
-        g_pred[v_hash_id][in_degree[v_hash_id]++].money = money[index + 2];
-
-        u_hash_id = id_count[u_ids[index + 3]] - 1;
-        v_hash_id = id_count[v_ids[index + 3]] - 1;
-        ids[u_hash_id] = u_ids[index + 3];
-        ids[v_hash_id] = v_ids[index + 3];
-        g_succ[u_hash_id][out_degree[u_hash_id]].id = v_hash_id;
-        g_succ[u_hash_id][out_degree[u_hash_id]++].money = money[index + 3];
-        g_pred[v_hash_id][in_degree[v_hash_id]].id = u_hash_id;
-        g_pred[v_hash_id][in_degree[v_hash_id]++].money = money[index + 3];
-    }
-
-    // 循环展开剩余部分
-    for (; index < edge_num; ++index)
-    {
-        u_hash_id = id_count[u_ids[index]] - 1;
-        v_hash_id = id_count[v_ids[index]] - 1;
-
-        ids[u_hash_id] = u_ids[index];
-        ids[v_hash_id] = v_ids[index];
-
-        g_succ[u_hash_id][out_degree[u_hash_id]].id = v_hash_id;
-        g_succ[u_hash_id][out_degree[u_hash_id]++].money = money[index];
-        g_pred[v_hash_id][in_degree[v_hash_id]].id = u_hash_id;
-        g_pred[v_hash_id][in_degree[v_hash_id]++].money = money[index];
-    }
-
-    for (index = 0; index < id_num - 3; index += 4)
-    {
-        // 邻接表和逆邻接表排序
-        sort(g_succ[index], g_succ[index] + out_degree[index], cmp_node);
-        sort(g_pred[index], g_pred[index] + in_degree[index], cmp_node);
-        // 设置哨兵
-        g_succ[index][out_degree[index]] = {MAX_INT, MAX_INT};
-        g_pred[index][in_degree[index]] = {MAX_INT, MAX_INT};
-        // 转字符串
-        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3) + (index << 1) + index) + 1;
-
-        sort(g_succ[index + 1], g_succ[index + 1] + out_degree[index + 1], cmp_node);
-        sort(g_pred[index + 1], g_pred[index + 1] + in_degree[index + 1], cmp_node);
-        g_succ[index + 1][out_degree[index + 1]] = {MAX_INT, MAX_INT};
-        g_pred[index + 1][in_degree[index + 1]] = {MAX_INT, MAX_INT};
-        idsChar_len[index + 1] = uint2ascii(ids[index + 1], idsComma + ((index + 1) << 3) + ((index + 1) << 1) + (index + 1)) + 1;
-
-        sort(g_succ[index + 2], g_succ[index + 2] + out_degree[index + 2], cmp_node);
-        sort(g_pred[index + 2], g_pred[index + 2] + in_degree[index + 2], cmp_node);
-        g_succ[index + 2][out_degree[index + 2]] = {MAX_INT, MAX_INT};
-        g_pred[index + 2][in_degree[index + 2]] = {MAX_INT, MAX_INT};
-        idsChar_len[index + 2] = uint2ascii(ids[index + 2], idsComma + ((index + 2) << 3) + ((index + 2) << 1) + (index + 2)) + 1;
-
-        sort(g_succ[index + 3], g_succ[index + 3] + out_degree[index + 3], cmp_node);
-        sort(g_pred[index + 3], g_pred[index + 3] + in_degree[index + 3], cmp_node);
-        g_succ[index + 3][out_degree[index + 3]] = {MAX_INT, MAX_INT};
-        g_pred[index + 3][in_degree[index + 3]] = {MAX_INT, MAX_INT};
-        idsChar_len[index + 3] = uint2ascii(ids[index + 3], idsComma + ((index + 3) << 3) + ((index + 3) << 1) + (index + 3)) + 1;
-    }
-
-    for (; index < id_num; ++index)
-    {
-        sort(g_succ[index], g_succ[index] + out_degree[index], cmp_node);
-        sort(g_pred[index], g_pred[index] + in_degree[index], cmp_node);
-        g_succ[index][out_degree[index]] = {MAX_INT, MAX_INT};
-        g_pred[index][in_degree[index]] = {MAX_INT, MAX_INT};
-        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3) + (index << 1) + index) + 1;
-    }
-
-#else
     sort(ids, ids + (edge_num << 1));
     duplicate_removal();
 
@@ -1267,23 +1103,19 @@ int main()
     {
         u_id = binary_search(u_ids[index]);
         v_id = binary_search(v_ids[index]);
-        g_succ[u_id][out_degree[u_id]++] = {v_id, money[index]};
-        g_pred[v_id][in_degree[v_id]++] = {u_id, money[index]};
+        g_succ[index] = {u_id, v_id, money[index]};
 
         u_id = binary_search(u_ids[index + 1]);
         v_id = binary_search(v_ids[index + 1]);
-        g_succ[u_id][out_degree[u_id]++] = {v_id, money[index + 1]};
-        g_pred[v_id][in_degree[v_id]++] = {u_id, money[index + 1]};
+        g_succ[index + 1] = {u_id, v_id, money[index + 1]};
 
         u_id = binary_search(u_ids[index + 2]);
         v_id = binary_search(v_ids[index + 2]);
-        g_succ[u_id][out_degree[u_id]++] = {v_id, money[index + 2]};
-        g_pred[v_id][in_degree[v_id]++] = {u_id, money[index + 2]};
+        g_succ[index + 2] = {u_id, v_id, money[index + 2]};
 
         u_id = binary_search(u_ids[index + 3]);
         v_id = binary_search(v_ids[index + 3]);
-        g_succ[u_id][out_degree[u_id]++] = {v_id, money[index + 3]};
-        g_pred[v_id][in_degree[v_id]++] = {u_id, money[index + 3]};
+        g_succ[index + 3] = {u_id, v_id, money[index + 3]};
     }
 
     // 循环展开剩余部分
@@ -1291,46 +1123,71 @@ int main()
     {
         u_id = binary_search(u_ids[index]);
         v_id = binary_search(v_ids[index]);
-        g_succ[u_id][out_degree[u_id]++] = {v_id, money[index]};
-        g_pred[v_id][in_degree[v_id]++] = {u_id, money[index]};
+        g_succ[index] = {u_id, v_id, money[index]};
+    }
+
+// 复制长度为edge_num * 3(每个单元有3个数) * 4(每个数占4个字节)
+#ifdef NEON
+    memcpy_128(g_pred, g_succ, (edge_num << 3) + (edge_num << 2));
+#else
+    memcpy(g_pred, g_succ, (edge_num << 3) + (edge_num << 2));
+#endif
+
+    sort(g_succ, g_succ + edge_num, cmp_succ);
+    for (index = 0; index < edge_num - 3; index += 4)
+    {
+        if (!begin_pos_succ[g_succ[index].u_id])
+            begin_pos_succ[g_succ[index].u_id] = index + 1;
+
+        if (!begin_pos_succ[g_succ[index + 1].u_id])
+            begin_pos_succ[g_succ[index + 1].u_id] = index + 2;
+
+        if (!begin_pos_succ[g_succ[index + 2].u_id])
+            begin_pos_succ[g_succ[index + 2].u_id] = index + 3;
+
+        if (!begin_pos_succ[g_succ[index + 3].u_id])
+            begin_pos_succ[g_succ[index + 3].u_id] = index + 4;
+    }
+
+    for (; index < edge_num; ++index)
+    {
+        if (!begin_pos_succ[g_succ[index].u_id])
+            begin_pos_succ[g_succ[index].u_id] = index + 1;
+    }
+
+    sort(g_pred, g_pred + edge_num, cmp_pred);
+    for (index = 0; index < edge_num - 3; index += 4)
+    {
+        if (!begin_pos_pred[g_pred[index].v_id])
+            begin_pos_pred[g_pred[index].v_id] = index + 1;
+
+        if (!begin_pos_pred[g_pred[index + 1].v_id])
+            begin_pos_pred[g_pred[index + 1].v_id] = index + 2;
+
+        if (!begin_pos_pred[g_pred[index + 2].v_id])
+            begin_pos_pred[g_pred[index + 2].v_id] = index + 3;
+
+        if (!begin_pos_pred[g_pred[index + 3].v_id])
+            begin_pos_pred[g_pred[index + 3].v_id] = index + 4;
+    }
+    for (; index < edge_num; ++index)
+    {
+        if (!begin_pos_pred[g_pred[index].v_id])
+            begin_pos_pred[g_pred[index].v_id] = index + 1;
     }
 
     for (index = 0; index < id_num - 3; index += 4)
     {
-        sort(g_succ[index], g_succ[index] + out_degree[index], cmp_node);
-        sort(g_pred[index], g_pred[index] + in_degree[index], cmp_node);
-        g_succ[index][out_degree[index]] = {MAX_INT, MAX_INT};
-        g_pred[index][in_degree[index]] = {MAX_INT, MAX_INT};
         idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3) + (index << 1) + index) + 1;
-
-        sort(g_succ[index + 1], g_succ[index + 1] + out_degree[index + 1], cmp_node);
-        sort(g_pred[index + 1], g_pred[index + 1] + in_degree[index + 1], cmp_node);
-        g_succ[index + 1][out_degree[index + 1]] = {MAX_INT, MAX_INT};
-        g_pred[index + 1][in_degree[index + 1]] = {MAX_INT, MAX_INT};
         idsChar_len[index + 1] = uint2ascii(ids[index + 1], idsComma + ((index + 1) << 3) + ((index + 1) << 1) + (index + 1)) + 1;
-
-        sort(g_succ[index + 2], g_succ[index + 2] + out_degree[index + 2], cmp_node);
-        sort(g_pred[index + 2], g_pred[index + 2] + in_degree[index + 2], cmp_node);
-        g_succ[index + 2][out_degree[index + 2]] = {MAX_INT, MAX_INT};
-        g_pred[index + 2][in_degree[index + 2]] = {MAX_INT, MAX_INT};
         idsChar_len[index + 2] = uint2ascii(ids[index + 2], idsComma + ((index + 2) << 3) + ((index + 2) << 1) + (index + 2)) + 1;
-
-        sort(g_succ[index + 3], g_succ[index + 3] + out_degree[index + 3], cmp_node);
-        sort(g_pred[index + 3], g_pred[index + 3] + in_degree[index + 3], cmp_node);
-        g_succ[index + 3][out_degree[index + 3]] = {MAX_INT, MAX_INT};
-        g_pred[index + 3][in_degree[index + 3]] = {MAX_INT, MAX_INT};
         idsChar_len[index + 3] = uint2ascii(ids[index + 3], idsComma + ((index + 3) << 3) + ((index + 3) << 1) + (index + 3)) + 1;
     }
 
     for (; index < id_num; ++index)
     {
-        sort(g_succ[index], g_succ[index] + out_degree[index], cmp_node);
-        sort(g_pred[index], g_pred[index] + in_degree[index], cmp_node);
-        g_succ[index][out_degree[index]] = {MAX_INT, MAX_INT};
-        g_pred[index][in_degree[index]] = {MAX_INT, MAX_INT};
         idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3) + (index << 1) + index) + 1;
     }
-#endif
 
     register ui tid;
     // 创建子线程的标识符 就是线程 的id,放在数组中
