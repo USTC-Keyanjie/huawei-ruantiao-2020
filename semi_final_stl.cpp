@@ -128,7 +128,7 @@ char idsComma[MAX_NUM_IDS * 11]; // id + ','
 ui idsChar_len[MAX_NUM_IDS];     // 每个id的字符串长度
 
 // 每个线程专属区域
-struct Result
+struct ThreadMemory
 {
     // 保留
     ui path[4];                // 已经走过的节点信息
