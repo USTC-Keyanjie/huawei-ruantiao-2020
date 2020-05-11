@@ -4,10 +4,10 @@
 // 3. open //#define MMAP
 // 4. open //#define NEON
 
-#define TEST
+// #define TEST
 // #define CS   // 使用计数排序
-// #define MMAP // 使用mmap函数
-// #define NEON // 打开NEON特性的算子
+#define MMAP // 使用mmap函数
+#define NEON // 打开NEON特性的算子
 
 #include <bits/stdc++.h>
 #include <fcntl.h>
@@ -46,11 +46,11 @@
 // #define NUM_LEN7_RESULT 13000000 // 长度为7结果的总id数
 
 // 应该够用
-#define NUM_LEN3_RESULT 10000000 // 长度为3结果的总id数
-#define NUM_LEN4_RESULT 10000000 // 长度为4结果的总id数
-#define NUM_LEN5_RESULT 12000000 // 长度为5结果的总id数
-#define NUM_LEN6_RESULT 15000000 // 长度为6结果的总id数
-#define NUM_LEN7_RESULT 20000000 // 长度为7结果的总id数
+#define NUM_LEN3_RESULT 15000000 // 长度为3结果的总id数
+#define NUM_LEN4_RESULT 15000000 // 长度为4结果的总id数
+#define NUM_LEN5_RESULT 20000000 // 长度为5结果的总id数
+#define NUM_LEN6_RESULT 25000000 // 长度为6结果的总id数
+#define NUM_LEN7_RESULT 25000000 // 长度为7结果的总id数
 
 using namespace std;
 
@@ -695,25 +695,8 @@ void save_fwrite(char *resultFile)
 #endif
 }
 
-bool is_money_valid(ui x, ui y)
+inline bool is_money_valid(ui x, ui y)
 {
-    // if (x > y)
-    // {
-    //     // 会越界
-    //     if (y & 0x40000000)
-    //     {
-    //         return true;
-    //     }
-    //     else
-    //     {
-    //         return x - y <= (y << 2);
-    //     }
-    // }
-    // else
-    // {
-    //     return y - x <= (x << 1);
-    // }
-
     return x > y ? (y & 0x40000000 ? true : x - y <= (y << 2)) : y - x <= (x << 1);
 }
 
@@ -794,7 +777,7 @@ void dfs_ite(register ui start_id, register ui tid)
     results[tid].visited[start_id] = true;
     results[tid].path[0] = start_id;
 
-    register ui cur_id = start_id, next_id;
+    register ui cur_id = start_id, next_id, index;
     register int depth = 0;
     // 递归栈
     register Node *stack[4];
@@ -855,7 +838,7 @@ void dfs_ite(register ui start_id, register ui tid)
                     {
                     // 长度为4
                     case 0:
-                        for (ui index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
+                        for (index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
                         {
                             if (is_money_valid(results[tid].m_path[0], results[tid].three_uj[index].first_money) &&
                                 is_money_valid(results[tid].three_uj[index].last_money, results[tid].m_path[0]) &&
@@ -875,7 +858,7 @@ void dfs_ite(register ui start_id, register ui tid)
                         break;
                     // 长度为5
                     case 1:
-                        for (ui index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
+                        for (index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
                         {
                             if (is_money_valid(results[tid].m_path[1], results[tid].three_uj[index].first_money) &&
                                 is_money_valid(results[tid].three_uj[index].last_money, results[tid].m_path[0]) &&
@@ -894,7 +877,7 @@ void dfs_ite(register ui start_id, register ui tid)
                         break;
                     // 长度为6
                     case 2:
-                        for (ui index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
+                        for (index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
                         {
                             if (is_money_valid(results[tid].m_path[2], results[tid].three_uj[index].first_money) &&
                                 is_money_valid(results[tid].three_uj[index].last_money, results[tid].m_path[0]) &&
@@ -912,7 +895,7 @@ void dfs_ite(register ui start_id, register ui tid)
                         break;
                     // 长度为7
                     case 3:
-                        for (ui index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
+                        for (index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
                         {
                             if (is_money_valid(results[tid].m_path[3], results[tid].three_uj[index].first_money) &&
                                 is_money_valid(results[tid].three_uj[index].last_money, results[tid].m_path[0]) &&
@@ -950,7 +933,7 @@ void dfs_ite(register ui start_id, register ui tid)
 }
 
 // 反向三级跳表排序
-bool cmp_three_uj(Three_pred &a, Three_pred &b)
+inline bool cmp_three_uj(Three_pred &a, Three_pred &b)
 {
     return a.u != b.u ? a.u < b.u : (a.k1 != b.k1 ? a.k1 < b.k1 : a.k2 < b.k2);
     // return a.k1 < b.k1;
@@ -1017,12 +1000,12 @@ void *thread_process(void *t)
     pthread_exit(NULL);
 }
 
-bool cmp_succ(Node &a, Node &b)
+inline bool cmp_succ(Node &a, Node &b)
 {
     return a.u_id < b.u_id || (a.u_id == b.u_id && a.v_id < b.v_id);
 }
 
-bool cmp_pred(Node &a, Node &b)
+inline bool cmp_pred(Node &a, Node &b)
 {
     return a.v_id < b.v_id || (a.v_id == b.v_id && a.u_id < b.u_id);
 }
@@ -1079,8 +1062,8 @@ int main()
     // 2408026
     // 2541581
     // 19630345
-    char testFile[] = "test_data_fs/639096/test_data.txt";
-    char resultFile[] = "test_data_fs/639096/result.txt";
+    char testFile[] = "test_data_fs/19630345/test_data.txt";
+    char resultFile[] = "test_data_fs/19630345/result.txt";
     clock_t start_time = clock();
 #else
     char testFile[] = "/data/test_data.txt";
@@ -1091,6 +1074,10 @@ int main()
     input_mmap(testFile);
 #else
     input_fstream(testFile);
+#endif
+
+#ifdef TEST
+    clock_t preprocess_time = clock();
 #endif
 
     register ui index;
@@ -1188,6 +1175,10 @@ int main()
     {
         idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3) + (index << 1) + index) + 1;
     }
+
+#ifdef TEST
+    printf("preprocess time %.2lf s", (double)(clock() - preprocess_time) / CLOCKS_PER_SEC);
+#endif
 
     register ui tid;
     // 创建子线程的标识符 就是线程 的id,放在数组中
