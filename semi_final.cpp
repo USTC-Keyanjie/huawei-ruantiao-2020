@@ -1,11 +1,9 @@
 // submit:
 // 1. close #define TEST.
-// 2. close CS should be better
-// 3. open //#define MMAP
-// 4. open //#define NEON
+// 2. open //#define MMAP
+// 3. open //#define NEON
 
 // #define TEST
-// #define CS   // 使用计数排序
 #define MMAP // 使用mmap函数
 #define NEON // 打开NEON特性的算子
 
@@ -28,16 +26,16 @@
 #include <stddef.h>
 #endif
 
+#define NUM_THREADS 18 // 线程数
+
 #define MAX_NUM_EDGES 2000005 // 最大可接受边数 200w+5 确定够用
 #define MAX_NUM_IDS 2000005   // 最大可接受id数 200w+5 确定够用
 
-#define MAX_NUM_THREE_PREDS 10000000 // 反向三级跳表的长度 应该够用
-
 #define MAX_OUTPUT_FILE_SIZE 1540000000 // 输出文件的最大大小 2000w*7*11B 确定够用
 
-#define MAX_INT 2147483648 // 2^31
+#define MAX_NUM_THREE_PREDS 10000000 // 反向三级跳表的长度 应该够用
 
-#define NUM_THREADS 18 // 线程数
+#define MAX_INT 2147483648 // 2^31
 
 // #define NUM_LEN3_RESULT 1200000  // 长度为3结果的总id数
 // #define NUM_LEN4_RESULT 1600000  // 长度为4结果的总id数
@@ -110,14 +108,7 @@ ui u_ids[MAX_NUM_EDGES];
 ui v_ids[MAX_NUM_EDGES];
 ui money[MAX_NUM_EDGES];
 
-#ifdef CS
-ui id_count[MAX_NUM_IDS]; // 计数排序辅助数组
-// index: regular ids (0, 1, 2, ...)
-// value: really ids
-ui ids[MAX_NUM_IDS];
-#else
 ui ids[MAX_NUM_EDGES * 2];
-#endif
 
 Node g_succ[MAX_NUM_EDGES];     // 邻接表
 ui begin_pos_succ[MAX_NUM_IDS]; // 邻接表每个节点的起始index
@@ -128,7 +119,7 @@ char idsComma[MAX_NUM_IDS * 11]; // id + ','
 ui idsChar_len[MAX_NUM_IDS];     // 每个id的字符串长度
 
 // 每个线程专属区域
-struct Result
+struct ThreadMemory
 {
     ui path[4];                // 已经走过的节点信息
     ui m_path[4];              // 已经走过点的金额信息
@@ -145,8 +136,8 @@ struct Result
     ui res5[NUM_LEN5_RESULT]; // 长度为5的结果
     ui res6[NUM_LEN6_RESULT]; // 长度为6的结果
     ui res7[NUM_LEN7_RESULT]; // 长度为7的结果
-    ui res_count[5] = {0};    // 各个长度结果数量记录
-} results[NUM_THREADS];
+    ui res_count[5];          // 各个长度结果数量记录
+} thread_memory[NUM_THREADS];
 
 char str_res[MAX_OUTPUT_FILE_SIZE]; // 最终答案字符串
 
@@ -428,7 +419,7 @@ void save_fwrite(char *resultFile)
 
     for (tid = 0; tid < NUM_THREADS; ++tid)
     {
-        all_res_count += results[tid].res_count[0] + results[tid].res_count[1] + results[tid].res_count[2] + results[tid].res_count[3] + results[tid].res_count[4];
+        all_res_count += thread_memory[tid].res_count[0] + thread_memory[tid].res_count[1] + thread_memory[tid].res_count[2] + thread_memory[tid].res_count[3] + thread_memory[tid].res_count[4];
     }
 
 #ifdef TEST
@@ -446,10 +437,10 @@ void save_fwrite(char *resultFile)
     // len 3
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN3_RESULT)
     {
-        for (line = 0, line_offset = 0; line < results[tid].res_count[0]; ++line, line_offset += 3)
+        for (line = 0, line_offset = 0; line < thread_memory[tid].res_count[0]; ++line, line_offset += 3)
         {
-            // result_id = results[0][thread_offset + line_offset];
-            result_id = results[tid].res3[line_offset];
+            // result_id = thread_memory[0][thread_offset + line_offset];
+            result_id = thread_memory[tid].res3[line_offset];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -457,8 +448,8 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            // result_id = results[0][thread_offset + line_offset + 1];
-            result_id = results[tid].res3[line_offset + 1];
+            // result_id = thread_memory[0][thread_offset + line_offset + 1];
+            result_id = thread_memory[tid].res3[line_offset + 1];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -466,8 +457,8 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            // result_id = results[0][thread_offset + line_offset + 2];
-            result_id = results[tid].res3[line_offset + 2];
+            // result_id = thread_memory[0][thread_offset + line_offset + 2];
+            result_id = thread_memory[tid].res3[line_offset + 2];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -481,9 +472,9 @@ void save_fwrite(char *resultFile)
     // len 4
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN4_RESULT)
     {
-        for (line = 0, line_offset = 0; line < results[tid].res_count[1]; ++line, line_offset += 4)
+        for (line = 0, line_offset = 0; line < thread_memory[tid].res_count[1]; ++line, line_offset += 4)
         {
-            result_id = results[tid].res4[line_offset];
+            result_id = thread_memory[tid].res4[line_offset];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -491,7 +482,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res4[line_offset + 1];
+            result_id = thread_memory[tid].res4[line_offset + 1];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -499,7 +490,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res4[line_offset + 2];
+            result_id = thread_memory[tid].res4[line_offset + 2];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -507,7 +498,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res4[line_offset + 3];
+            result_id = thread_memory[tid].res4[line_offset + 3];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -521,9 +512,9 @@ void save_fwrite(char *resultFile)
     // len 5
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN5_RESULT)
     {
-        for (line = 0, line_offset = 0; line < results[tid].res_count[2]; ++line, line_offset += 5)
+        for (line = 0, line_offset = 0; line < thread_memory[tid].res_count[2]; ++line, line_offset += 5)
         {
-            result_id = results[tid].res5[line_offset];
+            result_id = thread_memory[tid].res5[line_offset];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -531,7 +522,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res5[line_offset + 1];
+            result_id = thread_memory[tid].res5[line_offset + 1];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -539,7 +530,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res5[line_offset + 2];
+            result_id = thread_memory[tid].res5[line_offset + 2];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -547,7 +538,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res5[line_offset + 3];
+            result_id = thread_memory[tid].res5[line_offset + 3];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -555,7 +546,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res5[line_offset + 4];
+            result_id = thread_memory[tid].res5[line_offset + 4];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -569,9 +560,9 @@ void save_fwrite(char *resultFile)
     // len 6
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN6_RESULT)
     {
-        for (line = 0, line_offset = 0; line < results[tid].res_count[3]; ++line, line_offset += 6)
+        for (line = 0, line_offset = 0; line < thread_memory[tid].res_count[3]; ++line, line_offset += 6)
         {
-            result_id = results[tid].res6[line_offset];
+            result_id = thread_memory[tid].res6[line_offset];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -579,7 +570,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res6[line_offset + 1];
+            result_id = thread_memory[tid].res6[line_offset + 1];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -587,7 +578,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res6[line_offset + 2];
+            result_id = thread_memory[tid].res6[line_offset + 2];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -595,7 +586,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res6[line_offset + 3];
+            result_id = thread_memory[tid].res6[line_offset + 3];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -603,7 +594,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res6[line_offset + 4];
+            result_id = thread_memory[tid].res6[line_offset + 4];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -611,7 +602,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res6[line_offset + 5];
+            result_id = thread_memory[tid].res6[line_offset + 5];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -625,9 +616,9 @@ void save_fwrite(char *resultFile)
     // len 7
     for (tid = 0, thread_offset = 0; tid < NUM_THREADS; ++tid, thread_offset += NUM_LEN7_RESULT)
     {
-        for (line = 0, line_offset = 0; line < results[tid].res_count[4]; ++line, line_offset += 7)
+        for (line = 0, line_offset = 0; line < thread_memory[tid].res_count[4]; ++line, line_offset += 7)
         {
-            result_id = results[tid].res7[line_offset];
+            result_id = thread_memory[tid].res7[line_offset];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -635,7 +626,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res7[line_offset + 1];
+            result_id = thread_memory[tid].res7[line_offset + 1];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -643,7 +634,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res7[line_offset + 2];
+            result_id = thread_memory[tid].res7[line_offset + 2];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -651,7 +642,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res7[line_offset + 3];
+            result_id = thread_memory[tid].res7[line_offset + 3];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -659,7 +650,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res7[line_offset + 4];
+            result_id = thread_memory[tid].res7[line_offset + 4];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -667,7 +658,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res7[line_offset + 5];
+            result_id = thread_memory[tid].res7[line_offset + 5];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -675,7 +666,7 @@ void save_fwrite(char *resultFile)
 #endif
             str_len += idsChar_len[result_id];
 
-            result_id = results[tid].res7[line_offset + 6];
+            result_id = thread_memory[tid].res7[line_offset + 6];
 #ifdef NEON
             memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
@@ -702,7 +693,7 @@ inline bool is_money_valid(ui x, ui y)
 
 // iteration version
 // 反向三级dfs的迭代版本
-void pre_dfs_ite(register ui start_id, register ui tid)
+void pre_dfs_ite(register ui start_id, register ThreadMemory *cur_memory)
 {
     register ui cur_id = start_id, next_id;
     register int depth = 0;
@@ -725,23 +716,23 @@ void pre_dfs_ite(register ui start_id, register ui tid)
         if (stack[depth]->v_id != cur_id)
         {
             // 回溯
-            results[tid].visited[cur_id] = false;
-            cur_id = --depth > 0 ? results[tid].path[depth - 1] : start_id;
+            cur_memory->visited[cur_id] = false;
+            cur_id = --depth > 0 ? cur_memory->path[depth - 1] : start_id;
         }
         // 有前驱
         else
         {
             next_id = stack[depth]->u_id;
-            results[tid].m_path[depth] = (stack[depth]++)->money;
+            cur_memory->m_path[depth] = (stack[depth]++)->money;
 
-            if (!results[tid].visited[next_id] && (!depth || is_money_valid(results[tid].m_path[depth], results[tid].m_path[depth - 1])))
+            if (!cur_memory->visited[next_id] && (!depth || is_money_valid(cur_memory->m_path[depth], cur_memory->m_path[depth - 1])))
             {
-                results[tid].path[depth] = next_id;
+                cur_memory->path[depth] = next_id;
                 // 深度为2，装载反向三级跳表
                 if (depth == 2)
                 {
-                    if (results[tid].path[2] != results[tid].path[0])
-                        results[tid].three_uj[results[tid].three_uj_len++] = {results[tid].path[2], results[tid].path[1], results[tid].path[0], results[tid].m_path[2], results[tid].m_path[0]};
+                    if (cur_memory->path[2] != cur_memory->path[0])
+                        cur_memory->three_uj[cur_memory->three_uj_len++] = {cur_memory->path[2], cur_memory->path[1], cur_memory->path[0], cur_memory->m_path[2], cur_memory->m_path[0]};
                 }
                 // 深度不足2，且next_id还有前驱，则继续搜索
                 else if (begin_pos_pred[next_id])
@@ -749,8 +740,8 @@ void pre_dfs_ite(register ui start_id, register ui tid)
                     // 进入下一层dfs
                     stack[++depth] = g_pred + begin_pos_pred[next_id] - 1;
                     cur_id = next_id;
-                    results[tid].visited[cur_id] = true;
-                    results[tid].path[depth] = cur_id;
+                    cur_memory->visited[cur_id] = true;
+                    cur_memory->path[depth] = cur_id;
 
                     // 寻找起始点
                     // 深度为2时，允许下一个节点等于起始点，这是为了兼容长度为3的环
@@ -772,10 +763,10 @@ void pre_dfs_ite(register ui start_id, register ui tid)
 
 // iteration version
 // 正向dfs的迭代版本
-void dfs_ite(register ui start_id, register ui tid)
+void dfs_ite(register ui start_id, register ThreadMemory *cur_memory)
 {
-    results[tid].visited[start_id] = true;
-    results[tid].path[0] = start_id;
+    cur_memory->visited[start_id] = true;
+    cur_memory->path[0] = start_id;
 
     register ui cur_id = start_id, next_id, index;
     register int depth = 0;
@@ -792,23 +783,23 @@ void dfs_ite(register ui start_id, register ui tid)
 
     // length 3 result
     // 首先查找所有长度为3的结果，因为不需要搜索就可以得到
-    if (results[tid].reachable[cur_id])
+    if (cur_memory->reachable[cur_id])
     {
-        for (ui index = results[tid].reachable[cur_id] - 1; results[tid].three_uj[index].u == cur_id; ++index)
+        for (ui index = cur_memory->reachable[cur_id] - 1; cur_memory->three_uj[index].u == cur_id; ++index)
         {
-            if (is_money_valid(results[tid].three_uj[index].last_money, results[tid].three_uj[index].first_money))
+            if (is_money_valid(cur_memory->three_uj[index].last_money, cur_memory->three_uj[index].first_money))
             {
 #ifdef NEON
                 memcpy_128(
-                    results[tid].res3 + (results[tid].res_count[0] << 1) + results[tid].res_count[0],
-                    &results[tid].three_uj[index].u);
+                    cur_memory->res3 + (cur_memory->res_count[0] << 1) + cur_memory->res_count[0],
+                    &cur_memory->three_uj[index].u);
 #else
                 memcpy(
-                    results[tid].res3 + (results[tid].res_count[0] << 1) + results[tid].res_count[0],
-                    &results[tid].three_uj[index].u,
+                    cur_memory->res3 + (cur_memory->res_count[0] << 1) + cur_memory->res_count[0],
+                    &cur_memory->three_uj[index].u,
                     12);
 #endif
-                ++results[tid].res_count[0];
+                ++cur_memory->res_count[0];
             }
         }
     }
@@ -820,56 +811,56 @@ void dfs_ite(register ui start_id, register ui tid)
         if (stack[depth]->u_id != cur_id)
         {
             // 回溯
-            results[tid].visited[cur_id] = false;
-            cur_id = --depth >= 0 ? results[tid].path[depth] : start_id;
+            cur_memory->visited[cur_id] = false;
+            cur_id = --depth >= 0 ? cur_memory->path[depth] : start_id;
         }
         // 有后继
         else
         {
             next_id = stack[depth]->v_id;
-            results[tid].m_path[depth] = (stack[depth]++)->money;
+            cur_memory->m_path[depth] = (stack[depth]++)->money;
 
-            if (!results[tid].visited[next_id] && (!depth || is_money_valid(results[tid].m_path[depth - 1], results[tid].m_path[depth])))
+            if (!cur_memory->visited[next_id] && (!depth || is_money_valid(cur_memory->m_path[depth - 1], cur_memory->m_path[depth])))
             {
                 // 找到环
-                if (results[tid].reachable[next_id])
+                if (cur_memory->reachable[next_id])
                 {
                     switch (depth)
                     {
                     // 长度为4
                     case 0:
-                        for (index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
+                        for (index = cur_memory->reachable[next_id] - 1; cur_memory->three_uj[index].u == next_id; ++index)
                         {
-                            if (is_money_valid(results[tid].m_path[0], results[tid].three_uj[index].first_money) &&
-                                is_money_valid(results[tid].three_uj[index].last_money, results[tid].m_path[0]) &&
-                                !results[tid].visited[results[tid].three_uj[index].k1] && !results[tid].visited[results[tid].three_uj[index].k2])
+                            if (is_money_valid(cur_memory->m_path[0], cur_memory->three_uj[index].first_money) &&
+                                is_money_valid(cur_memory->three_uj[index].last_money, cur_memory->m_path[0]) &&
+                                !cur_memory->visited[cur_memory->three_uj[index].k1] && !cur_memory->visited[cur_memory->three_uj[index].k2])
                             {
 #ifdef NEON
-                                memcpy_128(results[tid].res4 + (results[tid].res_count[1]++ << 2), results[tid].path);
-                                memcpy_128(results[tid].res4 + (results[tid].res_count[1] << 2) - 3, &results[tid].three_uj[index].u);
+                                memcpy_128(cur_memory->res4 + (cur_memory->res_count[1]++ << 2), cur_memory->path);
+                                memcpy_128(cur_memory->res4 + (cur_memory->res_count[1] << 2) - 3, &cur_memory->three_uj[index].u);
 #else
                                 // 保存已经走过的点
-                                memcpy(results[tid].res4 + (results[tid].res_count[1]++ << 2), results[tid].path, 4);
+                                memcpy(cur_memory->res4 + (cur_memory->res_count[1]++ << 2), cur_memory->path, 4);
                                 // 保存反向三级跳表
-                                memcpy(results[tid].res4 + (results[tid].res_count[1] << 2) - 3, &results[tid].three_uj[index].u, 12);
+                                memcpy(cur_memory->res4 + (cur_memory->res_count[1] << 2) - 3, &cur_memory->three_uj[index].u, 12);
 #endif
                             }
                         }
                         break;
                     // 长度为5
                     case 1:
-                        for (index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
+                        for (index = cur_memory->reachable[next_id] - 1; cur_memory->three_uj[index].u == next_id; ++index)
                         {
-                            if (is_money_valid(results[tid].m_path[1], results[tid].three_uj[index].first_money) &&
-                                is_money_valid(results[tid].three_uj[index].last_money, results[tid].m_path[0]) &&
-                                !results[tid].visited[results[tid].three_uj[index].k1] && !results[tid].visited[results[tid].three_uj[index].k2])
+                            if (is_money_valid(cur_memory->m_path[1], cur_memory->three_uj[index].first_money) &&
+                                is_money_valid(cur_memory->three_uj[index].last_money, cur_memory->m_path[0]) &&
+                                !cur_memory->visited[cur_memory->three_uj[index].k1] && !cur_memory->visited[cur_memory->three_uj[index].k2])
                             {
 #ifdef NEON
-                                memcpy_128(results[tid].res5 + (results[tid].res_count[2] << 2) + results[tid].res_count[2]++, results[tid].path);
-                                memcpy_128(results[tid].res5 + (results[tid].res_count[2] << 2) + results[tid].res_count[2] - 3, &results[tid].three_uj[index].u);
+                                memcpy_128(cur_memory->res5 + (cur_memory->res_count[2] << 2) + cur_memory->res_count[2]++, cur_memory->path);
+                                memcpy_128(cur_memory->res5 + (cur_memory->res_count[2] << 2) + cur_memory->res_count[2] - 3, &cur_memory->three_uj[index].u);
 #else
-                                memcpy(results[tid].res5 + (results[tid].res_count[2] << 2) + results[tid].res_count[2]++, results[tid].path, 8);
-                                memcpy(results[tid].res5 + (results[tid].res_count[2] << 2) + results[tid].res_count[2] - 3, &results[tid].three_uj[index].u, 12);
+                                memcpy(cur_memory->res5 + (cur_memory->res_count[2] << 2) + cur_memory->res_count[2]++, cur_memory->path, 8);
+                                memcpy(cur_memory->res5 + (cur_memory->res_count[2] << 2) + cur_memory->res_count[2] - 3, &cur_memory->three_uj[index].u, 12);
 #endif
                             }
                         }
@@ -877,36 +868,36 @@ void dfs_ite(register ui start_id, register ui tid)
                         break;
                     // 长度为6
                     case 2:
-                        for (index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
+                        for (index = cur_memory->reachable[next_id] - 1; cur_memory->three_uj[index].u == next_id; ++index)
                         {
-                            if (is_money_valid(results[tid].m_path[2], results[tid].three_uj[index].first_money) &&
-                                is_money_valid(results[tid].three_uj[index].last_money, results[tid].m_path[0]) &&
-                                !results[tid].visited[results[tid].three_uj[index].k1] && !results[tid].visited[results[tid].three_uj[index].k2])
+                            if (is_money_valid(cur_memory->m_path[2], cur_memory->three_uj[index].first_money) &&
+                                is_money_valid(cur_memory->three_uj[index].last_money, cur_memory->m_path[0]) &&
+                                !cur_memory->visited[cur_memory->three_uj[index].k1] && !cur_memory->visited[cur_memory->three_uj[index].k2])
                             {
 #ifdef NEON
-                                memcpy_128(results[tid].res6 + (results[tid].res_count[3] << 2) + (results[tid].res_count[3]++ << 1), results[tid].path);
-                                memcpy_128(results[tid].res6 + (results[tid].res_count[3] << 2) + (results[tid].res_count[3] << 1) - 3, &results[tid].three_uj[index].u);
+                                memcpy_128(cur_memory->res6 + (cur_memory->res_count[3] << 2) + (cur_memory->res_count[3]++ << 1), cur_memory->path);
+                                memcpy_128(cur_memory->res6 + (cur_memory->res_count[3] << 2) + (cur_memory->res_count[3] << 1) - 3, &cur_memory->three_uj[index].u);
 #else
-                                memcpy(results[tid].res6 + (results[tid].res_count[3] << 2) + (results[tid].res_count[3]++ << 1), results[tid].path, 12);
-                                memcpy(results[tid].res6 + (results[tid].res_count[3] << 2) + (results[tid].res_count[3] << 1) - 3, &results[tid].three_uj[index].u, 12);
+                                memcpy(cur_memory->res6 + (cur_memory->res_count[3] << 2) + (cur_memory->res_count[3]++ << 1), cur_memory->path, 12);
+                                memcpy(cur_memory->res6 + (cur_memory->res_count[3] << 2) + (cur_memory->res_count[3] << 1) - 3, &cur_memory->three_uj[index].u, 12);
 #endif
                             }
                         }
                         break;
                     // 长度为7
                     case 3:
-                        for (index = results[tid].reachable[next_id] - 1; results[tid].three_uj[index].u == next_id; ++index)
+                        for (index = cur_memory->reachable[next_id] - 1; cur_memory->three_uj[index].u == next_id; ++index)
                         {
-                            if (is_money_valid(results[tid].m_path[3], results[tid].three_uj[index].first_money) &&
-                                is_money_valid(results[tid].three_uj[index].last_money, results[tid].m_path[0]) &&
-                                !results[tid].visited[results[tid].three_uj[index].k1] && !results[tid].visited[results[tid].three_uj[index].k2])
+                            if (is_money_valid(cur_memory->m_path[3], cur_memory->three_uj[index].first_money) &&
+                                is_money_valid(cur_memory->three_uj[index].last_money, cur_memory->m_path[0]) &&
+                                !cur_memory->visited[cur_memory->three_uj[index].k1] && !cur_memory->visited[cur_memory->three_uj[index].k2])
                             {
 #ifdef NEON
-                                memcpy_128(results[tid].res7 + (results[tid].res_count[4] << 2) + (results[tid].res_count[4] << 1) + results[tid].res_count[4]++, results[tid].path);
-                                memcpy_128(results[tid].res7 + (results[tid].res_count[4] << 2) + (results[tid].res_count[4] << 1) + results[tid].res_count[4] - 3, &results[tid].three_uj[index].u);
+                                memcpy_128(cur_memory->res7 + (cur_memory->res_count[4] << 2) + (cur_memory->res_count[4] << 1) + cur_memory->res_count[4]++, cur_memory->path);
+                                memcpy_128(cur_memory->res7 + (cur_memory->res_count[4] << 2) + (cur_memory->res_count[4] << 1) + cur_memory->res_count[4] - 3, &cur_memory->three_uj[index].u);
 #else
-                                memcpy(results[tid].res7 + (results[tid].res_count[4] << 2) + (results[tid].res_count[4] << 1) + results[tid].res_count[4]++, results[tid].path, 16);
-                                memcpy(results[tid].res7 + (results[tid].res_count[4] << 2) + (results[tid].res_count[4] << 1) + results[tid].res_count[4] - 3, &results[tid].three_uj[index].u, 12);
+                                memcpy(cur_memory->res7 + (cur_memory->res_count[4] << 2) + (cur_memory->res_count[4] << 1) + cur_memory->res_count[4]++, cur_memory->path, 16);
+                                memcpy(cur_memory->res7 + (cur_memory->res_count[4] << 2) + (cur_memory->res_count[4] << 1) + cur_memory->res_count[4] - 3, &cur_memory->three_uj[index].u, 12);
 #endif
                             }
                         }
@@ -921,8 +912,8 @@ void dfs_ite(register ui start_id, register ui tid)
                     // 向更深一层dfs
                     stack[++depth] = g_succ + begin_pos_succ[next_id] - 1;
                     cur_id = next_id;
-                    results[tid].visited[cur_id] = true;
-                    results[tid].path[depth] = cur_id;
+                    cur_memory->visited[cur_id] = true;
+                    cur_memory->path[depth] = cur_id;
                     // 寻找起始位置
                     while (stack[depth]->u_id == cur_id && start_id > stack[depth]->v_id)
                         ++stack[depth];
@@ -950,6 +941,7 @@ void *thread_process(void *t)
 
     // 先把指针类型恢复, 然后取值
     register ui tid = *((ui *)t);
+    register ThreadMemory *cur_memory = &thread_memory[tid];
 
     ui end_id = (ui)(seg_ratio[tid + 1] * id_num);
     for (ui start_id = (ui)(seg_ratio[tid] * id_num); start_id < end_id; ++start_id)
@@ -959,37 +951,36 @@ void *thread_process(void *t)
         //     printf("%d/%d ~ %.2lfs ~ %2.lf%%\n", start_id, id_num, (double)(clock() - search_time) / CLOCKS_PER_SEC, (double)(start_id) / id_num * 100);
 
 #endif
-        pre_dfs_ite(start_id, tid);
-        // pre_dfs_rec(start_id, start_id, 0, tid);
+        pre_dfs_ite(start_id, cur_memory);
+
         // 有直达的点才继续搜下去
-        if (results[tid].three_uj_len)
+        if (cur_memory->three_uj_len)
         {
             // 反向三级跳表排序
-            sort(results[tid].three_uj, results[tid].three_uj + results[tid].three_uj_len, cmp_three_uj);
-            // stable_sort(results[tid].three_uj, results[tid].three_uj + results[tid].three_uj_len, three_uj_cmp);
+            sort(cur_memory->three_uj, cur_memory->three_uj + cur_memory->three_uj_len, cmp_three_uj);
+            // stable_sort(cur_memory->three_uj, cur_memory->three_uj + cur_memory->three_uj_len, three_uj_cmp);
 
             // 设置哨兵
-            results[tid].three_uj[results[tid].three_uj_len] = {MAX_INT, MAX_INT, MAX_INT, MAX_INT, MAX_INT};
+            cur_memory->three_uj[cur_memory->three_uj_len] = {MAX_INT, MAX_INT, MAX_INT, MAX_INT, MAX_INT};
             // 设置reachable和currentUs数组
-            for (ui index = 0; index < results[tid].three_uj_len; ++index)
+            for (ui index = 0; index < cur_memory->three_uj_len; ++index)
             {
-                if (!results[tid].reachable[results[tid].three_uj[index].u])
+                if (!cur_memory->reachable[cur_memory->three_uj[index].u])
                 {
-                    results[tid].reachable[results[tid].three_uj[index].u] = index + 1;
-                    results[tid].currentUs[results[tid].currentUs_len++] = results[tid].three_uj[index].u;
+                    cur_memory->reachable[cur_memory->three_uj[index].u] = index + 1;
+                    cur_memory->currentUs[cur_memory->currentUs_len++] = cur_memory->three_uj[index].u;
                 }
             }
 
-            dfs_ite(start_id, tid);
-            // dfs_rec(start_id, start_id, 0, tid);
+            dfs_ite(start_id, cur_memory);
 
             // reachable和currentUs还原
-            for (ui j = 0; j < results[tid].currentUs_len; ++j)
+            for (ui j = 0; j < cur_memory->currentUs_len; ++j)
             {
-                results[tid].reachable[results[tid].currentUs[j]] = 0;
+                cur_memory->reachable[cur_memory->currentUs[j]] = 0;
             }
-            results[tid].three_uj_len = 0;
-            results[tid].currentUs_len = 0;
+            cur_memory->three_uj_len = 0;
+            cur_memory->currentUs_len = 0;
         }
     }
 
@@ -1177,7 +1168,7 @@ int main()
     }
 
 #ifdef TEST
-    printf("preprocess time %.2lf s", (double)(clock() - preprocess_time) / CLOCKS_PER_SEC);
+    printf("preprocess time %.2lfs\n", (double)(clock() - preprocess_time) / CLOCKS_PER_SEC);
 #endif
 
     register ui tid;
