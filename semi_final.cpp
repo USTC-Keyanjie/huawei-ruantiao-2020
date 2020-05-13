@@ -3,9 +3,11 @@
 // 2. open //#define MMAP
 // 3. open //#define NEON
 
-// #define TEST
+#define TEST
 #define MMAP // 使用mmap函数
 #define NEON // 打开NEON特性的算子
+
+// #define _WIN32
 
 #include <bits/stdc++.h>
 #include <fcntl.h>
@@ -143,16 +145,13 @@ char str_res[MAX_OUTPUT_FILE_SIZE]; // 最终答案字符串
 
 #ifdef NEON
 // 16个字节以内的复制
-void *memcpy_128(void *dest, void *src)
+inline void memcpy_16(void *dest, void *src)
 {
-    unsigned long *s = (unsigned long *)src;
-    unsigned long *d = (unsigned long *)dest;
-    vst1q_u64(&d[0], vld1q_u64(&s[0]));
-    return dest;
+    vst1q_u64((unsigned long *)dest, vld1q_u64((unsigned long *)src));
 }
 
 // 大长度字节的复制
-void *memcpy_128(void *dest, void *src, size_t count)
+inline void memcpy_128(void *dest, void *src, size_t count)
 {
     register ui i;
     unsigned long *s = (unsigned long *)src;
@@ -164,93 +163,73 @@ void *memcpy_128(void *dest, void *src, size_t count)
         vst1q_u64(&d[4], vld1q_u64(&s[4]));
         vst1q_u64(&d[6], vld1q_u64(&s[6]));
     }
-    return dest;
 }
 #endif
 
-#ifdef CS
-// fstream方式输入
-void input_fstream(char *testFile)
+///Timer
+#ifdef TEST
+#ifdef _WIN32 // windows
+#include <sysinfoapi.h>
+#else // unix
+#include <sys/time.h>
+#endif
+
+struct UniversalTimer
 {
-#ifdef TEST
-    clock_t input_time = clock();
-#endif
+    vector<pair<string, int>> logPairs;
 
-    FILE *file = fopen(testFile, "r");
-    // ui money;
-    while (fscanf(file, "%d,%d,%d\n", u_ids + edge_num, v_ids + edge_num, money + edge_num) != EOF)
-    {
-        id_count[u_ids[edge_num]] = 1;
-        id_count[v_ids[edge_num]] = 1;
-        ++edge_num;
-    }
-    fclose(file);
-#ifdef TEST
-    cout << "fscanf input time " << (double)(clock() - input_time) / CLOCKS_PER_SEC << "s" << endl;
-#endif
-}
-
-#ifdef MMAP
-// MMAP方式输入
-void input_mmap(char *testFile)
-{
-#ifdef TEST
-    clock_t input_time = clock();
-#endif
-    int fd = open(testFile, O_RDONLY);
-    //get the size of the document
-    long length = lseek(fd, 0, SEEK_END);
-
-    //mmap
-    char *buf = (char *)mmap(NULL, length, PROT_READ, MAP_PRIVATE, fd, 0);
-
-    register int id_pos = 0;
-    register int sign = 0;
-    register ui temp = 0;
-
-    for (char *p = buf; *p && p - buf < length; ++p)
-    {
-        switch (*p)
-        {
-        case ',':
-            switch (sign++ & 1)
-            {
-            case 0: //读取 id1
-                u_ids[edge_num] = temp;
-                id_count[temp] = 1;
-                temp = 0;
-                break;
-            case 1: //读取 id2
-                v_ids[edge_num] = temp;
-                id_count[temp] = 1;
-                temp = 0;
-                break;
-            default:
-                break;
-            }
-            break;
-        case '\n':
-            money[edge_num++] = temp;
-            temp = 0;
-            break;
-        case '\r':
-            break;
-        default:
-            // 位运算符方式将字符串转int
-            temp = (temp << 1) + (temp << 3) + *p - '0';
-            break;
-        }
-    }
-
-    close(fd);
-    munmap(buf, length);
-#ifdef TEST
-    cout << "mmap input time " << (double)(clock() - input_time) / CLOCKS_PER_SEC << "s" << endl;
-#endif
-}
-#endif
-
+#ifdef _WIN32
+    unsigned int startTime;
+    unsigned int endTime;
 #else
+    struct timeval startTime;
+    struct timeval endTime;
+#endif
+
+    void setTime()
+    {
+#ifdef _WIN32
+        startTime = GetTickCount();
+#else
+        gettimeofday(&startTime, NULL);
+#endif
+    }
+
+    int getElapsedTimeMS()
+    {
+#ifdef _WIN32
+        endTime = GetTickCount();
+        return int(endTime - startTime);
+#else
+        gettimeofday(&endTime, NULL);
+        return int(1000 * (endTime.tv_sec - startTime.tv_sec) + (endTime.tv_usec - startTime.tv_usec) / 1000);
+#endif
+    }
+
+    void logTimeImpl(string tag, int elapsedTimeMS)
+    {
+        printf("Time consumed for %-20s is %d ms.\n", tag.c_str(), elapsedTimeMS);
+    }
+
+    void logTime(string tag)
+    {
+        logTimeImpl(tag, getElapsedTimeMS());
+    }
+
+    void resetTimeWithTag(string tag)
+    {
+        logPairs.emplace_back(make_pair(tag, getElapsedTimeMS()));
+        setTime();
+    }
+
+    void printLogs()
+    {
+        for (auto x : logPairs)
+            logTimeImpl(x.first, x.second);
+    }
+};
+#endif
+
 // 不使用计数排序方案
 void input_fstream(char *testFile)
 {
@@ -328,8 +307,6 @@ void input_mmap(char *testFile)
     cout << "mmap input time " << (double)(clock() - input_time) / CLOCKS_PER_SEC << "s" << endl;
 #endif
 }
-
-#endif
 
 #endif
 
@@ -442,7 +419,7 @@ void save_fwrite(char *resultFile)
             // result_id = thread_memory[0][thread_offset + line_offset];
             result_id = thread_memory[tid].res3[line_offset];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -451,7 +428,7 @@ void save_fwrite(char *resultFile)
             // result_id = thread_memory[0][thread_offset + line_offset + 1];
             result_id = thread_memory[tid].res3[line_offset + 1];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -460,7 +437,7 @@ void save_fwrite(char *resultFile)
             // result_id = thread_memory[0][thread_offset + line_offset + 2];
             result_id = thread_memory[tid].res3[line_offset + 2];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -476,7 +453,7 @@ void save_fwrite(char *resultFile)
         {
             result_id = thread_memory[tid].res4[line_offset];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -484,7 +461,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res4[line_offset + 1];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -492,7 +469,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res4[line_offset + 2];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -500,7 +477,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res4[line_offset + 3];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -516,7 +493,7 @@ void save_fwrite(char *resultFile)
         {
             result_id = thread_memory[tid].res5[line_offset];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -524,7 +501,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res5[line_offset + 1];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -532,7 +509,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res5[line_offset + 2];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -540,7 +517,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res5[line_offset + 3];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -548,7 +525,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res5[line_offset + 4];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -564,7 +541,7 @@ void save_fwrite(char *resultFile)
         {
             result_id = thread_memory[tid].res6[line_offset];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -572,7 +549,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res6[line_offset + 1];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -580,7 +557,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res6[line_offset + 2];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -588,7 +565,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res6[line_offset + 3];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -596,7 +573,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res6[line_offset + 4];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -604,7 +581,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res6[line_offset + 5];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -620,7 +597,7 @@ void save_fwrite(char *resultFile)
         {
             result_id = thread_memory[tid].res7[line_offset];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -628,7 +605,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res7[line_offset + 1];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -636,7 +613,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res7[line_offset + 2];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -644,7 +621,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res7[line_offset + 3];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -652,7 +629,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res7[line_offset + 4];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -660,7 +637,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res7[line_offset + 5];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -668,7 +645,7 @@ void save_fwrite(char *resultFile)
 
             result_id = thread_memory[tid].res7[line_offset + 6];
 #ifdef NEON
-            memcpy_128(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
+            memcpy_16(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id);
 #else
             memcpy(str_res + str_len, idsComma + (result_id << 3) + (result_id << 1) + result_id, idsChar_len[result_id]);
 #endif
@@ -790,7 +767,7 @@ void dfs_ite(register ui start_id, register ThreadMemory *cur_memory)
             if (is_money_valid(cur_memory->three_uj[index].last_money, cur_memory->three_uj[index].first_money))
             {
 #ifdef NEON
-                memcpy_128(
+                memcpy_16(
                     cur_memory->res3 + (cur_memory->res_count[0] << 1) + cur_memory->res_count[0],
                     &cur_memory->three_uj[index].u);
 #else
@@ -836,8 +813,8 @@ void dfs_ite(register ui start_id, register ThreadMemory *cur_memory)
                                 !cur_memory->visited[cur_memory->three_uj[index].k1] && !cur_memory->visited[cur_memory->three_uj[index].k2])
                             {
 #ifdef NEON
-                                memcpy_128(cur_memory->res4 + (cur_memory->res_count[1]++ << 2), cur_memory->path);
-                                memcpy_128(cur_memory->res4 + (cur_memory->res_count[1] << 2) - 3, &cur_memory->three_uj[index].u);
+                                memcpy_16(cur_memory->res4 + (cur_memory->res_count[1]++ << 2), cur_memory->path);
+                                memcpy_16(cur_memory->res4 + (cur_memory->res_count[1] << 2) - 3, &cur_memory->three_uj[index].u);
 #else
                                 // 保存已经走过的点
                                 memcpy(cur_memory->res4 + (cur_memory->res_count[1]++ << 2), cur_memory->path, 4);
@@ -856,8 +833,8 @@ void dfs_ite(register ui start_id, register ThreadMemory *cur_memory)
                                 !cur_memory->visited[cur_memory->three_uj[index].k1] && !cur_memory->visited[cur_memory->three_uj[index].k2])
                             {
 #ifdef NEON
-                                memcpy_128(cur_memory->res5 + (cur_memory->res_count[2] << 2) + cur_memory->res_count[2]++, cur_memory->path);
-                                memcpy_128(cur_memory->res5 + (cur_memory->res_count[2] << 2) + cur_memory->res_count[2] - 3, &cur_memory->three_uj[index].u);
+                                memcpy_16(cur_memory->res5 + (cur_memory->res_count[2] << 2) + cur_memory->res_count[2]++, cur_memory->path);
+                                memcpy_16(cur_memory->res5 + (cur_memory->res_count[2] << 2) + cur_memory->res_count[2] - 3, &cur_memory->three_uj[index].u);
 #else
                                 memcpy(cur_memory->res5 + (cur_memory->res_count[2] << 2) + cur_memory->res_count[2]++, cur_memory->path, 8);
                                 memcpy(cur_memory->res5 + (cur_memory->res_count[2] << 2) + cur_memory->res_count[2] - 3, &cur_memory->three_uj[index].u, 12);
@@ -875,8 +852,8 @@ void dfs_ite(register ui start_id, register ThreadMemory *cur_memory)
                                 !cur_memory->visited[cur_memory->three_uj[index].k1] && !cur_memory->visited[cur_memory->three_uj[index].k2])
                             {
 #ifdef NEON
-                                memcpy_128(cur_memory->res6 + (cur_memory->res_count[3] << 2) + (cur_memory->res_count[3]++ << 1), cur_memory->path);
-                                memcpy_128(cur_memory->res6 + (cur_memory->res_count[3] << 2) + (cur_memory->res_count[3] << 1) - 3, &cur_memory->three_uj[index].u);
+                                memcpy_16(cur_memory->res6 + (cur_memory->res_count[3] << 2) + (cur_memory->res_count[3]++ << 1), cur_memory->path);
+                                memcpy_16(cur_memory->res6 + (cur_memory->res_count[3] << 2) + (cur_memory->res_count[3] << 1) - 3, &cur_memory->three_uj[index].u);
 #else
                                 memcpy(cur_memory->res6 + (cur_memory->res_count[3] << 2) + (cur_memory->res_count[3]++ << 1), cur_memory->path, 12);
                                 memcpy(cur_memory->res6 + (cur_memory->res_count[3] << 2) + (cur_memory->res_count[3] << 1) - 3, &cur_memory->three_uj[index].u, 12);
@@ -893,8 +870,8 @@ void dfs_ite(register ui start_id, register ThreadMemory *cur_memory)
                                 !cur_memory->visited[cur_memory->three_uj[index].k1] && !cur_memory->visited[cur_memory->three_uj[index].k2])
                             {
 #ifdef NEON
-                                memcpy_128(cur_memory->res7 + (cur_memory->res_count[4] << 2) + (cur_memory->res_count[4] << 1) + cur_memory->res_count[4]++, cur_memory->path);
-                                memcpy_128(cur_memory->res7 + (cur_memory->res_count[4] << 2) + (cur_memory->res_count[4] << 1) + cur_memory->res_count[4] - 3, &cur_memory->three_uj[index].u);
+                                memcpy_16(cur_memory->res7 + (cur_memory->res_count[4] << 2) + (cur_memory->res_count[4] << 1) + cur_memory->res_count[4]++, cur_memory->path);
+                                memcpy_16(cur_memory->res7 + (cur_memory->res_count[4] << 2) + (cur_memory->res_count[4] << 1) + cur_memory->res_count[4] - 3, &cur_memory->three_uj[index].u);
 #else
                                 memcpy(cur_memory->res7 + (cur_memory->res_count[4] << 2) + (cur_memory->res_count[4] << 1) + cur_memory->res_count[4]++, cur_memory->path, 16);
                                 memcpy(cur_memory->res7 + (cur_memory->res_count[4] << 2) + (cur_memory->res_count[4] << 1) + cur_memory->res_count[4] - 3, &cur_memory->three_uj[index].u, 12);
@@ -936,7 +913,8 @@ void *thread_process(void *t)
 {
 
 #ifdef TEST
-    clock_t search_time = clock();
+    UniversalTimer timer;
+    timer.setTime();
 #endif
 
     // 先把指针类型恢复, 然后取值
@@ -985,6 +963,7 @@ void *thread_process(void *t)
     }
 
 #ifdef TEST
+    // TODO 这里要改
     cout << "tid " << tid << " DFS " << (double)(clock() - search_time) / CLOCKS_PER_SEC << "s" << endl;
 #endif
     // pthread_exit(NULL) 为退出该线程
@@ -1039,38 +1018,8 @@ void duplicate_removal()
     id_num = slow + 1;
 }
 
-int main()
+void pre_process()
 {
-#ifdef TEST
-    // std
-    // 41
-    // 294
-    // 34195
-    // 51532
-    // 639096
-    // 697518
-    // 881420
-    // 2408026
-    // 2541581
-    // 19630345
-    char testFile[] = "test_data_fs/19630345/test_data.txt";
-    char resultFile[] = "test_data_fs/19630345/result.txt";
-    clock_t start_time = clock();
-#else
-    char testFile[] = "/data/test_data.txt";
-    char resultFile[] = "/projects/student/result.txt";
-#endif
-
-#ifdef MMAP
-    input_mmap(testFile);
-#else
-    input_fstream(testFile);
-#endif
-
-#ifdef TEST
-    clock_t preprocess_time = clock();
-#endif
-
     register ui index;
 
     sort(ids, ids + (edge_num << 1));
@@ -1166,9 +1115,48 @@ int main()
     {
         idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 3) + (index << 1) + index) + 1;
     }
+}
+
+int main()
+{
+#ifdef TEST
+    // std
+    // 41
+    // 294
+    // 34195
+    // 51532
+    // 639096
+    // 697518
+    // 881420
+    // 2408026
+    // 2541581
+    // 19630345
+    char testFile[] = "test_data_fs/19630345/test_data.txt";
+    char resultFile[] = "test_data_fs/19630345/result.txt";
+    clock_t start_time = clock();
+#else
+    char testFile[] = "/data/test_data.txt";
+    char resultFile[] = "/projects/student/result.txt";
+#endif
 
 #ifdef TEST
-    printf("preprocess time %.2lfs\n", (double)(clock() - preprocess_time) / CLOCKS_PER_SEC);
+    UniversalTimer timerA, timerB;
+    timerA.setTime();
+    timerB.setTime();
+#endif
+
+#ifdef MMAP
+    input_mmap(testFile);
+#else
+    input_fstream(testFile);
+#endif
+#ifdef TEST
+    timerB.resetTimeWithTag("Read Input File");
+#endif
+
+    pre_process();
+#ifdef TEST
+    timerB.resetTimeWithTag("Pre Process Data");
 #endif
 
     register ui tid;
@@ -1190,9 +1178,6 @@ int main()
     // 创建NUM_THREADS个数的线程
     for (tid = 0; tid < NUM_THREADS; tid++)
     {
-#ifdef TEST
-        cout << "main() : creating thread, " << tid << endl;
-#endif
         indexes[tid] = tid;
         pthread_create(&threads[tid], NULL, thread_process, (void *)&indexes[tid]);
     }
@@ -1204,10 +1189,18 @@ int main()
         pthread_join(threads[tid], &status);
     }
 
+#ifdef TEST
+    timerB.resetTimeWithTag("Solving Results");
+#endif
     save_fwrite(resultFile);
 
 #ifdef TEST
-    cout << "Total time " << (double)(clock() - start_time) / CLOCKS_PER_SEC << "s" << endl;
+    timerB.resetTimeWithTag("Output");
+#endif
+
+#ifdef TEST
+    timerB.printLogs();
+    timerA.logTime("Whole Process");
 #endif
     pthread_exit(NULL);
     return 0;
