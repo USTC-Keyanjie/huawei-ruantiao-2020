@@ -3,7 +3,7 @@
 // 2. open //#define MMAP
 // 3. open //#define NEON
 
-#define TEST
+// #define TEST
 #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子
 
@@ -28,31 +28,20 @@
 #include <stddef.h>
 #endif
 
-#define NUM_THREADS 18     // 线程数
-#define NUM_BATCHS 128     // 分块数
+#define NUM_THREADS 4      // 线程数
+#define NUM_BATCHS 129     // 分块数
 #define MIN_BATCH_SIZE 128 // 每一块至少有128个点，不然就按128点分块
 
 #define MAX_NUM_EDGES 2000005 // 最大可接受边数 200w+5 确定够用
 #define MAX_NUM_IDS 2000005   // 最大可接受id数 200w+5 确定够用
 
-#define MAX_OUTPUT_FILE_SIZE 1540000000 // 输出文件的最大大小 2000w*7*11B 确定够用
-
 #define MAX_NUM_THREE_PREDS 1000000 // 反向三级跳表的长度 应该够用
 
 #define MAX_INT 2147483648 // 2^31
 
-// #define NUM_LEN3_RESULT 1200000  // 长度为3结果的总id数
-// #define NUM_LEN4_RESULT 1600000  // 长度为4结果的总id数
-// #define NUM_LEN5_RESULT 4000000  // 长度为5结果的总id数
-// #define NUM_LEN6_RESULT 9000000  // 长度为6结果的总id数
-// #define NUM_LEN7_RESULT 13000000 // 长度为7结果的总id数
+#define RESERVE_MEMORY 2684354560
 
-// 应该够用
-#define NUM_LEN3_RESULT 40000000 // 长度为3结果的总id数
-#define NUM_LEN4_RESULT 40000000 // 长度为4结果的总id数
-#define NUM_LEN5_RESULT 50000000 // 长度为5结果的总id数
-#define NUM_LEN6_RESULT 70000000 // 长度为6结果的总id数
-#define NUM_LEN7_RESULT 70000000 // 长度为7结果的总id数
+#define MEMORY_BLOCK_SIZE 83886080 // 分片大小为80M
 
 using namespace std;
 
@@ -60,26 +49,7 @@ typedef unsigned long long ull;
 typedef unsigned int ui;
 
 // 总id数，总边数
-// edge_num从1开始，因为g数组的第0位是哨兵
 ui id_num = 0, edge_num = 0;
-
-#if NUM_THREADS == 1
-// 单线程任务分配比例
-float seg_ratio[] = {0, 1};
-
-#elif NUM_THREADS == 4
-// 4线程任务分配比例
-float seg_ratio[] = {0, 0.068, 0.148, 0.284, 1};
-
-#elif NUM_THREADS == 18
-// 18线程任务分配比例
-float seg_ratio[] = {
-    0,
-    0.0113, 0.0227, 0.034, 0.0453, 0.057, 0.068,
-    0.084, 0.1, 0.116, 0.132, 0.148,
-    0.182, 0.216, 0.25, 0.284,
-    0.523, 0.761, 1};
-#endif
 
 struct Node
 {
@@ -153,6 +123,10 @@ __gnu_pbds::gp_hash_table<ui, ui> id_map; // map really id to regular id(0,1,2,.
 char idsComma[MAX_NUM_IDS * 16]; // id + ','
 ui idsChar_len[MAX_NUM_IDS];     // 每个id的字符串长度
 
+char reserve_memory[RESERVE_MEMORY]; // 预留2.5G内存数组
+char *new_memory_ptr = reserve_memory;
+mutex memory_lock;
+
 // 每个线程专属区域
 struct ThreadMemory
 {
@@ -172,25 +146,20 @@ struct ThreadMemory
     ui currentUs[MAX_NUM_IDS];                          // 可以通过三次跳跃回起点的点
     ui currentUs_len;                                   // 当前可以通过三次跳跃回起点的点数量
 
-    char res3[NUM_LEN3_RESULT]; // 长度为3的结果
-    char res4[NUM_LEN4_RESULT]; // 长度为4的结果
-    char res5[NUM_LEN5_RESULT]; // 长度为5的结果
-    char res6[NUM_LEN6_RESULT]; // 长度为6的结果
-    char res7[NUM_LEN7_RESULT]; // 长度为7的结果
-    ui res_count[5];            // 各个长度结果数量记录
-    char *next_res[5] = {res3, res4, res5, res6, res7};
-} local_array[NUM_THREADS];
-
-char str_res[MAX_OUTPUT_FILE_SIZE]; // 最终答案字符串
+    char *next_res_ptr[5]; // 下一个结果的写入指针
+    ui res_count[5];       // 各个长度结果数量记录
+    ui remaining_size[5];  // 各个长度结果当前分片剩余大小
+} thread_memory[NUM_THREADS];
 
 struct Batch
 {
-    char *block_begin_pos[5];
-    char *block_end_pos[5];
+    ui cur_block[5]; // 记录当前分片号，范围是[0, 7]
+    char *batch_begin_pos[5][8];
+    char *batch_end_pos[5][8];
 } batchs[NUM_BATCHS];
 
 ui batch_num, batch_size, cur_batch_id;
-mutex batch_lock; //unique lock
+mutex batch_lock;
 
 #ifdef NEON
 // 16个字节以内的复制
@@ -444,13 +413,14 @@ void save_fwrite(char *resultFile)
     register ui tid;
     ui all_res_count = 0;
     for (tid = 0; tid < NUM_THREADS; ++tid)
-        all_res_count += local_array[tid].res_count[0] + local_array[tid].res_count[1] + local_array[tid].res_count[2] + local_array[tid].res_count[3] + local_array[tid].res_count[4];
+        all_res_count += thread_memory[tid].res_count[0] + thread_memory[tid].res_count[1] + thread_memory[tid].res_count[2] + thread_memory[tid].res_count[3] + thread_memory[tid].res_count[4];
 
 #ifdef TEST
     printf("Total Loops %d\n", all_res_count);
 #endif
 
     char char_res_count[32];
+    char *char_temp = (char *)malloc(100 * 1024 * 1024);
     ui char_res_len = uint2ascii(all_res_count, char_res_count);
     char_res_count[char_res_len] = '\n';
     fwrite(char_res_count, sizeof(char), char_res_len + 1, fp);
@@ -460,12 +430,16 @@ void save_fwrite(char *resultFile)
         for (ui bid = 0; bid < batch_num; ++bid)
         {
             auto &block = batchs[bid];
-
-            char *cur = block.block_begin_pos[depth];
-            char *ed = block.block_end_pos[depth];
-            if (cur >= ed)
-                continue;
-            fwrite(cur, sizeof(char), ed - cur, fp);
+            ui cur_block = block.cur_block[depth];
+            for (ui b_it = 0; b_it <= cur_block; ++b_it)
+            {
+                char *begin = block.batch_begin_pos[depth][b_it];
+                char *end = block.batch_end_pos[depth][b_it];
+                if (begin < end)
+                {
+                    fwrite(begin, sizeof(char), end - begin, fp);
+                }
+            }
         }
     }
 
@@ -479,7 +453,7 @@ inline bool is_money_valid(ui x, ui y)
 
 // iteration version
 // 反向三级dfs的迭代版本
-void pre_dfs_ite(register ui start_id, register ThreadMemory *local)
+void pre_dfs_ite(register ui start_id, register ThreadMemory *this_thread)
 {
     register ui cur_id = start_id, next_id;
     register int depth = 0;
@@ -499,33 +473,33 @@ void pre_dfs_ite(register ui start_id, register ThreadMemory *local)
         if (next_id & 0x80000000)
         {
             // 回溯
-            local->visited[cur_id] = false;
-            cur_id = --depth > 0 ? local->path[depth - 1] : start_id;
+            this_thread->visited[cur_id] = false;
+            cur_id = --depth > 0 ? this_thread->path[depth - 1] : start_id;
         }
         // 有前驱
         else
         {
-            local->m_path[depth] = (stack[depth]++)->money;
+            this_thread->m_path[depth] = (stack[depth]++)->money;
 
-            if (!local->visited[next_id] && (!depth || is_money_valid(local->m_path[depth], local->m_path[depth - 1])))
+            if (!this_thread->visited[next_id] && (!depth || is_money_valid(this_thread->m_path[depth], this_thread->m_path[depth - 1])))
             {
-                local->path[depth] = next_id;
+                this_thread->path[depth] = next_id;
                 // 深度为2，装载反向三级跳表
                 if (depth == 2)
                 {
-                    if (next_id != local->path[0])
+                    if (next_id != this_thread->path[0])
                     {
-                        ui &next_three_node = local->begin_end_pos[next_id][0];
-                        local->temp_three_uj[local->three_uj_len] = Temp_Three_pred(
-                            local->path[1],
-                            local->path[0],
-                            local->m_path[2],
-                            local->m_path[0],
+                        ui &next_three_node = this_thread->begin_end_pos[next_id][0];
+                        this_thread->temp_three_uj[this_thread->three_uj_len] = Temp_Three_pred(
+                            this_thread->path[1],
+                            this_thread->path[0],
+                            this_thread->m_path[2],
+                            this_thread->m_path[0],
                             next_three_node);
 
                         if (!next_three_node)
-                            local->currentUs[local->currentUs_len++] = next_id;
-                        next_three_node = ++(local->three_uj_len);
+                            this_thread->currentUs[this_thread->currentUs_len++] = next_id;
+                        next_three_node = ++(this_thread->three_uj_len);
                     }
                 }
                 // 深度不足2，且next_id还有前驱，则继续搜索
@@ -534,8 +508,8 @@ void pre_dfs_ite(register ui start_id, register ThreadMemory *local)
                     // 进入下一层dfs
                     stack[++depth] = g_pred + pred_info[next_id][0];
                     cur_id = next_id;
-                    local->visited[cur_id] = true;
-                    local->path[depth] = cur_id;
+                    this_thread->visited[cur_id] = true;
+                    this_thread->path[depth] = cur_id;
 
                     // 寻找起始点
                     // 深度为2时，允许下一个节点等于起始点，这是为了兼容长度为3的环
@@ -555,73 +529,86 @@ void pre_dfs_ite(register ui start_id, register ThreadMemory *local)
     }
 }
 
-void sort_three_uj(register ThreadMemory *local)
+void sort_three_uj(ThreadMemory *this_thread)
 {
     ui three_uj_iterator = 0;
     ui three_uj_index = 0;
     Temp_Three_pred *temp;
-    for (ui index = 0; index < local->currentUs_len; ++index)
+    for (ui index = 0; index < this_thread->currentUs_len; ++index)
     {
-        ui U = local->currentUs[index];
-        three_uj_iterator = local->begin_end_pos[U][0];
+        ui U = this_thread->currentUs[index];
+        three_uj_iterator = this_thread->begin_end_pos[U][0];
         // begin_pos加一存储
-        local->begin_end_pos[U][0] = three_uj_index + 1;
+        this_thread->begin_end_pos[U][0] = three_uj_index + 1;
         while (three_uj_iterator != 0)
         {
-            temp = &local->temp_three_uj[three_uj_iterator - 1];
-            local->three_uj[three_uj_index++] = Three_pred(temp->k1, temp->k2, temp->first_money, temp->last_money);
+            temp = &this_thread->temp_three_uj[three_uj_iterator - 1];
+            this_thread->three_uj[three_uj_index++] = Three_pred(temp->k1, temp->k2, temp->first_money, temp->last_money);
             three_uj_iterator = temp->next;
         };
-        sort(local->three_uj + local->begin_end_pos[U][0] - 1, local->three_uj + three_uj_index);
-        local->begin_end_pos[U][1] = three_uj_index;
+        sort(this_thread->three_uj + this_thread->begin_end_pos[U][0] - 1, this_thread->three_uj + three_uj_index);
+        this_thread->begin_end_pos[U][1] = three_uj_index;
     }
 }
 
-void generate_result(ui depth, ui next_id, ThreadMemory *local)
+void generate_result(ui depth, ui next_id, ThreadMemory *this_thread, Batch *this_batch, ui tid)
 {
     // 例：
     // 要保存长度为4的结果，depth = 0，加一操作后depth为1
     // path_pos[0]表示path中第一个元素的终止位置
-    // local->next_res[1]表示长度为4的结果保存位置
+    // this_thread->next_res[1]表示长度为4的结果保存位置
     depth++;
-    auto &save_pos = local->next_res[depth];
 
-    for (ui index = local->begin_end_pos[next_id][0] - 1; index < local->begin_end_pos[next_id][1]; ++index)
+    for (ui index = this_thread->begin_end_pos[next_id][0] - 1; index < this_thread->begin_end_pos[next_id][1]; ++index)
     {
-        if (is_money_valid(local->m_path[depth - 1], local->three_uj[index].first_money) &&
-            is_money_valid(local->three_uj[index].last_money, local->m_path[0]) &&
-            !local->visited[local->three_uj[index].k1] && !local->visited[local->three_uj[index].k2])
+        if (is_money_valid(this_thread->m_path[depth - 1], this_thread->three_uj[index].first_money) &&
+            is_money_valid(this_thread->three_uj[index].last_money, this_thread->m_path[0]) &&
+            !this_thread->visited[this_thread->three_uj[index].k1] && !this_thread->visited[this_thread->three_uj[index].k2])
         {
+            // 也许不够保存这条路径了
+            if (this_thread->remaining_size[depth] < 80)
+            {
+                this_batch->batch_end_pos[depth][this_batch->cur_block[depth]++] = this_thread->next_res_ptr[depth];
+                memory_lock.lock();
+                this_thread->next_res_ptr[depth] = new_memory_ptr;
+                new_memory_ptr += MEMORY_BLOCK_SIZE;
+                memory_lock.unlock();
+                this_thread->remaining_size[depth] = MEMORY_BLOCK_SIZE;
+                this_batch->batch_begin_pos[depth][this_batch->cur_block[depth]] = this_thread->next_res_ptr[depth];
+            }
+
+            char *begin_pos = this_thread->next_res_ptr[depth];
             // 保存已经走过的点
-            ui path_len = local->path_pos[depth - 1] - local->char_path;
-            memcpy(save_pos, local->char_path, path_len);
-            save_pos += path_len;
+            ui path_len = this_thread->path_pos[depth - 1] - this_thread->char_path;
+            memcpy(this_thread->next_res_ptr[depth], this_thread->char_path, path_len);
+            this_thread->next_res_ptr[depth] += path_len;
 
             // 保存next_id
-            memcpy(save_pos, idsComma + (next_id << 4), 16);
-            save_pos += idsChar_len[next_id];
+            memcpy(this_thread->next_res_ptr[depth], idsComma + (next_id << 4), 16);
+            this_thread->next_res_ptr[depth] += idsChar_len[next_id];
 
             // 保存反向三级跳表
-            ui k1 = local->three_uj[index].k1, k2 = local->three_uj[index].k2;
-            memcpy(save_pos, idsComma + (k1 << 4), 16);
-            save_pos += idsChar_len[k1];
-            memcpy(save_pos, idsComma + (k2 << 4), 16);
-            save_pos += idsChar_len[k2];
-            *(save_pos - 1) = '\n';
+            ui k1 = this_thread->three_uj[index].k1, k2 = this_thread->three_uj[index].k2;
+            memcpy(this_thread->next_res_ptr[depth], idsComma + (k1 << 4), 16);
+            this_thread->next_res_ptr[depth] += idsChar_len[k1];
+            memcpy(this_thread->next_res_ptr[depth], idsComma + (k2 << 4), 16);
+            this_thread->next_res_ptr[depth] += idsChar_len[k2];
+            *(this_thread->next_res_ptr[depth] - 1) = '\n';
 
-            ++local->res_count[depth];
+            ++this_thread->res_count[depth];
+            this_thread->remaining_size[depth] -= this_thread->next_res_ptr[depth] - begin_pos;
         }
     }
 }
 
 // iteration version
 // 正向dfs的迭代版本
-void dfs_ite(register ui start_id, register ThreadMemory *local)
+void dfs_ite(ui start_id, ThreadMemory *this_thread, Batch *this_batch, ui tid)
 {
-    local->visited[start_id] = true;
-    local->path[0] = start_id;
-    memcpy(local->char_path, idsComma + (start_id << 4), idsChar_len[start_id]);
-    local->path_pos[0] = local->char_path + idsChar_len[start_id];
+    this_thread->visited[start_id] = true;
+    this_thread->path[0] = start_id;
+    memcpy(this_thread->char_path, idsComma + (start_id << 4), idsChar_len[start_id]);
+    this_thread->path_pos[0] = this_thread->char_path + idsChar_len[start_id];
 
     register ui cur_id = start_id, next_id;
     register int depth = 0;
@@ -634,13 +621,26 @@ void dfs_ite(register ui start_id, register ThreadMemory *local)
 
     // length 3 result
     // 首先查找所有长度为3的结果，因为不需要搜索就可以得到
-    if (local->begin_end_pos[cur_id][0])
+    if (this_thread->begin_end_pos[cur_id][0])
     {
-        auto &save_pos = local->next_res[0];
-        for (ui index = local->begin_end_pos[cur_id][0] - 1; index < local->begin_end_pos[cur_id][1]; ++index)
+        auto &save_pos = this_thread->next_res_ptr[0];
+        for (ui index = this_thread->begin_end_pos[cur_id][0] - 1; index < this_thread->begin_end_pos[cur_id][1]; ++index)
         {
-            if (is_money_valid(local->three_uj[index].last_money, local->three_uj[index].first_money))
+            if (is_money_valid(this_thread->three_uj[index].last_money, this_thread->three_uj[index].first_money))
             {
+                // 也许不够保存这条路径了
+                if (this_thread->remaining_size[0] < 80)
+                {
+                    this_batch->batch_end_pos[0][this_batch->cur_block[0]++] = this_thread->next_res_ptr[0];
+                    memory_lock.lock();
+                    this_thread->next_res_ptr[0] = new_memory_ptr;
+                    new_memory_ptr += MEMORY_BLOCK_SIZE;
+                    memory_lock.unlock();
+                    this_thread->remaining_size[0] = MEMORY_BLOCK_SIZE;
+                    this_batch->batch_begin_pos[0][this_batch->cur_block[0]] = this_thread->next_res_ptr[0];
+                }
+
+                char *begin_pos = this_thread->next_res_ptr[depth];
                 // cur_id
                 memcpy(save_pos, idsComma + (cur_id << 4), 16);
                 save_pos += idsChar_len[cur_id];
@@ -648,14 +648,16 @@ void dfs_ite(register ui start_id, register ThreadMemory *local)
 
 #else
                 // 保存反向三级跳表
-                ui k1 = local->three_uj[index].k1, k2 = local->three_uj[index].k2;
+                ui k1 = this_thread->three_uj[index].k1, k2 = this_thread->three_uj[index].k2;
                 memcpy(save_pos, idsComma + (k1 << 4), 16);
                 save_pos += idsChar_len[k1];
+
                 memcpy(save_pos, idsComma + (k2 << 4), 16);
                 save_pos += idsChar_len[k2];
                 *(save_pos - 1) = '\n';
 #endif
-                ++local->res_count[0];
+                ++this_thread->res_count[0];
+                this_thread->remaining_size[0] -= save_pos - begin_pos;
             }
         }
     }
@@ -669,21 +671,21 @@ void dfs_ite(register ui start_id, register ThreadMemory *local)
         if (next_id & 0x80000000)
         {
             // 回溯
-            local->visited[cur_id] = false;
+            this_thread->visited[cur_id] = false;
             // dfs中用的数据
-            cur_id = --depth >= 0 ? local->path[depth] : start_id;
+            cur_id = --depth >= 0 ? this_thread->path[depth] : start_id;
         }
         // 有后继
         else
         {
-            local->m_path[depth] = (stack[depth]++)->money;
+            this_thread->m_path[depth] = (stack[depth]++)->money;
 
-            if (!local->visited[next_id] && (!depth || is_money_valid(local->m_path[depth - 1], local->m_path[depth])))
+            if (!this_thread->visited[next_id] && (!depth || is_money_valid(this_thread->m_path[depth - 1], this_thread->m_path[depth])))
             {
                 // 找到环
-                if (local->begin_end_pos[next_id][0])
+                if (this_thread->begin_end_pos[next_id][0])
                 {
-                    generate_result(depth, next_id, local);
+                    generate_result(depth, next_id, this_thread, this_batch, tid);
                 }
 
                 // 深度不足3，且next_id还有后继，则继续搜索
@@ -692,10 +694,10 @@ void dfs_ite(register ui start_id, register ThreadMemory *local)
                     // 向更深一层dfs
                     stack[++depth] = g_succ + succ_info[next_id][0];
                     cur_id = next_id;
-                    local->visited[cur_id] = true;
-                    local->path[depth] = cur_id;
-                    memcpy(local->path_pos[depth - 1], idsComma + (cur_id << 4), idsChar_len[cur_id]);
-                    local->path_pos[depth] = local->path_pos[depth - 1] + idsChar_len[cur_id];
+                    this_thread->visited[cur_id] = true;
+                    this_thread->path[depth] = cur_id;
+                    memcpy(this_thread->path_pos[depth - 1], idsComma + (cur_id << 4), idsChar_len[cur_id]);
+                    this_thread->path_pos[depth] = this_thread->path_pos[depth - 1] + idsChar_len[cur_id];
                     // 寻找起始位置
                     while (start_id >= stack[depth]->dst_id)
                         ++stack[depth];
@@ -705,15 +707,15 @@ void dfs_ite(register ui start_id, register ThreadMemory *local)
     }
 }
 
-void batch_process(register ui this_batch_id, ui tid, ThreadMemory *local)
+void batch_process(register ui this_batch_id, ui tid, ThreadMemory *this_thread)
 {
     ui end_id = (this_batch_id + 1) * batch_size;
     end_id = end_id < id_num ? end_id : id_num;
 
-    auto &this_batch = batchs[this_batch_id];
+    Batch *this_batch = batchs + this_batch_id;
 
     for (ui depth = 0; depth < 5; ++depth)
-        this_batch.block_begin_pos[depth] = local->next_res[depth];
+        this_batch->batch_begin_pos[depth][0] = this_thread->next_res_ptr[depth];
 
     for (ui start_id = this_batch_id * batch_size; start_id < end_id; ++start_id)
     {
@@ -721,28 +723,30 @@ void batch_process(register ui this_batch_id, ui tid, ThreadMemory *local)
         if (succ_info[start_id][1] == 0 || pred_info[start_id][1] == 0)
             continue;
 
-        pre_dfs_ite(start_id, local);
+        pre_dfs_ite(start_id, this_thread);
 
         // 有直达的点才继续搜下去
-        if (local->three_uj_len)
+        if (this_thread->three_uj_len)
         {
             // 反向三级跳表排序
-            sort_three_uj(local);
-            dfs_ite(start_id, local);
+            sort_three_uj(this_thread);
+            dfs_ite(start_id, this_thread, this_batch, tid);
 
             // reachable和currentUs还原
-            for (ui U = 0; U < local->currentUs_len; ++U)
+            for (ui U = 0; U < this_thread->currentUs_len; ++U)
             {
-                local->begin_end_pos[local->currentUs[U]][0] = 0;
-                local->begin_end_pos[local->currentUs[U]][1] = 0;
+                this_thread->begin_end_pos[this_thread->currentUs[U]][0] = 0;
+                this_thread->begin_end_pos[this_thread->currentUs[U]][1] = 0;
             }
-            local->three_uj_len = 0;
-            local->currentUs_len = 0;
+            this_thread->three_uj_len = 0;
+            this_thread->currentUs_len = 0;
         }
     }
 
     for (ui depth = 0; depth < 5; ++depth)
-        this_batch.block_end_pos[depth] = local->next_res[depth];
+    {
+        this_batch->batch_end_pos[depth][this_batch->cur_block[depth]] = this_thread->next_res_ptr[depth];
+    }
 }
 
 // 这里定义子线程函数, 如果处理不同分段的数据不一样,那就写多个函数
@@ -757,7 +761,7 @@ void *thread_process(void *t)
 
     // 先把指针类型恢复, 然后取值
     register ui tid = *((ui *)t), this_batch_id;
-    register ThreadMemory *local = &local_array[tid];
+    register ThreadMemory *this_thread = &thread_memory[tid];
 
     while (true)
     {
@@ -771,7 +775,7 @@ void *thread_process(void *t)
         {
             this_batch_id = cur_batch_id++;
             batch_lock.unlock();
-            batch_process(this_batch_id, tid, local);
+            batch_process(this_batch_id, tid, this_thread);
         }
     }
     // 退出该线程
@@ -895,8 +899,7 @@ int main(int argc, char *argv[])
     // 2541581
     // 18875018
     // 19630345
-
-    string dataset = "294";
+    string dataset = "18875018";
     string data_root = "test_data_fs/";
     string test_data = "/test_data.txt";
     string res_file = "/result.txt";
@@ -941,7 +944,7 @@ int main(int argc, char *argv[])
     timerB.resetTimeWithTag("Pre Process Data");
 #endif
 
-    // 每个block里的id数至少要有100个
+    // 每个block里的id数至少要有128个
     batch_size = id_num >> 7;
     batch_size = batch_size > MIN_BATCH_SIZE ? batch_size : MIN_BATCH_SIZE;
     batch_num = ceil((double)id_num / batch_size);
