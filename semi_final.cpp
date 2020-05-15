@@ -4,7 +4,7 @@
 // 3. open //#define NEON
 
 #define TEST
-// #define MMAP // 使用mmap函数
+#define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子
 
 #include <bits/stdc++.h>
@@ -41,6 +41,8 @@
 
 #define RESERVE_MEMORY 2684354560  // 预留2.5G内存数组
 #define MEMORY_BLOCK_SIZE 83886080 // 分片大小为80M
+
+#define MAX_RESULT_SIZE 1540000000 // 结果字符串大小
 
 using namespace std;
 
@@ -109,6 +111,8 @@ char reserve_memory[RESERVE_MEMORY];
 char *new_memory_ptr = reserve_memory;
 mutex memory_lock;
 
+char result_string[MAX_RESULT_SIZE];
+
 // 每个线程专属区域
 struct ThreadMemory
 {
@@ -150,8 +154,19 @@ inline void memcpy_16(void *dest, void *src)
     vst1q_u64((unsigned long *)dest, vld1q_u64((unsigned long *)src));
 }
 
+// 128字节复制
+inline void memcpy_128(void *dest, void *src)
+{
+    unsigned long *s = (unsigned long *)src;
+    unsigned long *d = (unsigned long *)dest;
+    vst1q_u64(&d[0], vld1q_u64(&s[0]));
+    vst1q_u64(&d[2], vld1q_u64(&s[2]));
+    vst1q_u64(&d[4], vld1q_u64(&s[4]));
+    vst1q_u64(&d[6], vld1q_u64(&s[6]));
+}
+
 // 大长度字节的复制
-inline void memcpy_128(void *dest, void *src, size_t count)
+inline void memcpy_neon(void *dest, void *src, size_t count)
 {
     register ui i;
     unsigned long *s = (unsigned long *)src;
@@ -271,16 +286,17 @@ void input_mmap(char *testFile)
     register ui *input_ptr = input_data[0];
     register ui num = 0, index = 0;
     register char cur_char;
+    register char *p = buf;
 
-    for (; index < length; ++index)
+    for (; index < length; ++index, ++p)
     {
-        cur_char = *(buf + index);
+        cur_char = *p;
         if (cur_char >= '0')
         {
             // atoi
             num = (num << 1) + (num << 3) + cur_char - '0';
         }
-        else if (cur_char != 'r')
+        else if (cur_char != '\r')
         {
             input_ptr[edge_num++] = num;
             num = 0;
@@ -390,9 +406,14 @@ void save_fwrite(char *resultFile)
 #endif
 
     char char_res_count[32];
-    ui char_res_len = uint2ascii(all_res_count, char_res_count);
-    char_res_count[char_res_len] = '\n';
-    fwrite(char_res_count, sizeof(char), char_res_len + 1, fp);
+    ui result_str_len = uint2ascii(all_res_count, char_res_count);
+    char_res_count[result_str_len++] = '\n';
+    fwrite(char_res_count, result_str_len, sizeof(char), fp);
+    // #ifdef NEON
+    //     memcpy_16(result_string, char_res_count);
+    // #else
+    //     memcpy(result_string, char_res_count, result_str_len);
+    // #endif
 
     register ui depth, bid, b_it;
 
@@ -408,12 +429,18 @@ void save_fwrite(char *resultFile)
                 char *end = block.batch_end_pos[depth][b_it];
                 if (begin < end)
                 {
-                    fwrite(begin, sizeof(char), end - begin, fp);
+                    fwrite(begin, end - begin, sizeof(char), fp);
+                    // #ifdef NEON
+                    //                     memcpy_neon(result_string + result_str_len, begin, end - begin);
+                    // #else
+                    //                     memcpy(result_string + result_str_len, begin, end - begin);
+                    // #endif
+                    // result_str_len += end - begin;
                 }
             }
         }
     }
-
+    // fwrite(result_string, sizeof(char), result_str_len, fp);
     fclose(fp);
 }
 
@@ -578,18 +605,34 @@ void generate_result(ui depth, ui next_id, ThreadMemory *this_thread, Batch *thi
             char *begin_pos = next_res_ptr[depth];
             // 保存已经走过的点
             ui path_len = path_pos[depth - 1] - char_path;
+#ifdef NEON
+            memcpy_128(next_res_ptr[depth], char_path);
+#else
             memcpy(next_res_ptr[depth], char_path, path_len);
+#endif
             next_res_ptr[depth] += path_len;
 
-            // 保存next_id
+// 保存next_id
+#ifdef NEON
+            memcpy_16(next_res_ptr[depth], idsComma + (next_id << 4));
+#else
             memcpy(next_res_ptr[depth], idsComma + (next_id << 4), 16);
+#endif
             next_res_ptr[depth] += idsChar_len[next_id];
 
             // 保存反向三级跳表
-
+#ifdef NEON
+            memcpy_16(next_res_ptr[depth], idsComma + (k1 << 4));
+#else
             memcpy(next_res_ptr[depth], idsComma + (k1 << 4), 16);
+#endif
+
             next_res_ptr[depth] += idsChar_len[k1];
+#ifdef NEON
+            memcpy_16(next_res_ptr[depth], idsComma + (k2 << 4));
+#else
             memcpy(next_res_ptr[depth], idsComma + (k2 << 4), 16);
+#endif
             next_res_ptr[depth] += idsChar_len[k2];
             *(next_res_ptr[depth] - 1) = '\n';
 
@@ -620,7 +663,11 @@ void dfs_ite(ui start_id, ThreadMemory *this_thread, Batch *this_batch)
 
     visited[start_id] = true;
     path[0] = start_id;
-    memcpy(char_path, idsComma + (start_id << 4), idsChar_len[start_id]);
+#ifdef NEON
+    memcpy_16(char_path, idsComma + (start_id << 4));
+#else
+    memcpy(char_path, idsComma + (start_id << 4), 16);
+#endif
     path_pos[0] = char_path + idsChar_len[start_id];
 
     register ui cur_id = start_id, next_id;
@@ -654,21 +701,30 @@ void dfs_ite(ui start_id, ThreadMemory *this_thread, Batch *this_batch)
                 }
 
                 char *begin_pos = next_res_ptr[depth];
-                // cur_id
-                memcpy(save_pos, idsComma + (cur_id << 4), 16);
-                save_pos += idsChar_len[cur_id];
+// cur_id
 #ifdef NEON
-
+                memcpy_16(save_pos, idsComma + (cur_id << 4));
 #else
+                memcpy(save_pos, idsComma + (cur_id << 4), 16);
+#endif
+                save_pos += idsChar_len[cur_id];
+
                 // 保存反向三级跳表
                 ui k1 = three_uj[index].k1, k2 = three_uj[index].k2;
+#ifdef NEON
+                memcpy_16(save_pos, idsComma + (k1 << 4));
+#else
                 memcpy(save_pos, idsComma + (k1 << 4), 16);
+#endif
                 save_pos += idsChar_len[k1];
-
+#ifdef NEON
+                memcpy_16(save_pos, idsComma + (k2 << 4));
+#else
                 memcpy(save_pos, idsComma + (k2 << 4), 16);
+#endif
                 save_pos += idsChar_len[k2];
                 *(save_pos - 1) = '\n';
-#endif
+
                 ++res_count[0];
                 remaining_size[0] -= save_pos - begin_pos;
             }
@@ -709,7 +765,11 @@ void dfs_ite(ui start_id, ThreadMemory *this_thread, Batch *this_batch)
                     cur_id = next_id;
                     visited[cur_id] = true;
                     path[depth] = cur_id;
-                    memcpy(path_pos[depth - 1], idsComma + (cur_id << 4), idsChar_len[cur_id]);
+#ifdef NEON
+                    memcpy_16(path_pos[depth - 1], idsComma + (cur_id << 4));
+#else
+                    memcpy(path_pos[depth - 1], idsComma + (cur_id << 4), 16);
+#endif
                     path_pos[depth] = path_pos[depth - 1] + idsChar_len[cur_id];
                     // 寻找起始位置
                     while (start_id >= stack[depth]->dst_id)
@@ -956,8 +1016,10 @@ void pre_process()
     // TODO: 可以用memcpy优化
     for (index = 0; index < edge_num; ++index)
     {
-        ids[id_num++] = input_data[index][0];
-        ids[id_num++] = input_data[index][1];
+        // ids[id_num++] = input_data[index][0];
+        // ids[id_num++] = input_data[index][1];
+        memcpy(ids + id_num, input_data[index], 8);
+        id_num += 2;
     }
     sort(ids, ids + id_num);
     id_num = unique(ids, ids + id_num) - ids;
