@@ -4,8 +4,8 @@
 // 3. open //#define NEON
 
 #define TEST
-#define MMAP // 使用mmap函数
-// #define NEON // 打开NEON特性的算子
+// #define MMAP // 使用mmap函数
+// #define NEON // 打开NEON特性的算子，开了反而会慢
 
 #include <bits/stdc++.h>
 #include <ext/pb_ds/assoc_container.hpp>
@@ -28,8 +28,8 @@
 #include <stddef.h>
 #endif
 
-#define NUM_THREADS 4      // 线程数
-#define NUM_BATCHS 129     // 分块数
+#define NUM_THREADS 1      // 线程数
+#define NUM_BATCHS 128 + 1 // 分块数
 #define MIN_BATCH_SIZE 128 // 每一块至少有128个点，不然就按128点分块
 
 #define MAX_NUM_EDGES 2000005 // 最大可接受边数 200w+5 确定够用
@@ -39,10 +39,8 @@
 
 #define MAX_INT 2147483648 // 2^31
 
-#define RESERVE_MEMORY 2684354560  // 预留2.5G内存数组
-#define MEMORY_BLOCK_SIZE 83886080 // 分片大小为80M
-
-#define MAX_RESULT_SIZE 1540000000 // 结果字符串大小
+#define RESERVE_MEMORY 268435456  // 预留2.5G内存数组
+#define MEMORY_BLOCK_SIZE 8388608 // 分片大小为80M
 
 using namespace std;
 
@@ -110,8 +108,6 @@ ui idsChar_len[MAX_NUM_IDS];     // 每个id的字符串长度
 char reserve_memory[RESERVE_MEMORY];
 char *new_memory_ptr = reserve_memory;
 mutex memory_lock;
-
-char result_string[MAX_RESULT_SIZE];
 
 // 每个线程专属区域
 struct ThreadMemory
@@ -408,7 +404,7 @@ void save_fwrite(char *resultFile)
     char char_res_count[32];
     ui result_str_len = uint2ascii(all_res_count, char_res_count);
     char_res_count[result_str_len++] = '\n';
-    fwrite(char_res_count, result_str_len, sizeof(char), fp);
+    fwrite(char_res_count, sizeof(char), result_str_len, fp);
     // #ifdef NEON
     //     memcpy_16(result_string, char_res_count);
     // #else
@@ -429,7 +425,7 @@ void save_fwrite(char *resultFile)
                 char *end = block.batch_end_pos[depth][b_it];
                 if (begin < end)
                 {
-                    fwrite(begin, end - begin, sizeof(char), fp);
+                    fwrite(begin, sizeof(char), end - begin, fp);
                     // #ifdef NEON
                     //                     memcpy_neon(result_string + result_str_len, begin, end - begin);
                     // #else
@@ -442,6 +438,45 @@ void save_fwrite(char *resultFile)
     }
     // fwrite(result_string, sizeof(char), result_str_len, fp);
     fclose(fp);
+}
+
+void save_unistd_write(char *resultFile)
+{
+    int fd = open(resultFile, O_RDWR | O_CREAT, 0666);
+
+    register ui tid;
+    ui all_res_count = 0;
+    for (tid = 0; tid < NUM_THREADS; ++tid)
+        all_res_count += thread_memory[tid].res_count[0] + thread_memory[tid].res_count[1] + thread_memory[tid].res_count[2] + thread_memory[tid].res_count[3] + thread_memory[tid].res_count[4];
+
+#ifdef TEST
+    printf("Total Loops %d\n", all_res_count);
+#endif
+
+    char char_res_count[32];
+    ui result_str_len = uint2ascii(all_res_count, char_res_count);
+    char_res_count[result_str_len++] = '\n';
+    write(fd, char_res_count, result_str_len);
+
+    register ui depth, bid, b_it;
+
+    for (depth = 0; depth < 5; ++depth)
+    {
+        for (bid = 0; bid < batch_num; ++bid)
+        {
+            ui cur_block = batchs[bid].cur_block[depth];
+            for (b_it = 0; b_it <= cur_block; ++b_it)
+            {
+                char *begin_addr = batchs[bid].batch_begin_pos[depth][b_it];
+                char *end_addr = batchs[bid].batch_end_pos[depth][b_it];
+                if (begin_addr < end_addr)
+                {
+                    write(fd, begin_addr, end_addr - begin_addr);
+                }
+            }
+        }
+    }
+    close(fd);
 }
 
 inline bool is_money_valid(ui x, ui y)
@@ -568,7 +603,6 @@ void generate_result(ui depth, ui next_id, ThreadMemory *this_thread, Batch *thi
     // 要保存长度为4的结果，depth = 0，加一操作后depth为1
     // path_pos[0]表示path中第一个元素的终止位置
     // this_thread->next_res[1]表示长度为4的结果保存位置
-    depth++;
     auto &next_res_ptr = this_thread->next_res_ptr;
     auto &three_uj = this_thread->three_uj;
     auto &remaining_size = this_thread->remaining_size;
@@ -586,9 +620,9 @@ void generate_result(ui depth, ui next_id, ThreadMemory *this_thread, Batch *thi
     for (ui index = begin_end_pos[next_id][0] - 1; index < begin_end_pos[next_id][1]; ++index)
     {
         ui k1 = three_uj[index].k1, k2 = three_uj[index].k2;
-        if (is_money_valid(m_path[depth - 1], three_uj[index].first_money) &&
-            is_money_valid(three_uj[index].last_money, m_path[0]) &&
-            !visited[k1] && !visited[k2])
+        if (!visited[k1] && !visited[k2] &&
+            is_money_valid(m_path[depth - 1], three_uj[index].first_money) &&
+            is_money_valid(three_uj[index].last_money, m_path[0]))
         {
             // 也许不够保存这条路径了
             if (remaining_size[depth] < 80)
@@ -754,7 +788,7 @@ void dfs_ite(ui start_id, ThreadMemory *this_thread, Batch *this_batch)
                 // 找到环
                 if (begin_end_pos[next_id][0])
                 {
-                    generate_result(depth, next_id, this_thread, this_batch);
+                    generate_result(depth + 1, next_id, this_thread, this_batch);
                 }
 
                 // 深度不足3，且next_id还有后继，则继续搜索
@@ -1024,7 +1058,22 @@ void pre_process()
     sort(ids, ids + id_num);
     id_num = unique(ids, ids + id_num) - ids;
 
-    for (index = 0; index < id_num; ++index)
+    for (index = 0; index < id_num - 3; index += 4)
+    {
+        id_map[ids[index]] = index;
+        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 4)) + 1;
+
+        id_map[ids[index + 1]] = index + 1;
+        idsChar_len[index + 1] = uint2ascii(ids[index + 1], idsComma + (index << 4) + 16) + 1;
+
+        id_map[ids[index + 2]] = index + 2;
+        idsChar_len[index + 2] = uint2ascii(ids[index + 2], idsComma + (index << 4) + 32) + 1;
+
+        id_map[ids[index + 3]] = index + 3;
+        idsChar_len[index + 3] = uint2ascii(ids[index + 3], idsComma + (index << 4) + 48) + 1;
+    }
+
+    for (; index < id_num; ++index)
     {
         id_map[ids[index]] = index;
         idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 4)) + 1;
@@ -1141,7 +1190,8 @@ int main(int argc, char *argv[])
 #ifdef TEST
     timerB.resetTimeWithTag("Solving Results");
 #endif
-    save_fwrite(resultFile);
+    // save_fwrite(resultFile);
+    save_unistd_write(resultFile);
 
 #ifdef TEST
     timerB.resetTimeWithTag("Output");
