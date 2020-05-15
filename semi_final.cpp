@@ -4,7 +4,7 @@
 // 3. open //#define NEON
 
 #define TEST
-// #define MMAP // 使用mmap函数
+#define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
 #include <bits/stdc++.h>
@@ -28,7 +28,7 @@
 #include <stddef.h>
 #endif
 
-#define NUM_THREADS 1      // 线程数
+#define NUM_THREADS 4      // 线程数
 #define NUM_BATCHS 128 + 1 // 分块数
 #define MIN_BATCH_SIZE 128 // 每一块至少有128个点，不然就按128点分块
 
@@ -39,8 +39,8 @@
 
 #define MAX_INT 2147483648 // 2^31
 
-#define RESERVE_MEMORY 268435456  // 预留2.5G内存数组
-#define MEMORY_BLOCK_SIZE 8388608 // 分片大小为80M
+#define RESERVE_MEMORY 2684354560          // 预留2.5G内存数组
+#define MEMORY_BLOCK_SIZE 80 * 1024 * 1024 // 分片大小为80M
 
 using namespace std;
 
@@ -589,7 +589,7 @@ void sort_three_uj(ThreadMemory *this_thread)
         while (three_uj_iterator != 0)
         {
             ui *temp = temp_three_uj[three_uj_iterator - 1];
-            three_uj[three_uj_index++] = Three_pred(temp[0], temp[1], temp[2], temp[3]);
+            three_uj[three_uj_index++] = {temp[0], temp[1], temp[2], temp[3]};
             three_uj_iterator = temp[4];
         };
         sort(three_uj + begin_end_pos[U][0] - 1, three_uj + three_uj_index);
@@ -932,7 +932,7 @@ void construct_g_succ()
 {
     ui succ_iterator = 0;
     ui succ_index = 0;
-    ui edge_cnt = 0;
+
     for (ui cur_id = 0; cur_id < id_num; ++cur_id)
     {
         if (out_degree[cur_id] && in_degree[cur_id])
@@ -946,17 +946,13 @@ void construct_g_succ()
                     succ_iterator = u_next[succ_iterator - 1];
                     continue;
                 }
-                g_succ[succ_index++] = Node(input_data[succ_iterator - 1][1], input_data[succ_iterator - 1][2]);
+                g_succ[succ_index++] = {input_data[succ_iterator - 1][1], input_data[succ_iterator - 1][2]};
                 succ_iterator = u_next[succ_iterator - 1];
             }
             sort(g_succ + succ_begin_pos[cur_id], g_succ + succ_begin_pos[cur_id] + out_degree[cur_id]);
-            edge_cnt += out_degree[cur_id];
-            g_succ[succ_index++] = Node(MAX_INT, MAX_INT);
+            g_succ[succ_index++] = {MAX_INT, MAX_INT};
         }
     }
-#ifdef TEST
-    printf("delete %d edges (%0.3lf%%) after toposort\n", edge_num - edge_cnt, (double)(edge_num - edge_cnt) / edge_num * 100);
-#endif
 }
 
 void construct_g_pred()
@@ -976,11 +972,11 @@ void construct_g_pred()
                     pred_iterator = v_next[pred_iterator - 1];
                     continue;
                 }
-                g_pred[pred_index++] = Node(input_data[pred_iterator - 1][0], input_data[pred_iterator - 1][2]);
+                g_pred[pred_index++] = {input_data[pred_iterator - 1][0], input_data[pred_iterator - 1][2]};
                 pred_iterator = v_next[pred_iterator - 1];
             }
             sort(g_pred + pred_begin_pos[cur_id], g_pred + pred_begin_pos[cur_id] + in_degree[cur_id]);
-            g_pred[pred_index++] = Node(MAX_INT, MAX_INT);
+            g_pred[pred_index++] = {MAX_INT, MAX_INT};
         }
     }
 }
