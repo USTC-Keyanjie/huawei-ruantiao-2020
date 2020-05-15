@@ -39,8 +39,7 @@
 
 #define MAX_INT 2147483648 // 2^31
 
-#define RESERVE_MEMORY 2684354560
-
+#define RESERVE_MEMORY 2684354560  // 预留2.5G内存数组
 #define MEMORY_BLOCK_SIZE 83886080 // 分片大小为80M
 
 using namespace std;
@@ -90,18 +89,23 @@ struct Three_pred
     }
 };
 
-ui input_data[MAX_NUM_EDGES][5];
+ui input_data[MAX_NUM_EDGES][3];
+ui u_next[MAX_NUM_EDGES];
+ui v_next[MAX_NUM_EDGES];
 ui ids[MAX_NUM_EDGES * 2];
-ui succ_info[MAX_NUM_IDS][2]; // 对于邻接表每个节点，第一维表示起始index，第二维表示出度
-ui pred_info[MAX_NUM_IDS][2]; // 对于逆邻接表每个节点，第一维表示起始index，第二维表示出度
+ui succ_begin_pos[MAX_NUM_IDS]; // 对于邻接表每个节点的起始index
+ui pred_begin_pos[MAX_NUM_IDS]; // 对于逆邻接表每个节点的起始index
+ui out_degree[MAX_NUM_IDS];     // 每个节点的出度
+ui in_degree[MAX_NUM_IDS];      // 每个节点的入度
 Node g_pred[MAX_NUM_EDGES * 2];
 Node g_succ[MAX_NUM_EDGES * 2];
+ui topo_stack[MAX_NUM_IDS];
 __gnu_pbds::gp_hash_table<ui, ui> id_map; // map really id to regular id(0,1,2,...)
 
 char idsComma[MAX_NUM_IDS * 16]; // id + ','
 ui idsChar_len[MAX_NUM_IDS];     // 每个id的字符串长度
 
-char reserve_memory[RESERVE_MEMORY]; // 预留2.5G内存数组
+char reserve_memory[RESERVE_MEMORY];
 char *new_memory_ptr = reserve_memory;
 mutex memory_lock;
 
@@ -117,7 +121,6 @@ struct ThreadMemory
     ui m_path[4];              // 已经走过点的金额信息
     bool visited[MAX_NUM_IDS]; // 访问标记数组
 
-    // Temp_Three_pred temp_three_uj[MAX_NUM_THREE_PREDS]; // 临时反向三级跳表
     ui temp_three_uj[MAX_NUM_THREE_PREDS][5]; // 临时反向三级跳表
     Three_pred three_uj[MAX_NUM_THREE_PREDS]; // 最终反向三级跳表
     ui three_uj_len;                          // 三级跳表长度
@@ -256,47 +259,35 @@ void input_mmap(char *testFile)
 #endif
     int fd = open(testFile, O_RDONLY);
     //get the size of the document
-    long length = lseek(fd, 0, SEEK_END);
+    // long length = lseek(fd, 0, SEEK_END);
+
+    struct stat stat_buf;
+    fstat(fd, &stat_buf);
+    size_t length = stat_buf.st_size;
 
     //mmap
     char *buf = (char *)mmap(NULL, length, PROT_READ, MAP_PRIVATE, fd, 0);
 
-    register int sign = 0;
-    register ui temp = 0, index = 0;
+    register ui *input_ptr = input_data[0];
+    register ui num = 0, index = 0;
+    register char cur_char;
 
-    for (char *p = buf; index < length; ++p, ++index)
+    for (; index < length; ++index)
     {
-        switch (*p)
+        cur_char = *(buf + index);
+        if (cur_char >= '0')
         {
-        case ',':
-            switch (sign & 1)
-            {
-            case 0: //读取 id1
-                input_data[edge_num][0] = temp;
-                break;
-            case 1: //读取 id2
-                input_data[edge_num][1] = temp;
-                break;
-            default:
-                break;
-            }
-            temp = 0;
-            sign ^= 1;
-            break;
-        case '\n':
-            input_data[edge_num][2] = temp;
-            edge_num++;
-            temp = 0;
-            break;
-        case '\r':
-            break;
-        default:
             // atoi
-            temp = (temp << 1) + (temp << 3) + *p - '0';
-            break;
+            num = (num << 1) + (num << 3) + cur_char - '0';
+        }
+        else if (cur_char != 'r')
+        {
+            input_ptr[edge_num++] = num;
+            num = 0;
         }
     }
 
+    edge_num /= 3;
     close(fd);
     munmap(buf, length);
 #ifdef TEST
@@ -399,18 +390,19 @@ void save_fwrite(char *resultFile)
 #endif
 
     char char_res_count[32];
-    char *char_temp = (char *)malloc(100 * 1024 * 1024);
     ui char_res_len = uint2ascii(all_res_count, char_res_count);
     char_res_count[char_res_len] = '\n';
     fwrite(char_res_count, sizeof(char), char_res_len + 1, fp);
 
-    for (ui depth = 0; depth < 5; ++depth)
+    register ui depth, bid, b_it;
+
+    for (depth = 0; depth < 5; ++depth)
     {
-        for (ui bid = 0; bid < batch_num; ++bid)
+        for (bid = 0; bid < batch_num; ++bid)
         {
             auto &block = batchs[bid];
             ui cur_block = block.cur_block[depth];
-            for (ui b_it = 0; b_it <= cur_block; ++b_it)
+            for (b_it = 0; b_it <= cur_block; ++b_it)
             {
                 char *begin = block.batch_begin_pos[depth][b_it];
                 char *end = block.batch_end_pos[depth][b_it];
@@ -448,7 +440,7 @@ void pre_dfs_ite(register ui start_id, register ThreadMemory *this_thread)
     // 递归栈
     register Node *stack[3];
 
-    stack[0] = g_pred + pred_info[start_id][0];
+    stack[0] = g_pred + pred_begin_pos[start_id];
 
     // 寻找遍历起始位置
     while (start_id > stack[0]->dst_id)
@@ -490,10 +482,10 @@ void pre_dfs_ite(register ui start_id, register ThreadMemory *this_thread)
                     }
                 }
                 // 深度不足2，且next_id还有前驱，则继续搜索
-                else if (pred_info[next_id][1])
+                else if (in_degree[next_id])
                 {
                     // 进入下一层dfs
-                    stack[++depth] = g_pred + pred_info[next_id][0];
+                    stack[++depth] = g_pred + pred_begin_pos[next_id];
                     cur_id = next_id;
                     visited[cur_id] = true;
                     path[depth] = cur_id;
@@ -636,7 +628,7 @@ void dfs_ite(ui start_id, ThreadMemory *this_thread, Batch *this_batch)
     // 递归栈
     register Node *stack[4];
 
-    stack[0] = g_succ + succ_info[start_id][0];
+    stack[0] = g_succ + succ_begin_pos[start_id];
     while (start_id > stack[0]->dst_id)
         ++stack[0];
 
@@ -710,10 +702,10 @@ void dfs_ite(ui start_id, ThreadMemory *this_thread, Batch *this_batch)
                 }
 
                 // 深度不足3，且next_id还有后继，则继续搜索
-                if (depth < 3 && succ_info[next_id][1])
+                if (depth < 3 && out_degree[next_id])
                 {
                     // 向更深一层dfs
-                    stack[++depth] = g_succ + succ_info[next_id][0];
+                    stack[++depth] = g_succ + succ_begin_pos[next_id];
                     cur_id = next_id;
                     visited[cur_id] = true;
                     path[depth] = cur_id;
@@ -750,7 +742,7 @@ void batch_process(register ui this_batch_id, ui tid, ThreadMemory *this_thread)
     for (ui start_id = this_batch_id * batch_size; start_id < end_id; ++start_id)
     {
         // 起点必须有后继也有前驱才进入dfs
-        if (succ_info[start_id][1] == 0 || pred_info[start_id][1] == 0)
+        if (out_degree[start_id] == 0 || in_degree[start_id] == 0)
             continue;
 
         pre_dfs_ite(start_id, this_thread);
@@ -820,10 +812,10 @@ void prework_g_succ()
         // 改为regular id
         u_hash_id = input_data[index][0] = id_map[input_data[index][0]];
         // 链表串起来
-        input_data[index][3] = succ_info[u_hash_id][0];
-        succ_info[u_hash_id][0] = index + 1;
+        u_next[index] = succ_begin_pos[u_hash_id];
+        succ_begin_pos[u_hash_id] = index + 1;
         // 出度
-        succ_info[u_hash_id][1]++;
+        out_degree[u_hash_id]++;
     }
 }
 
@@ -835,10 +827,10 @@ void prework_g_pred()
         // 改为regular id
         v_hash_id = input_data[index][1] = id_map[input_data[index][1]];
         // 链表串起来
-        input_data[index][4] = pred_info[v_hash_id][0];
-        pred_info[v_hash_id][0] = index + 1;
+        v_next[index] = pred_begin_pos[v_hash_id];
+        pred_begin_pos[v_hash_id] = index + 1;
         // 入度
-        pred_info[v_hash_id][1]++;
+        in_degree[v_hash_id]++;
     }
 }
 
@@ -846,21 +838,31 @@ void construct_g_succ()
 {
     ui succ_iterator = 0;
     ui succ_index = 0;
+    ui edge_cnt = 0;
     for (ui cur_id = 0; cur_id < id_num; ++cur_id)
     {
-        if (succ_info[cur_id][1] && pred_info[cur_id][1])
+        if (out_degree[cur_id] && in_degree[cur_id])
         {
-            succ_iterator = succ_info[cur_id][0];
-            succ_info[cur_id][0] = succ_index;
+            succ_iterator = succ_begin_pos[cur_id];
+            succ_begin_pos[cur_id] = succ_index;
             while (succ_iterator != 0)
             {
+                if (input_data[succ_iterator - 1][1] & 0x80000000)
+                {
+                    succ_iterator = u_next[succ_iterator - 1];
+                    continue;
+                }
                 g_succ[succ_index++] = Node(input_data[succ_iterator - 1][1], input_data[succ_iterator - 1][2]);
-                succ_iterator = input_data[succ_iterator - 1][3];
+                succ_iterator = u_next[succ_iterator - 1];
             }
-            sort(g_succ + succ_info[cur_id][0], g_succ + succ_info[cur_id][0] + succ_info[cur_id][1]);
+            sort(g_succ + succ_begin_pos[cur_id], g_succ + succ_begin_pos[cur_id] + out_degree[cur_id]);
+            edge_cnt += out_degree[cur_id];
             g_succ[succ_index++] = Node(MAX_INT, MAX_INT);
         }
     }
+#ifdef TEST
+    printf("delete %d edges (%0.3lf%%) after toposort\n", edge_num - edge_cnt, (double)(edge_num - edge_cnt) / edge_num * 100);
+#endif
 }
 
 void construct_g_pred()
@@ -869,17 +871,80 @@ void construct_g_pred()
     ui pred_index = 0;
     for (ui cur_id = 0; cur_id < id_num; ++cur_id)
     {
-        if (succ_info[cur_id][1] && pred_info[cur_id][1])
+        if (out_degree[cur_id] && in_degree[cur_id])
         {
-            pred_iterator = pred_info[cur_id][0];
-            pred_info[cur_id][0] = pred_index;
+            pred_iterator = pred_begin_pos[cur_id];
+            pred_begin_pos[cur_id] = pred_index;
             while (pred_iterator != 0)
             {
+                if (input_data[pred_iterator - 1][0] & 0x80000000)
+                {
+                    pred_iterator = v_next[pred_iterator - 1];
+                    continue;
+                }
                 g_pred[pred_index++] = Node(input_data[pred_iterator - 1][0], input_data[pred_iterator - 1][2]);
-                pred_iterator = input_data[pred_iterator - 1][4];
+                pred_iterator = v_next[pred_iterator - 1];
             }
-            sort(g_pred + pred_info[cur_id][0], g_pred + pred_info[cur_id][0] + pred_info[cur_id][1]);
+            sort(g_pred + pred_begin_pos[cur_id], g_pred + pred_begin_pos[cur_id] + in_degree[cur_id]);
             g_pred[pred_index++] = Node(MAX_INT, MAX_INT);
+        }
+    }
+}
+
+void topo_sort()
+{
+    register ui index;
+    ui u_id, v_id;
+
+    // 去除所有入度为0的点
+    int topo_index = -1;
+    for (index = 0; index < id_num; ++index)
+    {
+        if (!in_degree[index])
+            topo_stack[++topo_index] = index;
+    }
+    while (topo_index >= 0)
+    {
+        u_id = topo_stack[topo_index--];
+        index = succ_begin_pos[u_id];
+        while (index)
+        {
+            v_id = input_data[index - 1][1];
+            --out_degree[u_id];
+            if (--in_degree[v_id] == 0)
+                topo_stack[++topo_index] = v_id;
+
+            input_data[index - 1][0] = MAX_INT; // 标记此边失效
+            index = u_next[index - 1];
+        }
+    }
+
+    // 去除所有出度为0的点
+    for (index = 0; index < id_num; ++index)
+    {
+        if (!out_degree[index])
+            topo_stack[++topo_index] = index;
+    }
+    while (topo_index >= 0)
+    {
+        v_id = topo_stack[topo_index--];
+        index = pred_begin_pos[v_id];
+        while (index)
+        {
+            u_id = input_data[index - 1][0];
+            // 走到失效边上
+            if (u_id & 0x80000000)
+            {
+                index = v_next[index - 1];
+                continue;
+            }
+
+            --in_degree[v_id];
+            if (--out_degree[u_id] == 0)
+                topo_stack[++topo_index] = u_id;
+
+            input_data[index - 1][1] = MAX_INT; // 标记此边失效
+            index = v_next[index - 1];
         }
     }
 }
@@ -908,6 +973,8 @@ void pre_process()
     pre_thread_g_succ.join();
     pre_thread_g_pred.join();
 
+    topo_sort();
+
     thread thread_g_succ = thread(construct_g_succ);
     thread thread_g_pred = thread(construct_g_pred);
     thread_g_succ.join();
@@ -929,7 +996,7 @@ int main(int argc, char *argv[])
     // 2541581
     // 18875018
     // 19630345
-    string dataset = "18875018";
+    string dataset = "std";
     string data_root = "test_data_fs/";
     string test_data = "/test_data.txt";
     string res_file = "/result.txt";
