@@ -43,12 +43,14 @@ rm -rf test_data_fs/2541581/result.txt
 ./semi_final 2541581
 diff test_data_fs/2541581/answer.txt test_data_fs/2541581/result.txt
 
-g++ -O3 semi_final.cpp -o semi_final -lpthread -fpic
 rm -rf test_data_fs/18875018/result.txt
+sleep 5
+g++ -O3 semi_final.cpp -o semi_final -lpthread -fpic
 ./semi_final 18875018
 diff test_data_fs/18875018/answer.txt test_data_fs/18875018/result.txt
 
-g++ -O3 semi_final.cpp -o semi_final -lpthread -fpic
 rm -rf test_data_fs/19630345/result.txt
+sleep 5
+g++ -O3 semi_final.cpp -o semi_final -lpthread -fpic
 ./semi_final 19630345
 diff test_data_fs/19630345/answer.txt test_data_fs/19630345/result.txt
