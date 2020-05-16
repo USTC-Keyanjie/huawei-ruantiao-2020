@@ -6,6 +6,7 @@
 #define TEST
 #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
+// #define MALLOC
 
 #include <bits/stdc++.h>
 #include <ext/pb_ds/assoc_container.hpp>
@@ -16,6 +17,23 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+using namespace std;
+
+#ifdef TEST
+// std
+// 41
+// 294
+// 34195
+// 51532
+// 639096
+// 697518
+// 881420
+// 2408026
+// 2541581
+// 18875018
+// 19630345
+string dataset = "697518";
+#endif
 
 #ifdef MMAP
 #include <linux/fb.h>
@@ -41,8 +59,6 @@
 
 #define RESERVE_MEMORY 2684354560          // 预留2.5G内存数组
 #define MEMORY_BLOCK_SIZE 80 * 1024 * 1024 // 分片大小为80M
-
-using namespace std;
 
 typedef unsigned long long ull;
 typedef unsigned int ui;
@@ -105,8 +121,12 @@ __gnu_pbds::gp_hash_table<ui, ui> id_map; // map really id to regular id(0,1,2,.
 char idsComma[MAX_NUM_IDS * 16]; // id + ','
 ui idsChar_len[MAX_NUM_IDS];     // 每个id的字符串长度
 
+#ifndef MALLOC
 char reserve_memory[RESERVE_MEMORY];
 char *new_memory_ptr = reserve_memory;
+#else
+char *new_memory_ptr;
+#endif
 mutex memory_lock;
 
 // 每个线程专属区域
@@ -239,6 +259,10 @@ struct UniversalTimer
             logTimeImpl(x.first, x.second);
     }
 };
+#endif
+
+#ifdef TEST
+UniversalTimer timerA, timerB;
 #endif
 
 void input_fstream(char *testFile)
@@ -597,7 +621,7 @@ void sort_three_uj(ThreadMemory *this_thread)
     }
 }
 
-void generate_result(ui depth, ui next_id, ThreadMemory *this_thread, Batch *this_batch)
+inline void generate_result(ui depth, ui next_id, ThreadMemory *this_thread, Batch *this_batch)
 {
     // 例：
     // 要保存长度为4的结果，depth = 0，加一操作后depth为1
@@ -898,37 +922,120 @@ void *thread_process(void *t)
     pthread_exit(NULL);
 }
 
-void prework_g_succ()
+void build_idComma()
 {
-    ui u_hash_id;
-    for (ui index = 0; index < edge_num; ++index)
+    register ui index = 0;
+    for (; index < id_num - 3; index += 4)
     {
-        // 改为regular id
-        u_hash_id = input_data[index][0] = id_map[input_data[index][0]];
-        // 链表串起来
-        u_next[index] = succ_begin_pos[u_hash_id];
-        succ_begin_pos[u_hash_id] = index + 1;
-        // 出度
-        out_degree[u_hash_id]++;
+        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 4)) + 1;
+        idsChar_len[index + 1] = uint2ascii(ids[index + 1], idsComma + (index << 4) + 16) + 1;
+        idsChar_len[index + 2] = uint2ascii(ids[index + 2], idsComma + (index << 4) + 32) + 1;
+        idsChar_len[index + 3] = uint2ascii(ids[index + 3], idsComma + (index << 4) + 48) + 1;
+    }
+
+    for (; index < id_num; ++index)
+    {
+        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 4)) + 1;
     }
 }
 
-void prework_g_pred()
+void prework()
 {
-    ui v_hash_id;
-    for (ui index = 0; index < edge_num; ++index)
+    register ui index = 0;
+    // 真实id与hashid的映射处理
+    for (; index < id_num - 3; index += 4)
     {
+        id_map[ids[index]] = index;
+        id_map[ids[index + 1]] = index + 1;
+        id_map[ids[index + 2]] = index + 2;
+        id_map[ids[index + 3]] = index + 3;
+    }
+
+    for (; index < id_num; ++index)
+    {
+        id_map[ids[index]] = index;
+    }
+
+    ui u_hash_id, v_hash_id;
+    for (index = 0; index < edge_num; ++index)
+    {
+        if (id_map.find(input_data[index][1]) == id_map.end())
+            continue;
         // 改为regular id
+        u_hash_id = input_data[index][0] = id_map[input_data[index][0]];
         v_hash_id = input_data[index][1] = id_map[input_data[index][1]];
+
         // 链表串起来
+        u_next[index] = succ_begin_pos[u_hash_id];
+        succ_begin_pos[u_hash_id] = index + 1;
+
         v_next[index] = pred_begin_pos[v_hash_id];
         pred_begin_pos[v_hash_id] = index + 1;
-        // 入度
+        // 出度和入度
+        out_degree[u_hash_id]++;
         in_degree[v_hash_id]++;
     }
 }
 
-void construct_g_succ()
+void topo_sort()
+{
+    register ui index;
+    ui u_hash_id, v_hash_id;
+
+    // 去除所有入度为0的点
+    int topo_index = -1;
+    for (index = 0; index < id_num; ++index)
+    {
+        if (!in_degree[index])
+            topo_stack[++topo_index] = index;
+    }
+    while (topo_index >= 0)
+    {
+        u_hash_id = topo_stack[topo_index--];
+        index = succ_begin_pos[u_hash_id];
+        while (index)
+        {
+            v_hash_id = input_data[index - 1][1];
+            --out_degree[u_hash_id];
+            if (--in_degree[v_hash_id] == 0)
+                topo_stack[++topo_index] = v_hash_id;
+
+            input_data[index - 1][0] = MAX_INT; // 标记此边失效
+            index = u_next[index - 1];
+        }
+    }
+
+    // 去除所有出度为0的点
+    for (index = 0; index < id_num; ++index)
+    {
+        if (!out_degree[index])
+            topo_stack[++topo_index] = index;
+    }
+    while (topo_index >= 0)
+    {
+        v_hash_id = topo_stack[topo_index--];
+        index = pred_begin_pos[v_hash_id];
+        while (index)
+        {
+            u_hash_id = input_data[index - 1][0];
+            // 走到失效边上
+            if (u_hash_id & 0x80000000)
+            {
+                index = v_next[index - 1];
+                continue;
+            }
+
+            --in_degree[v_hash_id];
+            if (--out_degree[u_hash_id] == 0)
+                topo_stack[++topo_index] = u_hash_id;
+
+            input_data[index - 1][1] = MAX_INT; // 标记此边失效
+            index = v_next[index - 1];
+        }
+    }
+}
+
+void build_g_succ()
 {
     ui succ_iterator = 0;
     ui succ_index = 0;
@@ -955,7 +1062,7 @@ void construct_g_succ()
     }
 }
 
-void construct_g_pred()
+void build_g_pred()
 {
     ui pred_iterator = 0;
     ui pred_index = 0;
@@ -981,133 +1088,60 @@ void construct_g_pred()
     }
 }
 
-void topo_sort()
-{
-    register ui index;
-    ui u_id, v_id;
-
-    // 去除所有入度为0的点
-    int topo_index = -1;
-    for (index = 0; index < id_num; ++index)
-    {
-        if (!in_degree[index])
-            topo_stack[++topo_index] = index;
-    }
-    while (topo_index >= 0)
-    {
-        u_id = topo_stack[topo_index--];
-        index = succ_begin_pos[u_id];
-        while (index)
-        {
-            v_id = input_data[index - 1][1];
-            --out_degree[u_id];
-            if (--in_degree[v_id] == 0)
-                topo_stack[++topo_index] = v_id;
-
-            input_data[index - 1][0] = MAX_INT; // 标记此边失效
-            index = u_next[index - 1];
-        }
-    }
-
-    // 去除所有出度为0的点
-    for (index = 0; index < id_num; ++index)
-    {
-        if (!out_degree[index])
-            topo_stack[++topo_index] = index;
-    }
-    while (topo_index >= 0)
-    {
-        v_id = topo_stack[topo_index--];
-        index = pred_begin_pos[v_id];
-        while (index)
-        {
-            u_id = input_data[index - 1][0];
-            // 走到失效边上
-            if (u_id & 0x80000000)
-            {
-                index = v_next[index - 1];
-                continue;
-            }
-
-            --in_degree[v_id];
-            if (--out_degree[u_id] == 0)
-                topo_stack[++topo_index] = u_id;
-
-            input_data[index - 1][1] = MAX_INT; // 标记此边失效
-            index = v_next[index - 1];
-        }
-    }
-}
-
 void pre_process()
 {
     register ui index;
-
-    // TODO: 可以用memcpy优化
-    for (index = 0; index < edge_num; ++index)
+    for (index = 0; index < edge_num - 3; index += 4)
     {
-        // ids[id_num++] = input_data[index][0];
-        // ids[id_num++] = input_data[index][1];
-        memcpy(ids + id_num, input_data[index], 8);
-        id_num += 2;
+        ids[id_num++] = input_data[index][0];
+        ids[id_num++] = input_data[index + 1][0];
+        ids[id_num++] = input_data[index + 2][0];
+        ids[id_num++] = input_data[index + 3][0];
+    }
+
+    for (; index < edge_num; ++index)
+    {
+        ids[id_num++] = input_data[index][0];
     }
     sort(ids, ids + id_num);
     id_num = unique(ids, ids + id_num) - ids;
 
-    for (index = 0; index < id_num - 3; index += 4)
-    {
-        id_map[ids[index]] = index;
-        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 4)) + 1;
+#ifdef TEST
+    timerB.resetTimeWithTag("Unique Id");
+#endif
 
-        id_map[ids[index + 1]] = index + 1;
-        idsChar_len[index + 1] = uint2ascii(ids[index + 1], idsComma + (index << 4) + 16) + 1;
+    thread thread_idComma = thread(build_idComma);
 
-        id_map[ids[index + 2]] = index + 2;
-        idsChar_len[index + 2] = uint2ascii(ids[index + 2], idsComma + (index << 4) + 32) + 1;
+    prework();
 
-        id_map[ids[index + 3]] = index + 3;
-        idsChar_len[index + 3] = uint2ascii(ids[index + 3], idsComma + (index << 4) + 48) + 1;
-    }
-
-    for (; index < id_num; ++index)
-    {
-        id_map[ids[index]] = index;
-        idsChar_len[index] = uint2ascii(ids[index], idsComma + (index << 4)) + 1;
-    }
-
-    thread pre_thread_g_succ = thread(prework_g_succ);
-    thread pre_thread_g_pred = thread(prework_g_pred);
-    pre_thread_g_succ.join();
-    pre_thread_g_pred.join();
+#ifdef TEST
+    timerB.resetTimeWithTag("Pre work");
+#endif
 
     topo_sort();
 
-    thread thread_g_succ = thread(construct_g_succ);
-    thread thread_g_pred = thread(construct_g_pred);
+#ifdef TEST
+    timerB.resetTimeWithTag("topo_sort");
+#endif
+
+    thread thread_g_succ = thread(build_g_succ);
+    thread thread_g_pred = thread(build_g_pred);
     thread_g_succ.join();
     thread_g_pred.join();
+    thread_idComma.join();
+#ifdef TEST
+    timerB.resetTimeWithTag("build graph");
+#endif
 }
 
 int main(int argc, char *argv[])
 {
 #ifdef TEST
-    // std
-    // 41
-    // 294
-    // 34195
-    // 51532
-    // 639096
-    // 697518
-    // 881420
-    // 2408026
-    // 2541581
-    // 18875018
-    // 19630345
-    string dataset = "std";
     string data_root = "test_data_fs/";
     string test_data = "/test_data.txt";
     string res_file = "/result.txt";
     string input_file, output_file;
+
     if (argv[1])
     {
         input_file = data_root + string(argv[1]) + test_data;
@@ -1128,8 +1162,12 @@ int main(int argc, char *argv[])
     char resultFile[] = "/projects/student/result.txt";
 #endif
 
+#ifdef MALLOC
+    char *reserve_memory = (char *)malloc(RESERVE_MEMORY);
+    new_memory_ptr = reserve_memory;
+#endif
+
 #ifdef TEST
-    UniversalTimer timerA, timerB;
     timerA.setTime();
     timerB.setTime();
 #endif
@@ -1144,9 +1182,6 @@ int main(int argc, char *argv[])
 #endif
 
     pre_process();
-#ifdef TEST
-    timerB.resetTimeWithTag("Pre Process Data");
-#endif
 
     // 每个block里的id数至少要有128个
     batch_size = id_num >> 7;
@@ -1186,8 +1221,8 @@ int main(int argc, char *argv[])
 #ifdef TEST
     timerB.resetTimeWithTag("Solving Results");
 #endif
-    // save_fwrite(resultFile);
-    save_unistd_write(resultFile);
+    save_fwrite(resultFile);
+    // save_unistd_write(resultFile);
 
 #ifdef TEST
     timerB.resetTimeWithTag("Output");
