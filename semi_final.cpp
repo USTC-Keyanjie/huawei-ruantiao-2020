@@ -4,7 +4,7 @@
 // 3. open //#define NEON
 
 #define TEST
-#define MMAP // 使用mmap函数
+// #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 // #define MALLOC
 
@@ -69,11 +69,11 @@ ui id_num = 0, edge_num = 0;
 struct Node
 {
     ui dst_id;
-    ui money;
+    ull money;
 
     Node() {}
 
-    Node(ui next_id, ui money) : dst_id(next_id), money(money) {}
+    Node(ui next_id, ull money) : dst_id(next_id), money(money) {}
 
     // 依据next_id进行排序
     bool operator<(const Node &nextNode) const
@@ -89,15 +89,15 @@ struct Three_pred
 {
     ui k1;
     ui k2;
-    ui first_money;
-    ui last_money;
+    ull first_money;
+    ull last_money;
 
     Three_pred() : k1(), k2(), first_money(), last_money() {}
     Three_pred(
         ui k1,
         ui k2,
-        ui first_money,
-        ui last_money) : k1(k1), k2(k2), first_money(first_money), last_money(last_money) {}
+        ull first_money,
+        ull last_money) : k1(k1), k2(k2), first_money(first_money), last_money(last_money) {}
 
     bool operator<(const Three_pred &nextNode) const
     {
@@ -105,7 +105,8 @@ struct Three_pred
     }
 };
 
-ui input_data[MAX_NUM_EDGES][3];
+ui input_data[MAX_NUM_EDGES][2];
+ull input_money[MAX_NUM_EDGES];
 ui u_next[MAX_NUM_EDGES];
 ui v_next[MAX_NUM_EDGES];
 ui ids[MAX_NUM_EDGES * 2];
@@ -138,15 +139,16 @@ struct ThreadMemory
 
     // pre_dfs和dfs公用的数据
     ui path[4];                // 已经走过的节点信息
-    ui m_path[4];              // 已经走过点的金额信息
+    ull m_path[4];             // 已经走过点的金额信息
     bool visited[MAX_NUM_IDS]; // 访问标记数组
 
-    ui temp_three_uj[MAX_NUM_THREE_PREDS][5]; // 临时反向三级跳表
-    Three_pred three_uj[MAX_NUM_THREE_PREDS]; // 最终反向三级跳表
-    ui three_uj_len;                          // 三级跳表长度
-    ui begin_end_pos[MAX_NUM_IDS][2];         // 若此点可达起点，则起点记录其在三级跳表中的index + 1，否则记录0，终点pos取不到，范围是[起点pos-1， 终点pos)
-    ui currentUs[MAX_NUM_IDS];                // 可以通过三次跳跃回起点的点
-    ui currentUs_len;                         // 当前可以通过三次跳跃回起点的点数量
+    ui temp_three_uj[MAX_NUM_THREE_PREDS][3];        // 临时反向三级跳表
+    ull temp_three_uj_money[MAX_NUM_THREE_PREDS][2]; // 临时反向三级跳表金额信息
+    Three_pred three_uj[MAX_NUM_THREE_PREDS];        // 最终反向三级跳表
+    ui three_uj_len;                                 // 三级跳表长度
+    ui begin_end_pos[MAX_NUM_IDS][2];                // 若此点可达起点，则起点记录其在三级跳表中的index + 1，否则记录0，终点pos取不到，范围是[起点pos-1， 终点pos)
+    ui currentUs[MAX_NUM_IDS];                       // 可以通过三次跳跃回起点的点
+    ui currentUs_len;                                // 当前可以通过三次跳跃回起点的点数量
 
     char *next_res_ptr[5]; // 下一个结果的写入指针
     ui res_count[5];       // 各个长度结果数量记录
@@ -272,12 +274,13 @@ void input_fstream(char *testFile)
 #endif
 
     FILE *file = fopen(testFile, "r");
-    ui u, v, m;
-    while (fscanf(file, "%d,%d,%d\n", &u, &v, &m) != EOF)
+    ui u, v;
+    ull money;
+    while (fscanf(file, "%d,%d,%lf\n", &u, &v, &money) != EOF)
     {
         input_data[edge_num][0] = u;
         input_data[edge_num][1] = v;
-        input_data[edge_num++][2] = m;
+        input_money[edge_num++] = money;
     }
     fclose(file);
 #ifdef TEST
@@ -492,9 +495,9 @@ void save_unistd_write(char *resultFile)
     close(fd);
 }
 
-inline bool is_money_valid(ui x, ui y)
+inline bool is_money_valid(ull x, ull y)
 {
-    return x > y ? (y & 0x40000000 ? true : x - y <= (y << 2)) : y - x <= (x << 1);
+    return x > y ? x - y <= (y << 2) : y - x <= (x << 1);
 }
 
 // iteration version
@@ -506,6 +509,7 @@ void pre_dfs_ite(ui start_id, ThreadMemory *this_thread)
     auto &m_path = this_thread->m_path;
     auto &begin_end_pos = this_thread->begin_end_pos;
     auto &temp_three_uj = this_thread->temp_three_uj;
+    auto &temp_three_uj_money = this_thread->temp_three_uj_money;
     auto &three_uj_len = this_thread->three_uj_len;
     auto &currentUs_len = this_thread->currentUs_len;
     auto &currentUs = this_thread->currentUs;
@@ -548,9 +552,9 @@ void pre_dfs_ite(ui start_id, ThreadMemory *this_thread)
                         ui &next_three_node = begin_end_pos[next_id][0];
                         temp_three_uj[three_uj_len][0] = path[1];
                         temp_three_uj[three_uj_len][1] = path[0];
-                        temp_three_uj[three_uj_len][2] = m_path[2];
-                        temp_three_uj[three_uj_len][3] = m_path[0];
-                        temp_three_uj[three_uj_len][4] = next_three_node;
+                        temp_three_uj[three_uj_len][2] = next_three_node;
+                        temp_three_uj_money[three_uj_len][0] = m_path[2];
+                        temp_three_uj_money[three_uj_len][1] = m_path[0];
 
                         if (!next_three_node)
                             currentUs[currentUs_len++] = next_id;
@@ -589,6 +593,7 @@ void sort_three_uj(ThreadMemory *this_thread)
     auto &currentUs = this_thread->currentUs;
     auto &begin_end_pos = this_thread->begin_end_pos;
     auto &temp_three_uj = this_thread->temp_three_uj;
+    auto &temp_three_uj_money = this_thread->temp_three_uj_money;
     auto &three_uj = this_thread->three_uj;
 
     ui three_uj_iterator = 0;
@@ -602,9 +607,10 @@ void sort_three_uj(ThreadMemory *this_thread)
         while (three_uj_iterator != 0)
         {
             ui *temp = temp_three_uj[three_uj_iterator - 1];
-            three_uj[three_uj_index++] = {temp[0], temp[1], temp[2], temp[3]};
-            three_uj_iterator = temp[4];
-        };
+            ull *temp_money = temp_three_uj_money[three_uj_iterator - 1];
+            three_uj[three_uj_index++] = Three_pred(temp[0], temp[1], temp_money[0], temp_money[1]);
+            three_uj_iterator = temp[2];
+        }
         sort(three_uj + begin_end_pos[U][0] - 1, three_uj + three_uj_index);
         begin_end_pos[U][1] = three_uj_index;
     }
@@ -1045,7 +1051,7 @@ void build_g_succ()
                     succ_iterator = u_next[succ_iterator - 1];
                     continue;
                 }
-                g_succ[succ_index++] = {input_data[succ_iterator - 1][1], input_data[succ_iterator - 1][2]};
+                g_succ[succ_index++] = Node(input_data[succ_iterator - 1][1], input_money[succ_iterator - 1]);
                 succ_iterator = u_next[succ_iterator - 1];
             }
             sort(g_succ + succ_begin_pos[cur_id], g_succ + succ_begin_pos[cur_id] + out_degree[cur_id]);
@@ -1071,7 +1077,7 @@ void build_g_pred()
                     pred_iterator = v_next[pred_iterator - 1];
                     continue;
                 }
-                g_pred[pred_index++] = {input_data[pred_iterator - 1][0], input_data[pred_iterator - 1][2]};
+                g_pred[pred_index++] = Node(input_data[pred_iterator - 1][0], input_money[pred_iterator - 1]);
                 pred_iterator = v_next[pred_iterator - 1];
             }
             sort(g_pred + pred_begin_pos[cur_id], g_pred + pred_begin_pos[cur_id] + in_degree[cur_id]);
