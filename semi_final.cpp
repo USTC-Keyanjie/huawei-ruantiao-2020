@@ -720,7 +720,7 @@ void dfs_ite(ui start_id, ThreadMemory *this_thread, Batch *this_batch)
     ui cur_id = start_id, next_id;
     register int depth = 0;
     // 递归栈
-    register Node *stack[4];
+    Node *stack[4];
 
     stack[0] = g_succ + succ_begin_pos[start_id];
     while (start_id > stack[0]->dst_id)
@@ -827,7 +827,7 @@ void dfs_ite(ui start_id, ThreadMemory *this_thread, Batch *this_batch)
     }
 }
 
-void batch_process(register ui this_batch_id, ui tid, ThreadMemory *this_thread)
+void batch_process(ui this_batch_id, ui tid, ThreadMemory *this_thread)
 {
     auto &begin_end_pos = this_thread->begin_end_pos;
     auto &currentUs = this_thread->currentUs;
