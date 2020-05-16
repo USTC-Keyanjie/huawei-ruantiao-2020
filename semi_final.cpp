@@ -57,8 +57,8 @@ string dataset = "18875018";
 
 #define MAX_INT 2147483648 // 2^31
 
-#define RESERVE_MEMORY 2684354560          // 预留2.5G内存数组
-#define MEMORY_BLOCK_SIZE 80 * 1024 * 1024 // 分片大小为80M
+#define RESERVE_MEMORY 2684354560  // 预留2.5G内存数组
+#define MEMORY_BLOCK_SIZE 83886080 // 分片大小为80M
 
 typedef unsigned long long ull;
 typedef unsigned int ui;
@@ -205,35 +205,35 @@ inline void memcpy_neon(void *dest, void *src, size_t count)
 #include <sys/time.h>
 #endif
 
-struct UniversalTimer
+struct Time_recorder
 {
-    vector<pair<string, int>> logPairs;
+    vector<pair<string, int>> logs;
 
 #ifdef _WIN32
-    unsigned int startTime;
-    unsigned int endTime;
+    unsigned int start_time;
+    unsigned int end_time;
 #else
-    struct timeval startTime;
-    struct timeval endTime;
+    struct timeval start_time;
+    struct timeval end_time;
 #endif
 
     void setTime()
     {
 #ifdef _WIN32
-        startTime = GetTickCount();
+        start_time = GetTickCount();
 #else
-        gettimeofday(&startTime, NULL);
+        gettimeofday(&start_time, NULL);
 #endif
     }
 
     int getElapsedTimeMS()
     {
 #ifdef _WIN32
-        endTime = GetTickCount();
-        return int(endTime - startTime);
+        end_time = GetTickCount();
+        return int(end_time - start_time);
 #else
-        gettimeofday(&endTime, NULL);
-        return int(1000 * (endTime.tv_sec - startTime.tv_sec) + (endTime.tv_usec - startTime.tv_usec) / 1000);
+        gettimeofday(&end_time, NULL);
+        return int(1000 * (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1000);
 #endif
     }
 
@@ -249,20 +249,20 @@ struct UniversalTimer
 
     void resetTimeWithTag(string tag)
     {
-        logPairs.emplace_back(make_pair(tag, getElapsedTimeMS()));
+        logs.emplace_back(make_pair(tag, getElapsedTimeMS()));
         setTime();
     }
 
     void printLogs()
     {
-        for (auto x : logPairs)
+        for (auto x : logs)
             logTimeImpl(x.first, x.second);
     }
 };
 #endif
 
 #ifdef TEST
-UniversalTimer timerA, timerB;
+Time_recorder timerA, timerB;
 #endif
 
 void input_fstream(char *testFile)
@@ -884,7 +884,7 @@ void *thread_process(void *t)
 {
 
 #ifdef TEST
-    UniversalTimer timer;
+    Time_recorder timer;
     timer.setTime();
 #endif
 
@@ -907,6 +907,9 @@ void *thread_process(void *t)
             batch_process(this_batch_id, tid, this_thread);
         }
     }
+#ifdef TEST
+    timer.logTime("[Thread " + to_string(tid) + "].");
+#endif
     // 退出该线程
     pthread_exit(NULL);
 }
