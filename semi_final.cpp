@@ -32,7 +32,7 @@ using namespace std;
 // 2541581
 // 18875018
 // 19630345
-string dataset = "697518";
+string dataset = "18875018";
 #endif
 
 #ifdef MMAP
@@ -304,9 +304,10 @@ void input_mmap(char *testFile)
     char *buf = (char *)mmap(NULL, length, PROT_READ, MAP_PRIVATE, fd, 0);
 
     register ui *input_ptr = input_data[0];
-    register ui num = 0, index = 0;
-    register char cur_char;
-    register char *p = buf;
+    ui num = 0;
+    register ui index = 0;
+    char cur_char;
+    char *p = buf;
 
     for (; index < length; ++index, ++p)
     {
@@ -429,11 +430,6 @@ void save_fwrite(char *resultFile)
     ui result_str_len = uint2ascii(all_res_count, char_res_count);
     char_res_count[result_str_len++] = '\n';
     fwrite(char_res_count, sizeof(char), result_str_len, fp);
-    // #ifdef NEON
-    //     memcpy_16(result_string, char_res_count);
-    // #else
-    //     memcpy(result_string, char_res_count, result_str_len);
-    // #endif
 
     register ui depth, bid, b_it;
 
@@ -450,17 +446,10 @@ void save_fwrite(char *resultFile)
                 if (begin < end)
                 {
                     fwrite(begin, sizeof(char), end - begin, fp);
-                    // #ifdef NEON
-                    //                     memcpy_neon(result_string + result_str_len, begin, end - begin);
-                    // #else
-                    //                     memcpy(result_string + result_str_len, begin, end - begin);
-                    // #endif
-                    // result_str_len += end - begin;
                 }
             }
         }
     }
-    // fwrite(result_string, sizeof(char), result_str_len, fp);
     fclose(fp);
 }
 
@@ -510,7 +499,7 @@ inline bool is_money_valid(ui x, ui y)
 
 // iteration version
 // 反向三级dfs的迭代版本
-void pre_dfs_ite(register ui start_id, register ThreadMemory *this_thread)
+void pre_dfs_ite(ui start_id, ThreadMemory *this_thread)
 {
     auto &visited = this_thread->visited;
     auto &path = this_thread->path;
@@ -521,10 +510,10 @@ void pre_dfs_ite(register ui start_id, register ThreadMemory *this_thread)
     auto &currentUs_len = this_thread->currentUs_len;
     auto &currentUs = this_thread->currentUs;
 
-    register ui cur_id = start_id, next_id;
+    ui cur_id = start_id, next_id;
     register int depth = 0;
     // 递归栈
-    register Node *stack[3];
+    Node *stack[3];
 
     stack[0] = g_pred + pred_begin_pos[start_id];
 
@@ -540,7 +529,8 @@ void pre_dfs_ite(register ui start_id, register ThreadMemory *this_thread)
         {
             // 回溯
             visited[cur_id] = false;
-            cur_id = --depth > 0 ? path[depth - 1] : start_id;
+            if (--depth > 0)
+                cur_id = path[depth - 1];
         }
         // 有前驱
         else
@@ -572,9 +562,8 @@ void pre_dfs_ite(register ui start_id, register ThreadMemory *this_thread)
                 {
                     // 进入下一层dfs
                     stack[++depth] = g_pred + pred_begin_pos[next_id];
-                    cur_id = next_id;
+                    path[depth] = cur_id = next_id;
                     visited[cur_id] = true;
-                    path[depth] = cur_id;
 
                     // 寻找起始点
                     // 深度为2时，允许下一个节点等于起始点，这是为了兼容长度为3的环
@@ -728,7 +717,7 @@ void dfs_ite(ui start_id, ThreadMemory *this_thread, Batch *this_batch)
 #endif
     path_pos[0] = char_path + idsChar_len[start_id];
 
-    register ui cur_id = start_id, next_id;
+    ui cur_id = start_id, next_id;
     register int depth = 0;
     // 递归栈
     register Node *stack[4];
@@ -800,7 +789,8 @@ void dfs_ite(ui start_id, ThreadMemory *this_thread, Batch *this_batch)
             // 回溯
             visited[cur_id] = false;
             // dfs中用的数据
-            cur_id = --depth >= 0 ? path[depth] : start_id;
+            if (--depth >= 0)
+                cur_id = path[depth];
         }
         // 有后继
         else
@@ -820,9 +810,8 @@ void dfs_ite(ui start_id, ThreadMemory *this_thread, Batch *this_batch)
                 {
                     // 向更深一层dfs
                     stack[++depth] = g_succ + succ_begin_pos[next_id];
-                    cur_id = next_id;
+                    path[depth] = cur_id = next_id;
                     visited[cur_id] = true;
-                    path[depth] = cur_id;
 #ifdef NEON
                     memcpy_16(path_pos[depth - 1], idsComma + (cur_id << 4));
 #else
@@ -900,8 +889,8 @@ void *thread_process(void *t)
 #endif
 
     // 先把指针类型恢复, 然后取值
-    register ui tid = *((ui *)t), this_batch_id;
-    register ThreadMemory *this_thread = &thread_memory[tid];
+    ui tid = *((ui *)t), this_batch_id;
+    ThreadMemory *this_thread = &thread_memory[tid];
 
     while (true)
     {
