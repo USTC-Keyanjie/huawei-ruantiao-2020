@@ -303,7 +303,7 @@ void input_mmap(char *testFile)
     //mmap
     char *buf = (char *)mmap(NULL, length, PROT_READ, MAP_PRIVATE, fd, 0);
 
-    register ui *input_ptr = input_data[0];
+    ui *input_ptr = input_data[0];
     ui num = 0;
     register ui index = 0;
     char cur_char;
@@ -1177,7 +1177,7 @@ int main(int argc, char *argv[])
     batch_size = batch_size > MIN_BATCH_SIZE ? batch_size : MIN_BATCH_SIZE;
     batch_num = ceil((double)id_num / batch_size);
 
-    register ui tid;
+    ui tid;
     // 创建子线程的标识符 就是线程 的id,放在数组中
     pthread_t threads[NUM_THREADS];
     // 线程的属性
