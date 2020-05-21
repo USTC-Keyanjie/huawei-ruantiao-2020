@@ -406,7 +406,7 @@ struct PathNode
 // 每个线程专属区域
 struct ThreadMemory
 {
-    ui distance[MAX_NUM_IDS];
+    ull distance[MAX_NUM_IDS];
     bool visited[MAX_NUM_IDS];
     ui begin_pos[MAX_NUM_IDS];
     PathNode path[MAX_NUM_IDS];
@@ -416,7 +416,7 @@ struct ThreadMemory
 mutex id_lock;
 ui next_id;
 
-void dijkstra_simple(ui s, ui tid)  
+void dijkstra_simple(ui s, ui tid)
 {
     auto &distance = thread_memory[tid].distance;
     auto &visited = thread_memory[tid].visited;
@@ -424,15 +424,39 @@ void dijkstra_simple(ui s, ui tid)
     auto &path = thread_memory[tid].path;
     auto &score = thread_memory[tid].score;
 
+    // 初始化
     memset(distance, UINT64_MAX, id_num);
+    for (ui i = succ_begin_pos[s]; i < succ_begin_pos[s] + out_degree[s]; ++i)
+    {
+        distance[g_succ[i].dst_id] = g_succ[i].weight;
+    }
     memset(visited, false, id_num);
+    visited[s] = true;
     memset(begin_pos, 0, id_num);
+
+    ull min_distance = UINT64_MAX;
+    ui selected_id;
     for (ui i = 0; i < id_num; ++i)
     {
         // 找到离s点最近的顶点
-
+        for (ui j = 0; j < id_num; ++j)
+        {
+            if (visited[j] == false && distance[j] < min_distance)
+            {
+                min_distance = distance[j];
+                selected_id = j;
+            }
+        }
+        visited[selected_id] = true;
+        for (ui j = succ_begin_pos[selected_id]; j < succ_begin_pos[selected_id] + out_degree[selected_id]; ++j)
+        {
+            if (distance[selected_id] + g_succ[j].weight < distance[g_succ[j].dst_id])
+            {
+                distance[g_succ[j].dst_id] = distance[selected_id] + g_succ[j].weight;
+            }
+        }
+        
     }
-    
 }
 
 void thread_process(ui tid)
@@ -453,6 +477,10 @@ void thread_process(ui tid)
         }
         else
         {
+            while (out_degree[next_id] == 0)
+            {
+                next_id++;
+            }
             cur_id = next_id++;
             id_lock.unlock();
             dijkstra_simple(cur_id, tid);
