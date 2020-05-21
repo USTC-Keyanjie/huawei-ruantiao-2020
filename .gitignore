@@ -2,6 +2,7 @@
 *.exe
 test_data_cs/
 test_data_fs/
+test_data_js/
 test.cpp
 code.cpp
 .DS_Store
