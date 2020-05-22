@@ -63,7 +63,7 @@ struct Node
 
     Node() {}
 
-    Node(ui next_id, ull weight) : dst_id(next_id), weight(weight) {}
+    Node(ui cur_id, ull weight) : dst_id(cur_id), weight(weight) {}
 
     // 依据next_id进行排序
     bool operator<(const Node &nextNode) const
@@ -76,13 +76,17 @@ ui input_u_ids[MAX_NUM_EDGES];
 ui input_v_ids[MAX_NUM_EDGES];
 ull input_weights[MAX_NUM_EDGES];
 ui u_next[MAX_NUM_EDGES];
+ui v_next[MAX_NUM_EDGES];
 ui u_ids[MAX_NUM_EDGES];
 ui v_ids[MAX_NUM_EDGES];
 ui ids[MAX_NUM_EDGES];
-ui succ_begin_pos[MAX_NUM_IDS]; // 对于邻接表每个节点的起始index
+Node g_succ[MAX_NUM_EDGES];
+Node g_pred[MAX_NUM_EDGES];
 ui out_degree[MAX_NUM_IDS];     // 每个节点的出度
 ui in_degree[MAX_NUM_IDS];      // 每个节点的入度
-Node g_succ[MAX_NUM_EDGES];
+ui succ_begin_pos[MAX_NUM_IDS]; // 对于邻接表每个节点的起始index
+ui pred_begin_pos[MAX_NUM_IDS]; // 对于逆邻接表每个节点的起始index
+
 __gnu_pbds::gp_hash_table<ui, ui> id_map; // map really id to regular id(0,1,2,...)
 
 #ifdef NEON
@@ -335,6 +339,48 @@ void merge_uv_ids()
     }
 }
 
+void build_g_succ()
+{
+    ui succ_iterator = 0, succ_index = 0, cur_id = 0;
+    while (cur_id < id_num)
+    {
+        if (out_degree[cur_id] && in_degree[cur_id])
+        {
+            succ_iterator = succ_begin_pos[cur_id];
+            succ_begin_pos[cur_id] = succ_index;
+            while (succ_iterator != 0)
+            {
+                g_succ[succ_index++] = Node(input_v_ids[succ_iterator - 1], input_weights[succ_iterator - 1]);
+                succ_iterator = u_next[succ_iterator - 1];
+            }
+            // sort(g_succ + succ_begin_pos[cur_id], g_succ + succ_begin_pos[cur_id] + out_degree[cur_id]);
+            // g_succ[succ_index++] = {UINT32_MAX, UINT32_MAX};
+        }
+        ++cur_id;
+    }
+}
+
+void build_g_pred()
+{
+    ui pred_iterator = 0, pred_index = 0, cur_id = 0;
+    while (cur_id < id_num)
+    {
+        if (out_degree[cur_id] && in_degree[cur_id])
+        {
+            pred_iterator = pred_begin_pos[cur_id];
+            pred_begin_pos[cur_id] = pred_index;
+            while (pred_iterator != 0)
+            {
+                g_pred[pred_index++] = Node(input_u_ids[pred_iterator - 1], input_weights[pred_iterator - 1]);
+                pred_iterator = v_next[pred_iterator - 1];
+            }
+            // sort(g_pred + pred_begin_pos[cur_id], g_pred + pred_begin_pos[cur_id] + in_degree[cur_id]);
+            // g_pred[pred_index++] = {UINT32_MAX, UINT32_MAX};
+        }
+        ++cur_id;
+    }
+}
+
 void pre_process()
 {
     register ui index = 0;
@@ -371,91 +417,113 @@ void pre_process()
         // 链表串起来
         u_next[index] = succ_begin_pos[u_hash_id];
         succ_begin_pos[u_hash_id] = ++index;
+        v_next[index] = pred_begin_pos[v_hash_id];
+        pred_begin_pos[v_hash_id] = ++index;
 
         // 出度和入度
         out_degree[u_hash_id]++;
         in_degree[v_hash_id]++;
     }
 
-    ui succ_iterator = 0, succ_index = 0, cur_id = 0;
-    while (cur_id < id_num)
-    {
-        if (out_degree[cur_id] && in_degree[cur_id])
-        {
-            succ_iterator = succ_begin_pos[cur_id];
-            succ_begin_pos[cur_id] = succ_index;
-            while (succ_iterator != 0)
-            {
-                g_succ[succ_index++] = Node(input_v_ids[succ_iterator - 1], input_weights[succ_iterator - 1]);
-                succ_iterator = u_next[succ_iterator - 1];
-            }
-            sort(g_succ + succ_begin_pos[cur_id], g_succ + succ_begin_pos[cur_id] + out_degree[cur_id]);
-            g_succ[succ_index++] = {UINT32_MAX, UINT32_MAX};
-        }
-        ++cur_id;
-    }
+    thread thread_g_succ = thread(build_g_succ);
+    thread thread_g_pred = thread(build_g_pred);
+    thread_g_succ.join();
+    thread_g_pred.join();
 }
 
-struct PathNode
+struct Pq_elem
 {
     ui id;
-    ui next_bro;
-    ui next_child;
+    ull dis;
+
+    Pq_elem() {}
+
+    Pq_elem(ui id, ull dis) : id(id), dis(dis) {}
+
+    bool operator<(const Pq_elem &nextNode) const
+    {
+        return dis > nextNode.dis;
+    }
 };
 
 // 每个线程专属区域
 struct ThreadMemory
 {
-    ull distance[MAX_NUM_IDS];
-    bool visited[MAX_NUM_IDS];
-    ui begin_pos[MAX_NUM_IDS];
-    PathNode path[MAX_NUM_IDS];
-    float score[MAX_NUM_IDS];
+    ull dis[MAX_NUM_IDS];
+    // 小根堆
+    priority_queue<Pq_elem> pq;
+    ui id_stack[MAX_NUM_IDS];  // 出栈的节点会离s越来越近
+    ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
+    double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
+    double score[MAX_NUM_IDS]; // 位置中心性
 } thread_memory[NUM_THREADS];
 
 mutex id_lock;
-ui next_id;
+ui cur_id;
 
 void dijkstra_simple(ui s, ui tid)
 {
-    auto &distance = thread_memory[tid].distance;
-    auto &visited = thread_memory[tid].visited;
-    auto &begin_pos = thread_memory[tid].begin_pos;
-    auto &path = thread_memory[tid].path;
+    auto &dis = thread_memory[tid].dis;
+    auto &pq = thread_memory[tid].pq;
+    auto &id_stack = thread_memory[tid].id_stack;
+    auto &sigma = thread_memory[tid].sigma;
+    auto &delta = thread_memory[tid].delta;
     auto &score = thread_memory[tid].score;
 
     // 初始化
-    memset(distance, UINT64_MAX, id_num);
-    for (ui i = succ_begin_pos[s]; i < succ_begin_pos[s] + out_degree[s]; ++i)
-    {
-        distance[g_succ[i].dst_id] = g_succ[i].weight;
-    }
-    memset(visited, false, id_num);
-    visited[s] = true;
-    memset(begin_pos, 0, id_num);
+    memset(dis, UINT64_MAX, id_num);
+    dis[s] = 0;
+    memset(sigma, 0, id_num);
+    memset(delta, 0, id_num);
+    pq.push(Pq_elem(s, 0));
 
-    ull min_distance = UINT64_MAX;
-    ui selected_id;
-    for (ui i = 0; i < id_num; ++i)
+    ui id_stack_index = 0; // id_stack的指针
+    ull cur_dis;
+    ui cur_id;
+    while (pq.empty())
     {
         // 找到离s点最近的顶点
-        for (ui j = 0; j < id_num; ++j)
+        cur_dis = pq.top().dis;
+        cur_id = pq.top().id;
+        pq.pop();
+
+        if (cur_dis > dis[cur_id]) //dis[cur_id]可能经过松弛后变小了，原压入堆中的路径失去价值
+            continue;
+
+        id_stack[id_stack_index++] = cur_id;
+
+        // 遍历next_id的后继
+        for (ui j = succ_begin_pos[cur_id]; j < succ_begin_pos[cur_id] + out_degree[cur_id]; ++j)
         {
-            if (visited[j] == false && distance[j] < min_distance)
+            if (dis[cur_id] + g_succ[j].weight < dis[g_succ[j].dst_id])
             {
-                min_distance = distance[j];
-                selected_id = j;
+                dis[g_succ[j].dst_id] = dis[cur_id] + g_succ[j].weight;
+                sigma[g_succ[j].dst_id] = sigma[cur_id];
+                pq.push(Pq_elem(g_succ[j].dst_id, dis[g_succ[j].dst_id]));
+            }
+            else if (dis[cur_id] + g_succ[j].weight == dis[g_succ[j].dst_id])
+            {
+                sigma[g_succ[j].dst_id] += sigma[cur_id];
             }
         }
-        visited[selected_id] = true;
-        for (ui j = succ_begin_pos[selected_id]; j < succ_begin_pos[selected_id] + out_degree[selected_id]; ++j)
+    }
+
+    ui pred_id;
+    while (id_stack_index)
+    {
+        cur_id = id_stack[--id_stack_index];
+        for (ui j = pred_begin_pos[cur_id]; j < pred_begin_pos[cur_id] + in_degree[cur_id]; ++j)
         {
-            if (distance[selected_id] + g_succ[j].weight < distance[g_succ[j].dst_id])
+            pred_id = g_pred[j].dst_id;
+            if (dis[pred_id] + g_pred[j].weight == dis[cur_id])
             {
-                distance[g_succ[j].dst_id] = distance[selected_id] + g_succ[j].weight;
+                delta[pred_id] += ((double)sigma[pred_id] / sigma[cur_id]) * (1 + delta[cur_id]);
+                if (cur_id != s)
+                {
+                    score[cur_id] += delta[cur_id];
+                }
             }
         }
-        
     }
 }
 
@@ -470,18 +538,18 @@ void thread_process(ui tid)
     while (true)
     {
         id_lock.lock();
-        if (next_id >= id_num)
+        if (cur_id >= id_num)
         {
             id_lock.unlock();
             break;
         }
         else
         {
-            while (out_degree[next_id] == 0)
+            while (out_degree[cur_id] == 0)
             {
-                next_id++;
+                cur_id++;
             }
-            cur_id = next_id++;
+            cur_id = cur_id++;
             id_lock.unlock();
             dijkstra_simple(cur_id, tid);
         }
