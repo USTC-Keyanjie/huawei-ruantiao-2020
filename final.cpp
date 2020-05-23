@@ -7,15 +7,27 @@
 // #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
-#include <bits/stdc++.h>
-#include <ext/pb_ds/assoc_container.hpp>
-#include <ext/pb_ds/hash_policy.hpp>
+// #include <bits/stdc++.h>
+#include <algorithm>
 #include <fcntl.h>
+#include <iostream>
+#include <mutex>
+#include <queue>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <thread>
 #include <unistd.h>
+#include <vector>
+
+#ifdef TEST
+#include <unordered_map>
+#else
+#include <ext/pb_ds/assoc_container.hpp>
+#include <ext/pb_ds/hash_policy.hpp>
+#endif
+
 using namespace std;
 
 #ifdef TEST
@@ -45,7 +57,7 @@ string dataset = "1";
 #include <stddef.h>
 #endif
 
-#define NUM_THREADS 8 // 线程数
+#define NUM_THREADS 1 // 线程数
 
 #define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5 确定够用
 #define MAX_NUM_IDS 2500005   // 最大可接受id数 250w+5 确定够用
@@ -84,12 +96,17 @@ ui v_ids[MAX_NUM_EDGES];
 ui ids[MAX_NUM_EDGES];
 Node g_succ[MAX_NUM_EDGES];
 Node g_pred[MAX_NUM_EDGES];
-ui out_degree[MAX_NUM_IDS];               // 每个节点的出度
-ui in_degree[MAX_NUM_IDS];                // 每个节点的入度
-ui succ_begin_pos[MAX_NUM_IDS];           // 对于邻接表每个节点的起始index
-ui pred_begin_pos[MAX_NUM_IDS];           // 对于逆邻接表每个节点的起始index
-double score[MAX_NUM_IDS];                // 存储答案的数组
+ui out_degree[MAX_NUM_IDS];     // 每个节点的出度
+ui in_degree[MAX_NUM_IDS];      // 每个节点的入度
+ui succ_begin_pos[MAX_NUM_IDS]; // 对于邻接表每个节点的起始index
+ui pred_begin_pos[MAX_NUM_IDS]; // 对于逆邻接表每个节点的起始index
+double score[MAX_NUM_IDS];      // 存储答案的数组
+
+#ifdef TEST
+unordered_map<ui, ui> id_map;
+#else
 __gnu_pbds::gp_hash_table<ui, ui> id_map; // map really id to regular id(0,1,2,...)
+#endif
 
 #ifdef NEON
 // 16个字节以内的复制
@@ -112,7 +129,7 @@ inline void memcpy_128(void *dest, void *src)
 // 大长度字节的复制
 inline void memcpy_neon(void *dest, void *src, size_t count)
 {
-    register ui i;
+    ui i;
     unsigned long *s = (unsigned long *)src;
     unsigned long *d = (unsigned long *)dest;
     for (i = 0; i <= (count >> 6); ++i, d += 8, s += 8)
@@ -125,19 +142,19 @@ inline void memcpy_neon(void *dest, void *src, size_t count)
 }
 
 // TODO: 待优化
-void add_float_neno1(int *dst, int *src1, int *src2, int count)
+void add_double_neno1(int *dst, int *src1, int *src2, int count)
 {
     int i;
     for (i = 0; i < count; i += 4)
     {
         int32x4_t in1, in2, out;
-        in1 = vld1q_s32(src1);
-        src1 += 4;
-        in2 = vld1q_s32(src2);
-        src2 += 4;
-        out = vaddq_s32(in1, in2);
-        vst1q_s32(dst, out);
-        dst += 4;
+        in1 = vld1q_s64(src1);
+        src1 += 8;
+        in2 = vld1q_s64(src2);
+        src2 += 8;
+        out = vaddq_s64(in1, in2);
+        vst1q_s64(dst, out);
+        dst += 8;
     }
 }
 #endif
@@ -207,7 +224,7 @@ struct Time_recorder
 #endif
 
 #ifdef TEST
-Time_recorder timerA, timerB;
+Time_recorder timer_global, timer_local;
 #endif
 
 void input_fstream(char *testFile)
@@ -256,8 +273,8 @@ void input_mmap(char *testFile)
     ui *v_id_ptr = input_u_ids;
     ull *w_ptr = input_weights;
     ull num = 0;
-    register ui index = 0, ui id_index = 0;
-    register byte sign = 0;
+    ui index = 0, ui id_index = 0;
+    byte sign = 0;
     char cur_char;
     char *p = buf;
     ui input_num = 0;
@@ -297,14 +314,14 @@ void input_mmap(char *testFile)
 ui u_num, v_num;
 void sort_u_ids_and_unique()
 {
-    memcpy(input_u_ids, u_ids, sizeof(input_u_ids));
+    memcpy(u_ids, input_u_ids, sizeof(input_u_ids));
     sort(u_ids, u_ids + edge_num);
     u_num = unique(u_ids, u_ids + edge_num) - u_ids;
 }
 
 void sort_v_ids_and_unique()
 {
-    memcpy(input_v_ids, v_ids, sizeof(input_v_ids));
+    memcpy(v_ids, input_v_ids, sizeof(input_v_ids));
     sort(v_ids, v_ids + edge_num);
     v_num = unique(v_ids, v_ids + edge_num) - v_ids;
 }
@@ -312,32 +329,32 @@ void sort_v_ids_and_unique()
 // 19630345 118ms
 void merge_uv_ids()
 {
-    register int i = 0, j = 0, k = 0;
+    int i = 0, j = 0;
 
     while (i < u_num && j < v_num)
     {
         if (u_ids[i] < v_ids[j])
         {
-            ids[k++] = u_ids[i++];
+            ids[id_num++] = u_ids[i++];
         }
         else if (u_ids[i] > v_ids[j])
         {
-            ids[k++] = v_ids[j++];
+            ids[id_num++] = v_ids[j++];
         }
         else
         {
-            ids[k++] = u_ids[i++];
+            ids[id_num++] = u_ids[i++];
             j++;
         }
     }
     while (i < u_num)
     {
-        ids[k++] = u_ids[i++];
+        ids[id_num++] = u_ids[i++];
     }
 
     while (j < v_num)
     {
-        ids[k++] = v_ids[j++];
+        ids[id_num++] = v_ids[j++];
     }
 }
 
@@ -346,18 +363,16 @@ void build_g_succ()
     ui succ_iterator = 0, succ_index = 0, cur_id = 0;
     while (cur_id < id_num)
     {
-        if (out_degree[cur_id] && in_degree[cur_id])
+        succ_iterator = succ_begin_pos[cur_id];
+        succ_begin_pos[cur_id] = succ_index;
+        while (succ_iterator != 0)
         {
-            succ_iterator = succ_begin_pos[cur_id];
-            succ_begin_pos[cur_id] = succ_index;
-            while (succ_iterator != 0)
-            {
-                g_succ[succ_index++] = Node(input_v_ids[succ_iterator - 1], input_weights[succ_iterator - 1]);
-                succ_iterator = u_next[succ_iterator - 1];
-            }
-            // sort(g_succ + succ_begin_pos[cur_id], g_succ + succ_begin_pos[cur_id] + out_degree[cur_id]);
-            // g_succ[succ_index++] = {UINT32_MAX, UINT32_MAX};
+            g_succ[succ_index++] = Node(input_v_ids[succ_iterator - 1], input_weights[succ_iterator - 1]);
+            succ_iterator = u_next[succ_iterator - 1];
         }
+        // sort(g_succ + succ_begin_pos[cur_id], g_succ + succ_begin_pos[cur_id] + out_degree[cur_id]);
+        // g_succ[succ_index++] = {UINT32_MAX, UINT32_MAX};
+
         ++cur_id;
     }
 }
@@ -367,27 +382,25 @@ void build_g_pred()
     ui pred_iterator = 0, pred_index = 0, cur_id = 0;
     while (cur_id < id_num)
     {
-        if (out_degree[cur_id] && in_degree[cur_id])
+        pred_iterator = pred_begin_pos[cur_id];
+        pred_begin_pos[cur_id] = pred_index;
+        while (pred_iterator != 0)
         {
-            pred_iterator = pred_begin_pos[cur_id];
-            pred_begin_pos[cur_id] = pred_index;
-            while (pred_iterator != 0)
-            {
-                g_pred[pred_index++] = Node(input_u_ids[pred_iterator - 1], input_weights[pred_iterator - 1]);
-                pred_iterator = v_next[pred_iterator - 1];
-            }
-            // sort(g_pred + pred_begin_pos[cur_id], g_pred + pred_begin_pos[cur_id] + in_degree[cur_id]);
-            // g_pred[pred_index++] = {UINT32_MAX, UINT32_MAX};
+            g_pred[pred_index++] = Node(input_u_ids[pred_iterator - 1], input_weights[pred_iterator - 1]);
+            pred_iterator = v_next[pred_iterator - 1];
         }
+        // sort(g_pred + pred_begin_pos[cur_id], g_pred + pred_begin_pos[cur_id] + in_degree[cur_id]);
+        // g_pred[pred_index++] = {UINT32_MAX, UINT32_MAX};
+
         ++cur_id;
     }
 }
 
 void pre_process()
 {
-    register ui index = 0;
-    thread u_thread(sort_u_ids_and_unique);
-    thread v_thread(sort_v_ids_and_unique);
+    ui index = 0;
+    thread u_thread = thread(sort_u_ids_and_unique);
+    thread v_thread = thread(sort_v_ids_and_unique);
     u_thread.join();
     v_thread.join();
     merge_uv_ids();
@@ -420,7 +433,7 @@ void pre_process()
         u_next[index] = succ_begin_pos[u_hash_id];
         succ_begin_pos[u_hash_id] = ++index;
         v_next[index] = pred_begin_pos[v_hash_id];
-        pred_begin_pos[v_hash_id] = ++index;
+        pred_begin_pos[v_hash_id] = index;
 
         // 出度和入度
         out_degree[u_hash_id]++;
@@ -470,16 +483,18 @@ void dijkstra_priority_queue(ui s, ui tid)
     auto &score = thread_memory[tid].score;
 
     // 初始化
-    memset(dis, UINT64_MAX, id_num);
+    // memset(dis, UINT64_MAX, id_num);
+    fill(dis, dis + id_num, UINT64_MAX);
     dis[s] = 0;
     memset(sigma, 0, id_num);
+    sigma[s] = 1;
     memset(delta, 0, id_num);
     pq.push(Pq_elem(s, 0));
 
     ui id_stack_index = 0; // id_stack的指针
     ull cur_dis;
     ui cur_id;
-    while (pq.empty())
+    while (!pq.empty())
     {
         // 找到离s点最近的顶点
         cur_dis = pq.top().dis;
@@ -594,10 +609,17 @@ void print_rec(FILE *fp, priority_queue<Res_pq_elem> &pq)
 void save_fwrite(char *resultFile)
 {
     memcpy(score, thread_memory[0].score, id_num * sizeof(double));
-    register ui index = 1;
+    ui index = 1;
     while (index < NUM_THREADS)
     {
         /* code */ // neon 相加
+        ui score_index = 0;
+        while (score_index < id_num)
+        {
+            score[score_index] += thread_memory[index].score[score_index];
+            ++score_index;
+        }
+
         ++index;
     }
 
@@ -655,8 +677,8 @@ int main(int argc, char *argv[])
 
 // TODO: 修改变量名
 #ifdef TEST
-    timerA.setTime();
-    timerB.setTime();
+    timer_global.setTime();
+    timer_local.setTime();
 #endif
 
 #ifdef MMAP
@@ -665,19 +687,20 @@ int main(int argc, char *argv[])
     input_fstream(testFile);
 #endif
 #ifdef TEST
-    timerB.resetTimeWithTag("Read Input File");
+    timer_local.resetTimeWithTag("Read Input File");
 #endif
 
     pre_process();
 #ifdef TEST
-    timerB.resetTimeWithTag("Pre Process Data");
+    timer_local.resetTimeWithTag("Pre Process Data");
 #endif
 
     thread threads[NUM_THREADS];
     ui i = 0;
     while (i < NUM_THREADS)
     {
-        threads[i] = thread(thread_process, i++);
+        threads[i] = thread(thread_process, i);
+        ++i;
     }
 
     for (auto &thread : threads)
