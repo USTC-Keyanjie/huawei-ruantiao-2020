@@ -50,6 +50,8 @@ string dataset = "1";
 #define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5 确定够用
 #define MAX_NUM_IDS 2500005   // 最大可接受id数 250w+5 确定够用
 
+#define TopN 100 // 只输出前TopN个结果
+
 typedef unsigned long long ull;
 typedef unsigned int ui;
 
@@ -82,11 +84,11 @@ ui v_ids[MAX_NUM_EDGES];
 ui ids[MAX_NUM_EDGES];
 Node g_succ[MAX_NUM_EDGES];
 Node g_pred[MAX_NUM_EDGES];
-ui out_degree[MAX_NUM_IDS];     // 每个节点的出度
-ui in_degree[MAX_NUM_IDS];      // 每个节点的入度
-ui succ_begin_pos[MAX_NUM_IDS]; // 对于邻接表每个节点的起始index
-ui pred_begin_pos[MAX_NUM_IDS]; // 对于逆邻接表每个节点的起始index
-
+ui out_degree[MAX_NUM_IDS];               // 每个节点的出度
+ui in_degree[MAX_NUM_IDS];                // 每个节点的入度
+ui succ_begin_pos[MAX_NUM_IDS];           // 对于邻接表每个节点的起始index
+ui pred_begin_pos[MAX_NUM_IDS];           // 对于逆邻接表每个节点的起始index
+double score[MAX_NUM_IDS];                // 存储答案的数组
 __gnu_pbds::gp_hash_table<ui, ui> id_map; // map really id to regular id(0,1,2,...)
 
 #ifdef NEON
@@ -458,10 +460,7 @@ struct ThreadMemory
     double score[MAX_NUM_IDS]; // 位置中心性
 } thread_memory[NUM_THREADS];
 
-mutex id_lock;
-ui cur_id;
-
-void dijkstra_simple(ui s, ui tid)
+void dijkstra_priority_queue(ui s, ui tid)
 {
     auto &dis = thread_memory[tid].dis;
     auto &pq = thread_memory[tid].pq;
@@ -527,6 +526,9 @@ void dijkstra_simple(ui s, ui tid)
     }
 }
 
+mutex id_lock;
+ui cur_id;
+
 void thread_process(ui tid)
 {
 #ifdef TEST
@@ -534,7 +536,7 @@ void thread_process(ui tid)
     timer.setTime();
 #endif
 
-    ui cur_id;
+    ui s_id;
     while (true)
     {
         id_lock.lock();
@@ -549,15 +551,78 @@ void thread_process(ui tid)
             {
                 cur_id++;
             }
-            cur_id = cur_id++;
+            s_id = cur_id++;
             id_lock.unlock();
-            dijkstra_simple(cur_id, tid);
+            dijkstra_priority_queue(s_id, tid);
         }
     }
 
 #ifdef TEST
     timer.logTime("[Thread " + to_string(tid) + "].");
 #endif
+}
+
+struct Res_pq_elem
+{
+    ui id;
+    double score;
+
+    Res_pq_elem() {}
+
+    Res_pq_elem(ui id, double score) : id(id), score(score) {}
+
+    bool operator<(const Res_pq_elem &nextNode) const
+    {
+        if (abs(score - nextNode.score) > 0.0001)
+            return score > nextNode.score;
+        else
+            return id < nextNode.id;
+    }
+};
+
+void print_rec(FILE *fp, priority_queue<Res_pq_elem> &pq)
+{
+    if (pq.empty())
+        return;
+
+    Res_pq_elem res = pq.top();
+    pq.pop();
+    print_rec(fp, pq);
+    fprintf(fp, "%u,%.3lf\n", res.id, res.score);
+}
+
+void save_fwrite(char *resultFile)
+{
+    memcpy(score, thread_memory[0].score, id_num * sizeof(double));
+    register ui index = 1;
+    while (index < NUM_THREADS)
+    {
+        /* code */ // neon 相加
+        ++index;
+    }
+
+    index = 0;
+    priority_queue<Res_pq_elem> pq;
+    while (index < TopN)
+    {
+        pq.push(Res_pq_elem(index, score[index]));
+        ++index;
+    }
+
+    while (index < id_num)
+    {
+        if (score[index] > pq.top().score && abs(score[index] - pq.top().score) > 0.0001)
+        {
+            pq.pop();
+            pq.push(Res_pq_elem(index, score[index]));
+        }
+    }
+
+    FILE *fp;
+
+    fp = fopen(resultFile, "wb");
+    print_rec(fp, pq);
+    fclose(fp);
 }
 
 int main(int argc, char *argv[])
@@ -619,6 +684,8 @@ int main(int argc, char *argv[])
     {
         thread.join();
     }
+
+    save_fwrite(resultFile);
 
     return 0;
 }
