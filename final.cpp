@@ -31,19 +31,10 @@
 using namespace std;
 
 #ifdef TEST
-// std
-// 41
-// 294
-// 34195
-// 51532
-// 639096
-// 697518
-// 881420
-// 2408026
-// 2541581
-// 18875018
-// 19630345
-string dataset = "1";
+// 0
+// 1
+// 2
+string dataset = "2";
 #endif
 
 #ifdef MMAP
@@ -57,7 +48,7 @@ string dataset = "1";
 #include <stddef.h>
 #endif
 
-#define NUM_THREADS 1 // 线程数
+#define NUM_THREADS 8 // 线程数
 
 #define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5 确定够用
 #define MAX_NUM_IDS 2500005   // 最大可接受id数 250w+5 确定够用
@@ -96,11 +87,11 @@ ui v_ids[MAX_NUM_EDGES];
 ui ids[MAX_NUM_EDGES];
 Node g_succ[MAX_NUM_EDGES];
 Node g_pred[MAX_NUM_EDGES];
-ui out_degree[MAX_NUM_IDS];     // 每个节点的出度
-ui in_degree[MAX_NUM_IDS];      // 每个节点的入度
-ui succ_begin_pos[MAX_NUM_IDS]; // 对于邻接表每个节点的起始index
-ui pred_begin_pos[MAX_NUM_IDS]; // 对于逆邻接表每个节点的起始index
-double score[MAX_NUM_IDS];      // 存储答案的数组
+ui out_degree[MAX_NUM_IDS];       // 每个节点的出度
+ui in_degree[MAX_NUM_IDS];        // 每个节点的入度
+ui succ_begin_pos[MAX_NUM_IDS];   // 对于邻接表每个节点的起始index
+ui pred_begin_pos[MAX_NUM_IDS];   // 对于逆邻接表每个节点的起始index
+double global_score[MAX_NUM_IDS]; // 存储答案的数组
 
 #ifdef TEST
 unordered_map<ui, ui> id_map;
@@ -236,7 +227,7 @@ void input_fstream(char *testFile)
     FILE *file = fopen(testFile, "r");
     ui u, v;
     ull weight;
-    while (fscanf(file, "%d,%d,%llu\n", &u, &v, &weight) != EOF)
+    while (fscanf(file, "%u,%u,%llu\n", &u, &v, &weight) != EOF)
     {
         if (weight > 0)
         {
@@ -326,10 +317,9 @@ void sort_v_ids_and_unique()
     v_num = unique(v_ids, v_ids + edge_num) - v_ids;
 }
 
-// 19630345 118ms
 void merge_uv_ids()
 {
-    int i = 0, j = 0;
+    ui i = 0, j = 0;
 
     while (i < u_num && j < v_num)
     {
@@ -370,9 +360,6 @@ void build_g_succ()
             g_succ[succ_index++] = Node(input_v_ids[succ_iterator - 1], input_weights[succ_iterator - 1]);
             succ_iterator = u_next[succ_iterator - 1];
         }
-        // sort(g_succ + succ_begin_pos[cur_id], g_succ + succ_begin_pos[cur_id] + out_degree[cur_id]);
-        // g_succ[succ_index++] = {UINT32_MAX, UINT32_MAX};
-
         ++cur_id;
     }
 }
@@ -389,9 +376,6 @@ void build_g_pred()
             g_pred[pred_index++] = Node(input_u_ids[pred_iterator - 1], input_weights[pred_iterator - 1]);
             pred_iterator = v_next[pred_iterator - 1];
         }
-        // sort(g_pred + pred_begin_pos[cur_id], g_pred + pred_begin_pos[cur_id] + in_degree[cur_id]);
-        // g_pred[pred_index++] = {UINT32_MAX, UINT32_MAX};
-
         ++cur_id;
     }
 }
@@ -431,9 +415,9 @@ void pre_process()
 
         // 链表串起来
         u_next[index] = succ_begin_pos[u_hash_id];
-        succ_begin_pos[u_hash_id] = ++index;
+        succ_begin_pos[u_hash_id] = index + 1;
         v_next[index] = pred_begin_pos[v_hash_id];
-        pred_begin_pos[v_hash_id] = index;
+        pred_begin_pos[v_hash_id] = ++index;
 
         // 出度和入度
         out_degree[u_hash_id]++;
@@ -475,6 +459,8 @@ struct ThreadMemory
 
 void dijkstra_priority_queue(ui s, ui tid)
 {
+    if (out_degree[s] == 0)
+        return;
     auto &dis = thread_memory[tid].dis;
     auto &pq = thread_memory[tid].pq;
     auto &id_stack = thread_memory[tid].id_stack;
@@ -486,12 +472,12 @@ void dijkstra_priority_queue(ui s, ui tid)
     // memset(dis, UINT64_MAX, id_num);
     fill(dis, dis + id_num, UINT64_MAX);
     dis[s] = 0;
-    memset(sigma, 0, id_num);
+    memset(sigma, 0, id_num * sizeof(double));
     sigma[s] = 1;
-    memset(delta, 0, id_num);
+    memset(delta, 0, id_num * sizeof(double));
     pq.push(Pq_elem(s, 0));
 
-    ui id_stack_index = 0; // id_stack的指针
+    int id_stack_index = -1; // id_stack的指针
     ull cur_dis;
     ui cur_id;
     while (!pq.empty())
@@ -504,9 +490,9 @@ void dijkstra_priority_queue(ui s, ui tid)
         if (cur_dis > dis[cur_id]) //dis[cur_id]可能经过松弛后变小了，原压入堆中的路径失去价值
             continue;
 
-        id_stack[id_stack_index++] = cur_id;
+        id_stack[++id_stack_index] = cur_id;
 
-        // 遍历next_id的后继
+        // 遍历cur_id的后继
         for (ui j = succ_begin_pos[cur_id]; j < succ_begin_pos[cur_id] + out_degree[cur_id]; ++j)
         {
             if (dis[cur_id] + g_succ[j].weight < dis[g_succ[j].dst_id])
@@ -522,22 +508,19 @@ void dijkstra_priority_queue(ui s, ui tid)
         }
     }
 
-    ui pred_id;
-    while (id_stack_index)
+    ui pred_id = 0;
+    while (id_stack_index > 0)
     {
-        cur_id = id_stack[--id_stack_index];
+        cur_id = id_stack[id_stack_index--];
         for (ui j = pred_begin_pos[cur_id]; j < pred_begin_pos[cur_id] + in_degree[cur_id]; ++j)
         {
             pred_id = g_pred[j].dst_id;
             if (dis[pred_id] + g_pred[j].weight == dis[cur_id])
             {
-                delta[pred_id] += ((double)sigma[pred_id] / sigma[cur_id]) * (1 + delta[cur_id]);
-                if (cur_id != s)
-                {
-                    score[cur_id] += delta[cur_id];
-                }
+                delta[pred_id] += (sigma[pred_id] * 1.0 / sigma[cur_id]) * (1 + delta[cur_id]);
             }
         }
+        score[cur_id] += delta[cur_id];
     }
 }
 
@@ -562,10 +545,6 @@ void thread_process(ui tid)
         }
         else
         {
-            while (out_degree[cur_id] == 0)
-            {
-                cur_id++;
-            }
             s_id = cur_id++;
             id_lock.unlock();
             dijkstra_priority_queue(s_id, tid);
@@ -608,15 +587,15 @@ void print_rec(FILE *fp, priority_queue<Res_pq_elem> &pq)
 
 void save_fwrite(char *resultFile)
 {
-    memcpy(score, thread_memory[0].score, id_num * sizeof(double));
-    ui index = 1;
+    memcpy(global_score, thread_memory[0].score, id_num * sizeof(double));
+    int index = 1;
     while (index < NUM_THREADS)
     {
         /* code */ // neon 相加
         ui score_index = 0;
         while (score_index < id_num)
         {
-            score[score_index] += thread_memory[index].score[score_index];
+            global_score[score_index] += thread_memory[index].score[score_index];
             ++score_index;
         }
 
@@ -627,23 +606,39 @@ void save_fwrite(char *resultFile)
     priority_queue<Res_pq_elem> pq;
     while (index < TopN)
     {
-        pq.push(Res_pq_elem(index, score[index]));
+        pq.push(Res_pq_elem(index, global_score[index]));
         ++index;
     }
 
     while (index < id_num)
     {
-        if (score[index] > pq.top().score && abs(score[index] - pq.top().score) > 0.0001)
+        if (global_score[index] > pq.top().score && abs(global_score[index] - pq.top().score) > 0.0001)
         {
             pq.pop();
-            pq.push(Res_pq_elem(index, score[index]));
+            pq.push(Res_pq_elem(index, global_score[index]));
         }
+        ++index;
     }
 
     FILE *fp;
 
     fp = fopen(resultFile, "wb");
-    print_rec(fp, pq);
+    // print_rec(fp, pq);
+    Res_pq_elem res_arr[100];
+    index = 99;
+    while (index >= 0)
+    {
+        res_arr[index] = pq.top();
+        pq.pop();
+        index--;
+    }
+    index = 0;
+    while (index < 100)
+    {
+        fprintf(fp, "%u,%.3lf\n", ids[res_arr[index].id], res_arr[index].score);
+        ++index;
+    }
+
     fclose(fp);
 }
 
@@ -709,6 +704,14 @@ int main(int argc, char *argv[])
     }
 
     save_fwrite(resultFile);
+#ifdef TEST
+    timer_local.resetTimeWithTag("Output");
+#endif
+
+#ifdef TEST
+    timer_local.printLogs();
+    timer_global.logTime("Whole Process");
+#endif
 
     return 0;
 }
