@@ -9,3 +9,5 @@ test_data_js
 test.cpp
 code.cpp
 .DS_Store
+final
+*.dSYM/
