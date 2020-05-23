@@ -703,6 +703,10 @@ int main(int argc, char *argv[])
         thread.join();
     }
 
+#ifdef TEST
+    timer_local.resetTimeWithTag("Solve Results");
+#endif
+
     save_fwrite(resultFile);
 #ifdef TEST
     timer_local.resetTimeWithTag("Output");
