@@ -50,8 +50,8 @@ string dataset = "1";
 
 #define NUM_THREADS 8 // 线程数
 
-#define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5 确定够用
-#define MAX_NUM_IDS 2500005   // 最大可接受id数 250w+5 确定够用
+#define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5
+#define MAX_NUM_IDS 2500005   // 最大可接受id数 250w+5
 
 #define TopK 100 // 只输出前TopK个结果
 
@@ -451,11 +451,53 @@ struct ThreadMemory
     ull dis[MAX_NUM_IDS];
     // 小根堆
     priority_queue<Pq_elem> pq;
+    // Pq_elem pq[MAX_NUM_IDS * 10];
+    ui pq_len;
     ui id_stack[MAX_NUM_IDS];  // 出栈的节点会离s越来越近
     ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
     double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
     double score[MAX_NUM_IDS]; // 位置中心性
 } thread_memory[NUM_THREADS];
+
+void siftup(Pq_elem pq[], ui limit)
+{
+    while (limit > 1)
+    {
+        if (pq[(limit >> 1) - 1].dis > pq[limit - 1].dis) // 如果父节点比自己大
+        {
+            // 交换 pq[(limit >> 1) - 1] 和 pq[limit - 1] 的值
+            pq[(limit >> 1) - 1].id ^= pq[limit - 1].id ^= pq[(limit >> 1) - 1].id ^= pq[limit - 1].id;
+            pq[(limit >> 1) - 1].dis ^= pq[limit - 1].dis ^= pq[(limit >> 1) - 1].dis ^= pq[limit - 1].dis;
+        }
+        else
+        {
+            break;
+        }
+        limit >>= 1;
+    }
+}
+
+void siftdown(Pq_elem pq[], ui pq_len)
+{
+    ui index = 0, t_index = 0;
+    while ((index << 1) + 1 < pq_len) // 有左孩子
+    {
+        // 首先判断和左孩子的关系
+        if (pq[index].dis > pq[(index << 1) + 1].dis)
+            t_index = (index << 1) + 1;
+        if (((index + 1) << 1) < pq_len && pq[index].dis > pq[(index + 1) << 1].dis) // 右孩子存在且自己比右孩子大
+            t_index = (index + 1) << 1;
+        if (index == t_index)
+            break;
+        else
+        {
+            // 交换 pq[index] 和 pq[t_index] 的值
+            pq[index].id ^= pq[t_index].id ^= pq[index].id ^= pq[t_index].id;
+            pq[index].dis ^= pq[t_index].dis ^= pq[index].dis ^= pq[t_index].dis;
+            index = t_index;
+        }
+    }
+}
 
 void dijkstra_priority_queue(ui s, ui tid)
 {
@@ -463,6 +505,7 @@ void dijkstra_priority_queue(ui s, ui tid)
         return;
     auto &dis = thread_memory[tid].dis;
     auto &pq = thread_memory[tid].pq;
+    auto &pq_len = thread_memory[tid].pq_len;
     auto &id_stack = thread_memory[tid].id_stack;
     auto &sigma = thread_memory[tid].sigma;
     auto &delta = thread_memory[tid].delta;
@@ -474,7 +517,10 @@ void dijkstra_priority_queue(ui s, ui tid)
     memset(sigma, 0, id_num * sizeof(ui));
     sigma[s] = 1;
     memset(delta, 0, id_num * sizeof(double));
+
     pq.push(Pq_elem(s, 0));
+
+    // pq[pq_len++] = Pq_elem(s, 0);
 
     int id_stack_index = -1; // id_stack的指针
     ull cur_dis;
@@ -482,12 +528,21 @@ void dijkstra_priority_queue(ui s, ui tid)
 
     // 最多循环n次
     while (!pq.empty())
+    // while (pq_len > 0)
     {
         // 找到离s点最近的顶点
         cur_dis = pq.top().dis;
         cur_id = pq.top().id;
-        // logn
+        // O(logn)
         pq.pop();
+
+        // 找到离s点最近的顶点
+        // cur_dis = pq->dis;
+        // cur_id = pq->id;
+        // // O(logn)
+        // // pq.pop();
+        // pq[0] = pq[--pq_len];
+        // siftdown(pq, pq_len);
 
         if (cur_dis > dis[cur_id]) //dis[cur_id]可能经过松弛后变小了，原压入堆中的路径失去价值
             continue;
@@ -502,7 +557,11 @@ void dijkstra_priority_queue(ui s, ui tid)
                 dis[g_succ[j].dst_id] = dis[cur_id] + g_succ[j].weight;
                 sigma[g_succ[j].dst_id] = sigma[cur_id];
                 // O(logn)
+
                 pq.push(Pq_elem(g_succ[j].dst_id, dis[g_succ[j].dst_id]));
+
+                // pq[pq_len++] = Pq_elem(g_succ[j].dst_id, dis[g_succ[j].dst_id]);
+                // siftup(pq, pq_len);
             }
             else if (dis[cur_id] + g_succ[j].weight == dis[g_succ[j].dst_id])
             {
@@ -513,7 +572,7 @@ void dijkstra_priority_queue(ui s, ui tid)
     }
 
     ui pred_id;
-    // 最多循环n次
+    // 最多循环n次 O(n)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
@@ -671,7 +730,6 @@ int main(int argc, char *argv[])
     char resultFile[] = "/projects/student/result.txt";
 #endif
 
-// TODO: 修改变量名
 #ifdef TEST
     timer_global.setTime();
     timer_local.setTime();
