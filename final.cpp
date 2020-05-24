@@ -523,8 +523,8 @@ void dijkstra_priority_queue(ui s, ui tid)
     // pq[pq_len++] = Pq_elem(s, 0);
 
     int id_stack_index = -1; // id_stack的指针
-    ull cur_dis;
-    ui cur_id, j;
+    ull cur_dis, update_dis;
+    ui cur_id, j, end;
 
     // 最多循环n次
     while (!pq.empty())
@@ -549,12 +549,14 @@ void dijkstra_priority_queue(ui s, ui tid)
 
         id_stack[++id_stack_index] = cur_id;
         j = succ_begin_pos[cur_id];
+        end = j + out_degree[cur_id];
         // 遍历cur_id的后继 平均循环d次(平均出度)
-        while (j < succ_begin_pos[cur_id] + out_degree[cur_id])
+        while (j < end)
         {
-            if (dis[cur_id] + g_succ[j].weight < dis[g_succ[j].dst_id])
+            update_dis = dis[cur_id] + g_succ[j].weight;
+            if (update_dis < dis[g_succ[j].dst_id])
             {
-                dis[g_succ[j].dst_id] = dis[cur_id] + g_succ[j].weight;
+                dis[g_succ[j].dst_id] = update_dis;
                 sigma[g_succ[j].dst_id] = sigma[cur_id];
                 // O(logn)
 
@@ -563,7 +565,7 @@ void dijkstra_priority_queue(ui s, ui tid)
                 // pq[pq_len++] = Pq_elem(g_succ[j].dst_id, dis[g_succ[j].dst_id]);
                 // siftup(pq, pq_len);
             }
-            else if (dis[cur_id] + g_succ[j].weight == dis[g_succ[j].dst_id])
+            else if (update_dis == dis[g_succ[j].dst_id])
             {
                 sigma[g_succ[j].dst_id] += sigma[cur_id];
             }
@@ -577,8 +579,9 @@ void dijkstra_priority_queue(ui s, ui tid)
     {
         cur_id = id_stack[id_stack_index--];
         j = pred_begin_pos[cur_id];
+        end = j + in_degree[cur_id];
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
-        while (j < pred_begin_pos[cur_id] + in_degree[cur_id])
+        while (j < end)
         {
             pred_id = g_pred[j].dst_id;
             if (dis[pred_id] + g_pred[j].weight == dis[cur_id])
