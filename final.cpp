@@ -468,8 +468,7 @@ void dijkstra_priority_queue(ui s, ui tid)
     auto &delta = thread_memory[tid].delta;
     auto &score = thread_memory[tid].score;
 
-    // 初始化
-    // memset(dis, UINT64_MAX, id_num);
+    // 初始化 3n
     fill(dis, dis + id_num, UINT64_MAX);
     dis[s] = 0;
     memset(sigma, 0, id_num * sizeof(double));
@@ -480,11 +479,14 @@ void dijkstra_priority_queue(ui s, ui tid)
     int id_stack_index = -1; // id_stack的指针
     ull cur_dis;
     ui cur_id;
+
+    // 最多循环n次
     while (!pq.empty())
     {
         // 找到离s点最近的顶点
         cur_dis = pq.top().dis;
         cur_id = pq.top().id;
+        // logn
         pq.pop();
 
         if (cur_dis > dis[cur_id]) //dis[cur_id]可能经过松弛后变小了，原压入堆中的路径失去价值
@@ -492,13 +494,14 @@ void dijkstra_priority_queue(ui s, ui tid)
 
         id_stack[++id_stack_index] = cur_id;
 
-        // 遍历cur_id的后继
+        // 遍历cur_id的后继 平均循环d次(平均出度)
         for (ui j = succ_begin_pos[cur_id]; j < succ_begin_pos[cur_id] + out_degree[cur_id]; ++j)
         {
             if (dis[cur_id] + g_succ[j].weight < dis[g_succ[j].dst_id])
             {
                 dis[g_succ[j].dst_id] = dis[cur_id] + g_succ[j].weight;
                 sigma[g_succ[j].dst_id] = sigma[cur_id];
+                // logn
                 pq.push(Pq_elem(g_succ[j].dst_id, dis[g_succ[j].dst_id]));
             }
             else if (dis[cur_id] + g_succ[j].weight == dis[g_succ[j].dst_id])
@@ -509,9 +512,11 @@ void dijkstra_priority_queue(ui s, ui tid)
     }
 
     ui pred_id = 0;
+    // 最多循环n次
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
+        // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
         for (ui j = pred_begin_pos[cur_id]; j < pred_begin_pos[cur_id] + in_degree[cur_id]; ++j)
         {
             pred_id = g_pred[j].dst_id;
