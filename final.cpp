@@ -435,11 +435,11 @@ struct Pq_elem
     ui id;
     ull dis;
 
-    Pq_elem() {}
+    inline Pq_elem() {}
 
-    Pq_elem(ui id, ull dis) : id(id), dis(dis) {}
+    inline Pq_elem(ui id, ull dis) : id(id), dis(dis) {}
 
-    bool operator<(const Pq_elem &nextNode) const
+    inline bool operator<(const Pq_elem &nextNode) const
     {
         return dis > nextNode.dis;
     }
@@ -479,15 +479,12 @@ void dijkstra_priority_queue(ui s, ui tid)
 
     pq.emplace(Pq_elem(s, 0));
 
-    // pq[pq_len++] = Pq_elem(s, 0);
-
-    int id_stack_index = -1; // id_stack的指针
+    register int id_stack_index = -1; // id_stack的指针
     ull cur_dis, update_dis;
     ui cur_id, next_id, pred_id, j, end;
 
     // 最多循环n次
     while (!pq.empty())
-    // while (pq_len > 0)
     {
         // 找到离s点最近的顶点
         cur_dis = pq.top().dis;
@@ -532,9 +529,7 @@ void dijkstra_priority_queue(ui s, ui tid)
         {
             pred_id = g_pred[j].dst_id;
             if (dis[pred_id] + g_pred[j].weight == dis[cur_id])
-            {
-                delta[pred_id] += (sigma[pred_id] * 1.0 / sigma[cur_id]) * (1 + delta[cur_id]);
-            }
+                delta[pred_id] += sigma[pred_id] * (1 + delta[cur_id]) / sigma[cur_id];
             ++j;
         }
         score[cur_id] += delta[cur_id];
