@@ -4,7 +4,6 @@
 // 3. open //#define NEON
 
 #define TEST
-// #define FIB  // 使用斐波那契堆代替优先队列
 // #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
@@ -35,7 +34,7 @@ using namespace std;
 // 0
 // 1
 // 2
-string dataset = "0";
+string dataset = "1";
 #endif
 
 #ifdef MMAP
@@ -431,219 +430,6 @@ void pre_process()
     thread_g_pred.join();
 }
 
-struct node
-{
-    ui id;
-    ull dis;
-    node *prev;
-    node *next;
-    node *child;
-    node *parent;
-    int degree;
-    bool marked;
-};
-
-class FibonacciHeap
-{
-protected:
-    node *heap;
-
-public:
-    FibonacciHeap()
-    {
-        heap = _empty();
-    }
-    virtual ~FibonacciHeap()
-    {
-        if (heap)
-        {
-            _deleteAll(heap);
-        }
-    }
-
-    node *insert(ui id, ull dis)
-    {
-        node *ret = _singleton(id, dis);
-        heap = _merge(heap, ret);
-        return ret;
-    }
-
-    bool isEmpty()
-    {
-        return heap == NULL;
-    }
-
-    node *removeMinimum()
-    {
-        node *old = heap;
-        heap = _removeMinimum(heap);
-        return old;
-    }
-
-private:
-    node *_empty()
-    {
-        return NULL;
-    }
-
-    node *_singleton(ui id, ull dis)
-    {
-        node *n = new node;
-        n->id = id;
-        n->dis = dis;
-        n->prev = n->next = n;
-        n->degree = 0;
-        n->marked = false;
-        n->child = NULL;
-        n->parent = NULL;
-        return n;
-    }
-
-    node *_merge(node *a, node *b)
-    {
-        if (a == NULL)
-            return b;
-        if (b == NULL)
-            return a;
-        if (a->dis > b->dis)
-        {
-            node *temp = a;
-            a = b;
-            b = temp;
-        }
-        node *an = a->next;
-        node *bp = b->prev;
-        a->next = b;
-        b->prev = a;
-        an->prev = bp;
-        bp->next = an;
-        return a;
-    }
-
-    void _deleteAll(node *n)
-    {
-        if (n != NULL)
-        {
-            node *c = n;
-            do
-            {
-                node *d = c;
-                c = c->next;
-                _deleteAll(d->child);
-                delete d;
-            } while (c != n);
-        }
-    }
-
-    void _addChild(node *parent, node *child)
-    {
-        child->prev = child->next = child;
-        child->parent = parent;
-        parent->degree++;
-        parent->child = _merge(parent->child, child);
-    }
-
-    void _unMarkAndUnParentAll(node *n)
-    {
-        if (n == NULL)
-            return;
-        node *c = n;
-        do
-        {
-            c->marked = false;
-            c->parent = NULL;
-            c = c->next;
-        } while (c != n);
-    }
-
-    node *_removeMinimum(node *n)
-    {
-        _unMarkAndUnParentAll(n->child);
-        if (n->next == n)
-        {
-            n = n->child;
-        }
-        else
-        {
-            n->next->prev = n->prev;
-            n->prev->next = n->next;
-            n = _merge(n->next, n->child);
-        }
-        if (n == NULL)
-            return n;
-        node *trees[64] = {NULL};
-
-        while (true)
-        {
-            if (trees[n->degree] != NULL)
-            {
-                node *t = trees[n->degree];
-                if (t == n)
-                    break;
-                trees[n->degree] = NULL;
-                if (n->dis < t->dis)
-                {
-                    t->prev->next = t->next;
-                    t->next->prev = t->prev;
-                    _addChild(n, t);
-                }
-                else
-                {
-                    t->prev->next = t->next;
-                    t->next->prev = t->prev;
-                    if (n->next == n)
-                    {
-                        t->next = t->prev = t;
-                        _addChild(t, n);
-                        n = t;
-                    }
-                    else
-                    {
-                        n->prev->next = t;
-                        n->next->prev = t;
-                        t->next = n->next;
-                        t->prev = n->prev;
-                        _addChild(t, n);
-                        n = t;
-                    }
-                }
-                continue;
-            }
-            else
-            {
-                trees[n->degree] = n;
-            }
-            n = n->next;
-        }
-        node *min = n;
-        node *start = n;
-        do
-        {
-            if (n->dis < min->dis)
-                min = n;
-            n = n->next;
-        } while (n != start);
-        return min;
-    }
-
-    node *_cut(node *heap, node *n)
-    {
-        if (n->next == n)
-        {
-            n->parent->child = NULL;
-        }
-        else
-        {
-            n->next->prev = n->prev;
-            n->prev->next = n->next;
-            n->parent->child = n->next;
-        }
-        n->next = n->prev = n;
-        n->marked = false;
-        return _merge(heap, n);
-    }
-};
-
 struct Pq_elem
 {
     ui id;
@@ -663,12 +449,8 @@ struct Pq_elem
 struct ThreadMemory
 {
     ull dis[MAX_NUM_IDS];
-// 小根堆
-#ifdef FIB
-    FibonacciHeap fibHeap;
-#else
+    // 小根堆
     priority_queue<Pq_elem> pq;
-#endif
     ui id_stack[MAX_NUM_IDS];  // 出栈的节点会离s越来越近
     ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
     double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
@@ -680,11 +462,7 @@ void dijkstra_priority_queue(ui s, ui tid)
     if (out_degree[s] == 0)
         return;
     auto &dis = thread_memory[tid].dis;
-#ifdef FIB
-    auto &fibHeap = thread_memory[tid].fibHeap;
-#else
     auto &pq = thread_memory[tid].pq;
-#endif
     auto &id_stack = thread_memory[tid].id_stack;
     auto &sigma = thread_memory[tid].sigma;
     auto &delta = thread_memory[tid].delta;
@@ -696,36 +474,20 @@ void dijkstra_priority_queue(ui s, ui tid)
     memset(sigma, 0, id_num * sizeof(ui));
     sigma[s] = 1;
     memset(delta, 0, id_num * sizeof(double));
-#ifdef FIB
-    fibHeap.insert(s, 0);
-#else
     pq.push(Pq_elem(s, 0));
-#endif
 
     int id_stack_index = -1; // id_stack的指针
     ull cur_dis;
     ui cur_id, j;
 
-// 最多循环n次
-#ifdef FIB
-    while (!fibHeap.isEmpty())
-#else
+    // 最多循环n次
     while (!pq.empty())
-#endif
     {
-#ifdef FIB
-        // 找到离s点最近的顶点 logn
-        node *minNode = fibHeap.removeMinimum();
-        cur_dis = minNode->dis;
-        cur_id = minNode->id;
-        delete minNode;
-#else
         // 找到离s点最近的顶点
         cur_dis = pq.top().dis;
         cur_id = pq.top().id;
         // logn
         pq.pop();
-#endif
 
         if (cur_dis > dis[cur_id]) //dis[cur_id]可能经过松弛后变小了，原压入堆中的路径失去价值
             continue;
@@ -739,13 +501,8 @@ void dijkstra_priority_queue(ui s, ui tid)
             {
                 dis[g_succ[j].dst_id] = dis[cur_id] + g_succ[j].weight;
                 sigma[g_succ[j].dst_id] = sigma[cur_id];
-#ifdef FIB
-                // O(1)
-                fibHeap.insert(g_succ[j].dst_id, dis[g_succ[j].dst_id]);
-#else
                 // O(logn)
                 pq.push(Pq_elem(g_succ[j].dst_id, dis[g_succ[j].dst_id]));
-#endif
             }
             else if (dis[cur_id] + g_succ[j].weight == dis[g_succ[j].dst_id])
             {
