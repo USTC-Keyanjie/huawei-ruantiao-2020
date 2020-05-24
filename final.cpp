@@ -4,6 +4,7 @@
 // 3. open //#define NEON
 
 #define TEST
+// #define FIB  // 使用斐波那契堆代替优先队列
 // #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
@@ -34,7 +35,7 @@ using namespace std;
 // 0
 // 1
 // 2
-string dataset = "2";
+string dataset = "0";
 #endif
 
 #ifdef MMAP
@@ -53,7 +54,7 @@ string dataset = "2";
 #define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5 确定够用
 #define MAX_NUM_IDS 2500005   // 最大可接受id数 250w+5 确定够用
 
-#define TopN 100 // 只输出前TopN个结果
+#define TopK 100 // 只输出前TopK个结果
 
 typedef unsigned long long ull;
 typedef unsigned int ui;
@@ -430,6 +431,219 @@ void pre_process()
     thread_g_pred.join();
 }
 
+struct node
+{
+    ui id;
+    ull dis;
+    node *prev;
+    node *next;
+    node *child;
+    node *parent;
+    int degree;
+    bool marked;
+};
+
+class FibonacciHeap
+{
+protected:
+    node *heap;
+
+public:
+    FibonacciHeap()
+    {
+        heap = _empty();
+    }
+    virtual ~FibonacciHeap()
+    {
+        if (heap)
+        {
+            _deleteAll(heap);
+        }
+    }
+
+    node *insert(ui id, ull dis)
+    {
+        node *ret = _singleton(id, dis);
+        heap = _merge(heap, ret);
+        return ret;
+    }
+
+    bool isEmpty()
+    {
+        return heap == NULL;
+    }
+
+    node *removeMinimum()
+    {
+        node *old = heap;
+        heap = _removeMinimum(heap);
+        return old;
+    }
+
+private:
+    node *_empty()
+    {
+        return NULL;
+    }
+
+    node *_singleton(ui id, ull dis)
+    {
+        node *n = new node;
+        n->id = id;
+        n->dis = dis;
+        n->prev = n->next = n;
+        n->degree = 0;
+        n->marked = false;
+        n->child = NULL;
+        n->parent = NULL;
+        return n;
+    }
+
+    node *_merge(node *a, node *b)
+    {
+        if (a == NULL)
+            return b;
+        if (b == NULL)
+            return a;
+        if (a->dis > b->dis)
+        {
+            node *temp = a;
+            a = b;
+            b = temp;
+        }
+        node *an = a->next;
+        node *bp = b->prev;
+        a->next = b;
+        b->prev = a;
+        an->prev = bp;
+        bp->next = an;
+        return a;
+    }
+
+    void _deleteAll(node *n)
+    {
+        if (n != NULL)
+        {
+            node *c = n;
+            do
+            {
+                node *d = c;
+                c = c->next;
+                _deleteAll(d->child);
+                delete d;
+            } while (c != n);
+        }
+    }
+
+    void _addChild(node *parent, node *child)
+    {
+        child->prev = child->next = child;
+        child->parent = parent;
+        parent->degree++;
+        parent->child = _merge(parent->child, child);
+    }
+
+    void _unMarkAndUnParentAll(node *n)
+    {
+        if (n == NULL)
+            return;
+        node *c = n;
+        do
+        {
+            c->marked = false;
+            c->parent = NULL;
+            c = c->next;
+        } while (c != n);
+    }
+
+    node *_removeMinimum(node *n)
+    {
+        _unMarkAndUnParentAll(n->child);
+        if (n->next == n)
+        {
+            n = n->child;
+        }
+        else
+        {
+            n->next->prev = n->prev;
+            n->prev->next = n->next;
+            n = _merge(n->next, n->child);
+        }
+        if (n == NULL)
+            return n;
+        node *trees[64] = {NULL};
+
+        while (true)
+        {
+            if (trees[n->degree] != NULL)
+            {
+                node *t = trees[n->degree];
+                if (t == n)
+                    break;
+                trees[n->degree] = NULL;
+                if (n->dis < t->dis)
+                {
+                    t->prev->next = t->next;
+                    t->next->prev = t->prev;
+                    _addChild(n, t);
+                }
+                else
+                {
+                    t->prev->next = t->next;
+                    t->next->prev = t->prev;
+                    if (n->next == n)
+                    {
+                        t->next = t->prev = t;
+                        _addChild(t, n);
+                        n = t;
+                    }
+                    else
+                    {
+                        n->prev->next = t;
+                        n->next->prev = t;
+                        t->next = n->next;
+                        t->prev = n->prev;
+                        _addChild(t, n);
+                        n = t;
+                    }
+                }
+                continue;
+            }
+            else
+            {
+                trees[n->degree] = n;
+            }
+            n = n->next;
+        }
+        node *min = n;
+        node *start = n;
+        do
+        {
+            if (n->dis < min->dis)
+                min = n;
+            n = n->next;
+        } while (n != start);
+        return min;
+    }
+
+    node *_cut(node *heap, node *n)
+    {
+        if (n->next == n)
+        {
+            n->parent->child = NULL;
+        }
+        else
+        {
+            n->next->prev = n->prev;
+            n->prev->next = n->next;
+            n->parent->child = n->next;
+        }
+        n->next = n->prev = n;
+        n->marked = false;
+        return _merge(heap, n);
+    }
+};
+
 struct Pq_elem
 {
     ui id;
@@ -449,8 +663,12 @@ struct Pq_elem
 struct ThreadMemory
 {
     ull dis[MAX_NUM_IDS];
-    // 小根堆
+// 小根堆
+#ifdef FIB
+    FibonacciHeap fibHeap;
+#else
     priority_queue<Pq_elem> pq;
+#endif
     ui id_stack[MAX_NUM_IDS];  // 出栈的节点会离s越来越近
     ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
     double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
@@ -462,7 +680,11 @@ void dijkstra_priority_queue(ui s, ui tid)
     if (out_degree[s] == 0)
         return;
     auto &dis = thread_memory[tid].dis;
+#ifdef FIB
+    auto &fibHeap = thread_memory[tid].fibHeap;
+#else
     auto &pq = thread_memory[tid].pq;
+#endif
     auto &id_stack = thread_memory[tid].id_stack;
     auto &sigma = thread_memory[tid].sigma;
     auto &delta = thread_memory[tid].delta;
@@ -471,59 +693,83 @@ void dijkstra_priority_queue(ui s, ui tid)
     // 初始化 3n
     fill(dis, dis + id_num, UINT64_MAX);
     dis[s] = 0;
-    memset(sigma, 0, id_num * sizeof(double));
+    memset(sigma, 0, id_num * sizeof(ui));
     sigma[s] = 1;
     memset(delta, 0, id_num * sizeof(double));
+#ifdef FIB
+    fibHeap.insert(s, 0);
+#else
     pq.push(Pq_elem(s, 0));
+#endif
 
     int id_stack_index = -1; // id_stack的指针
     ull cur_dis;
-    ui cur_id;
+    ui cur_id, j;
 
-    // 最多循环n次
+// 最多循环n次
+#ifdef FIB
+    while (!fibHeap.isEmpty())
+#else
     while (!pq.empty())
+#endif
     {
+#ifdef FIB
+        // 找到离s点最近的顶点 logn
+        node *minNode = fibHeap.removeMinimum();
+        cur_dis = minNode->dis;
+        cur_id = minNode->id;
+        delete minNode;
+#else
         // 找到离s点最近的顶点
         cur_dis = pq.top().dis;
         cur_id = pq.top().id;
         // logn
         pq.pop();
+#endif
 
         if (cur_dis > dis[cur_id]) //dis[cur_id]可能经过松弛后变小了，原压入堆中的路径失去价值
             continue;
 
         id_stack[++id_stack_index] = cur_id;
-
+        j = succ_begin_pos[cur_id];
         // 遍历cur_id的后继 平均循环d次(平均出度)
-        for (ui j = succ_begin_pos[cur_id]; j < succ_begin_pos[cur_id] + out_degree[cur_id]; ++j)
+        while (j < succ_begin_pos[cur_id] + out_degree[cur_id])
         {
             if (dis[cur_id] + g_succ[j].weight < dis[g_succ[j].dst_id])
             {
                 dis[g_succ[j].dst_id] = dis[cur_id] + g_succ[j].weight;
                 sigma[g_succ[j].dst_id] = sigma[cur_id];
-                // logn
+#ifdef FIB
+                // O(1)
+                fibHeap.insert(g_succ[j].dst_id, dis[g_succ[j].dst_id]);
+#else
+                // O(logn)
                 pq.push(Pq_elem(g_succ[j].dst_id, dis[g_succ[j].dst_id]));
+#endif
             }
             else if (dis[cur_id] + g_succ[j].weight == dis[g_succ[j].dst_id])
             {
                 sigma[g_succ[j].dst_id] += sigma[cur_id];
             }
+            ++j;
         }
     }
 
-    ui pred_id = 0;
+    ui pred_id;
     // 最多循环n次
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
+        j = pred_begin_pos[cur_id];
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
-        for (ui j = pred_begin_pos[cur_id]; j < pred_begin_pos[cur_id] + in_degree[cur_id]; ++j)
+        while (j < pred_begin_pos[cur_id] + in_degree[cur_id])
         {
             pred_id = g_pred[j].dst_id;
             if (dis[pred_id] + g_pred[j].weight == dis[cur_id])
             {
                 delta[pred_id] += (sigma[pred_id] * 1.0 / sigma[cur_id]) * (1 + delta[cur_id]);
             }
+            ++j;
         }
         score[cur_id] += delta[cur_id];
     }
@@ -550,6 +796,10 @@ void thread_process(ui tid)
         }
         else
         {
+#ifdef TEST
+            if (cur_id % 10000 == 0)
+                printf("[%0.1f%%] ~ %u/%u\n", 100.0 * cur_id / id_num, cur_id, id_num);
+#endif
             s_id = cur_id++;
             id_lock.unlock();
             dijkstra_priority_queue(s_id, tid);
@@ -579,17 +829,6 @@ struct Res_pq_elem
     }
 };
 
-void print_rec(FILE *fp, priority_queue<Res_pq_elem> &pq)
-{
-    if (pq.empty())
-        return;
-
-    Res_pq_elem res = pq.top();
-    pq.pop();
-    print_rec(fp, pq);
-    fprintf(fp, "%u,%.3lf\n", res.id, res.score);
-}
-
 void save_fwrite(char *resultFile)
 {
     memcpy(global_score, thread_memory[0].score, id_num * sizeof(double));
@@ -609,7 +848,7 @@ void save_fwrite(char *resultFile)
 
     index = 0;
     priority_queue<Res_pq_elem> pq;
-    while (index < TopN)
+    while (index < TopK)
     {
         pq.push(Res_pq_elem(index, global_score[index]));
         ++index;
@@ -628,7 +867,7 @@ void save_fwrite(char *resultFile)
     FILE *fp;
 
     fp = fopen(resultFile, "wb");
-    // print_rec(fp, pq);
+
     Res_pq_elem res_arr[100];
     index = 99;
     while (index >= 0)
