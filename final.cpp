@@ -86,7 +86,9 @@ ui u_ids[MAX_NUM_EDGES];
 ui v_ids[MAX_NUM_EDGES];
 ui ids[MAX_NUM_EDGES];
 Node g_succ[MAX_NUM_EDGES];
+ui succ_index;
 Node g_pred[MAX_NUM_EDGES];
+ui pred_index;
 ui out_degree[MAX_NUM_IDS];       // 每个节点的出度
 ui in_degree[MAX_NUM_IDS];        // 每个节点的入度
 ui succ_begin_pos[MAX_NUM_IDS];   // 对于邻接表每个节点的起始index
@@ -350,7 +352,7 @@ void merge_uv_ids()
 
 void build_g_succ()
 {
-    ui succ_iterator = 0, succ_index = 0, cur_id = 0;
+    ui succ_iterator = 0, cur_id = 0;
     while (cur_id < id_num)
     {
         succ_iterator = succ_begin_pos[cur_id];
@@ -366,7 +368,7 @@ void build_g_succ()
 
 void build_g_pred()
 {
-    ui pred_iterator = 0, pred_index = 0, cur_id = 0;
+    ui pred_iterator = 0, cur_id = 0;
     while (cur_id < id_num)
     {
         pred_iterator = pred_begin_pos[cur_id];
@@ -455,6 +457,8 @@ struct ThreadMemory
     ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
     double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
     double score[MAX_NUM_IDS]; // 位置中心性
+    Node g_succ[MAX_NUM_EDGES];
+    Node g_pred[MAX_NUM_EDGES];
 
 #ifdef TEST
     struct timeval start_time;
@@ -476,6 +480,8 @@ void dijkstra_priority_queue(ui s, ui tid)
     auto &sigma = thread_memory[tid].sigma;
     auto &delta = thread_memory[tid].delta;
     auto &score = thread_memory[tid].score;
+    auto &thread_g_succ = thread_memory[tid].g_succ;
+    auto &thread_g_pred = thread_memory[tid].g_pred;
 
 #ifdef TEST
     auto &start_time = thread_memory[tid].start_time;
@@ -527,8 +533,8 @@ void dijkstra_priority_queue(ui s, ui tid)
         // 遍历cur_id的后继 平均循环d次(平均出度)
         while (j < end_pos)
         {
-            update_dis = dis[cur_id] + g_succ[j].weight;
-            next_id = g_succ[j].dst_id;
+            update_dis = dis[cur_id] + thread_g_succ[j].weight;
+            next_id = thread_g_succ[j].dst_id;
             if (update_dis < dis[next_id])
             {
                 dis[next_id] = update_dis;
@@ -559,9 +565,9 @@ void dijkstra_priority_queue(ui s, ui tid)
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
         while (j < end_pos)
         {
-            pred_id = g_pred[j].dst_id;
+            pred_id = thread_g_pred[j].dst_id;
             coeff = (1 + delta[cur_id]) / sigma[cur_id];
-            if (dis[pred_id] + g_pred[j].weight == dis[cur_id])
+            if (dis[pred_id] + thread_g_pred[j].weight == dis[cur_id])
                 delta[pred_id] += sigma[pred_id] * coeff;
             ++j;
         }
@@ -584,6 +590,8 @@ void thread_process(ui tid)
     Time_recorder timer;
     timer.setTime();
 #endif
+    memcpy(thread_memory[tid].g_succ, g_succ, succ_index * sizeof(Node));
+    memcpy(thread_memory[tid].g_pred, g_pred, pred_index * sizeof(Node));
 
     ui s_id;
     while (true)
