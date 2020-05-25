@@ -457,6 +457,10 @@ struct ThreadMemory
     double score[MAX_NUM_IDS]; // 位置中心性
 } thread_memory[NUM_THREADS];
 
+int id_stack_index; // id_stack的指针
+ull cur_dis, update_dis;
+ui cur_id, next_id, pred_id, j, end_pos;
+
 void dijkstra_priority_queue(ui s, ui tid)
 {
     if (out_degree[s] == 0)
@@ -477,9 +481,7 @@ void dijkstra_priority_queue(ui s, ui tid)
 
     pq.emplace(Pq_elem(s, 0));
 
-    register int id_stack_index = -1; // id_stack的指针
-    ull cur_dis, update_dis;
-    ui cur_id, next_id, pred_id, j, end;
+    id_stack_index = -1;
 
     // 最多循环n次
     while (!pq.empty())
@@ -495,9 +497,9 @@ void dijkstra_priority_queue(ui s, ui tid)
 
         id_stack[++id_stack_index] = cur_id;
         j = succ_begin_pos[cur_id];
-        end = j + out_degree[cur_id];
+        end_pos = j + out_degree[cur_id];
         // 遍历cur_id的后继 平均循环d次(平均出度)
-        while (j < end)
+        while (j < end_pos)
         {
             update_dis = dis[cur_id] + g_succ[j].weight;
             next_id = g_succ[j].dst_id;
@@ -521,9 +523,9 @@ void dijkstra_priority_queue(ui s, ui tid)
     {
         cur_id = id_stack[id_stack_index--];
         j = pred_begin_pos[cur_id];
-        end = j + in_degree[cur_id];
+        end_pos = j + in_degree[cur_id];
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
-        while (j < end)
+        while (j < end_pos)
         {
             pred_id = g_pred[j].dst_id;
             if (dis[pred_id] + g_pred[j].weight == dis[cur_id])
