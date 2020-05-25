@@ -453,12 +453,16 @@ struct ThreadMemory
     ull dis[MAX_NUM_IDS];
     // 小根堆
     priority_queue<Pq_elem> pq;
-    ui id_stack[MAX_NUM_IDS];  // 出栈的节点会离s越来越近
-    ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
-    double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
-    double score[MAX_NUM_IDS]; // 位置中心性
-    Node g_succ[MAX_NUM_EDGES];
-    Node g_pred[MAX_NUM_EDGES];
+    ui id_stack[MAX_NUM_IDS];       // 出栈的节点会离s越来越近
+    ui sigma[MAX_NUM_IDS];          // 起点到当前点最短路径的数量
+    double delta[MAX_NUM_IDS];      // sigma_st(index) / sigma_st
+    double score[MAX_NUM_IDS];      // 位置中心性
+    Node g_succ[MAX_NUM_EDGES];     // 邻接表
+    Node g_pred[MAX_NUM_EDGES];     // 逆邻接表
+    ui out_degree[MAX_NUM_IDS];     // 每个节点的出度
+    ui in_degree[MAX_NUM_IDS];      // 每个节点的入度
+    ui succ_begin_pos[MAX_NUM_IDS]; // 对于邻接表每个节点的起始index
+    ui pred_begin_pos[MAX_NUM_IDS]; // 对于逆邻接表每个节点的起始index
 
 #ifdef TEST
     struct timeval start_time;
@@ -482,6 +486,10 @@ void dijkstra_priority_queue(ui s, ui tid)
     auto &score = thread_memory[tid].score;
     auto &thread_g_succ = thread_memory[tid].g_succ;
     auto &thread_g_pred = thread_memory[tid].g_pred;
+    auto &thread_out_degree = thread_memory[tid].out_degree;
+    auto &thread_in_degree = thread_memory[tid].in_degree;
+    auto &thread_succ_begin_pos = thread_memory[tid].succ_begin_pos;
+    auto &thread_pred_begin_pos = thread_memory[tid].pred_begin_pos;
 
 #ifdef TEST
     auto &start_time = thread_memory[tid].start_time;
@@ -528,8 +536,8 @@ void dijkstra_priority_queue(ui s, ui tid)
             continue;
 
         id_stack[++id_stack_index] = cur_id;
-        j = succ_begin_pos[cur_id];
-        end_pos = j + out_degree[cur_id];
+        j = thread_succ_begin_pos[cur_id];
+        end_pos = j + thread_out_degree[cur_id];
         // 遍历cur_id的后继 平均循环d次(平均出度)
         while (j < end_pos)
         {
@@ -560,8 +568,8 @@ void dijkstra_priority_queue(ui s, ui tid)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
-        j = pred_begin_pos[cur_id];
-        end_pos = j + in_degree[cur_id];
+        j = thread_pred_begin_pos[cur_id];
+        end_pos = j + thread_in_degree[cur_id];
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
         while (j < end_pos)
         {
@@ -591,7 +599,12 @@ void thread_process(ui tid)
     timer.setTime();
 #endif
     memcpy(thread_memory[tid].g_succ, g_succ, succ_index * sizeof(Node));
+    memcpy(thread_memory[tid].out_degree, out_degree, id_num * sizeof(Node));
+    memcpy(thread_memory[tid].succ_begin_pos, succ_begin_pos, id_num * sizeof(Node));
+
     memcpy(thread_memory[tid].g_pred, g_pred, pred_index * sizeof(Node));
+    memcpy(thread_memory[tid].in_degree, in_degree, id_num * sizeof(Node));
+    memcpy(thread_memory[tid].pred_begin_pos, pred_begin_pos, id_num * sizeof(Node));
 
     ui s_id;
     while (true)
