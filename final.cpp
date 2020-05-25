@@ -455,15 +455,20 @@ struct ThreadMemory
     ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
     double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
     double score[MAX_NUM_IDS]; // 位置中心性
+
+#ifdef TEST
+    ull memset_time;
+    ull dij_time;
+    ull after_time;
+#endif
 } thread_memory[NUM_THREADS];
 
-int id_stack_index; // id_stack的指针
-ull cur_dis, update_dis;
-ui cur_id, next_id, pred_id, j, end_pos;
-double coeff;
+struct timeval start_time;
+struct timeval end_time;
 
 void dijkstra_priority_queue(ui s, ui tid)
 {
+
     if (out_degree[s] == 0)
         return;
     auto &dis = thread_memory[tid].dis;
@@ -473,6 +478,21 @@ void dijkstra_priority_queue(ui s, ui tid)
     auto &delta = thread_memory[tid].delta;
     auto &score = thread_memory[tid].score;
 
+#ifdef TEST
+    auto &memset_time = thread_memory[tid].memset_time;
+    auto &dij_time = thread_memory[tid].dij_time;
+    auto &after_time = thread_memory[tid].after_time;
+#endif
+
+#ifdef TEST
+    gettimeofday(&start_time, NULL);
+#endif
+
+    int id_stack_index = -1; // id_stack的指针
+    ull cur_dis, update_dis;
+    ui cur_id, next_id, pred_id, j, end_pos;
+    double coeff;
+
     // 初始化 3n
     memset(dis, 0xffffffff, id_num << 3);
     dis[s] = 0;
@@ -480,9 +500,14 @@ void dijkstra_priority_queue(ui s, ui tid)
     sigma[s] = 1;
     memset(delta, 0, id_num << 3);
 
+#ifdef TEST
+    gettimeofday(&end_time, NULL);
+    memset_time += ull(1000 * (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1000);
+    gettimeofday(&start_time, NULL);
+#endif
+
     pq.emplace(Pq_elem(s, 0));
 
-    id_stack_index = -1;
 
     // 最多循环n次
     while (!pq.empty())
@@ -519,6 +544,12 @@ void dijkstra_priority_queue(ui s, ui tid)
         }
     }
 
+#ifdef TEST
+    gettimeofday(&end_time, NULL);
+    dij_time += ull(1000 * (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1000);
+    gettimeofday(&start_time, NULL);
+#endif
+
     // 最多循环n次 O(n)
     while (id_stack_index > 0)
     {
@@ -536,6 +567,12 @@ void dijkstra_priority_queue(ui s, ui tid)
         }
         score[cur_id] += delta[cur_id];
     }
+
+#ifdef TEST
+    gettimeofday(&end_time, NULL);
+    after_time += ull(1000 * (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1000);
+    gettimeofday(&start_time, NULL);
+#endif
 }
 
 mutex id_lock;
@@ -722,6 +759,36 @@ int main(int argc, char *argv[])
     timer_local.printLogs();
     timer_global.logTime("Whole Process");
 #endif
+
+    printf("memset_time: %0.3llf\n", (double)(thread_memory[0].memset_time +
+                                              thread_memory[1].memset_time +
+                                              thread_memory[2].memset_time +
+                                              thread_memory[3].memset_time +
+                                              thread_memory[4].memset_time +
+                                              thread_memory[5].memset_time +
+                                              thread_memory[6].memset_time +
+                                              thread_memory[7].memset_time) /
+                                         id_num);
+
+    printf("dij_time: %0.3llf\n", (double)(thread_memory[0].dij_time +
+                                           thread_memory[1].dij_time +
+                                           thread_memory[2].dij_time +
+                                           thread_memory[3].dij_time +
+                                           thread_memory[4].dij_time +
+                                           thread_memory[5].dij_time +
+                                           thread_memory[6].dij_time +
+                                           thread_memory[7].dij_time) /
+                                      id_num);
+
+    printf("after_time: %0.3llf\n", (double)(thread_memory[0].after_time +
+                                             thread_memory[1].after_time +
+                                             thread_memory[2].after_time +
+                                             thread_memory[3].after_time +
+                                             thread_memory[4].after_time +
+                                             thread_memory[5].after_time +
+                                             thread_memory[6].after_time +
+                                             thread_memory[7].after_time) /
+                                        id_num);
 
     return 0;
 }
