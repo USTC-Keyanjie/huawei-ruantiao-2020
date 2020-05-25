@@ -34,7 +34,7 @@ using namespace std;
 // 0
 // 1
 // 2
-string dataset = "2";
+string dataset = "1";
 #endif
 
 #ifdef MMAP
@@ -538,11 +538,11 @@ void dijkstra_priority_queue(ui s, ui tid)
         cur_id = id_stack[id_stack_index--];
         j = local_pred_begin_pos[cur_id];
         end_pos = j + local_in_degree[cur_id];
+        coeff = (1 + delta[cur_id]) / sigma[cur_id];
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
         while (j < end_pos)
         {
             pred_id = local_g_pred[j].dst_id;
-            coeff = (1 + delta[cur_id]) / sigma[cur_id];
             if (dis[pred_id] + local_g_pred[j].weight == dis[cur_id])
                 delta[pred_id] += sigma[pred_id] * coeff;
             ++j;
@@ -562,12 +562,12 @@ void thread_process(ui tid)
 #endif
 
     memcpy(thread_memory[tid].local_g_succ, g_succ, succ_index * sizeof(Node));
-    memcpy(thread_memory[tid].local_out_degree, out_degree, id_num << 2);
-    memcpy(thread_memory[tid].local_succ_begin_pos, succ_begin_pos, id_num << 2);
+    memcpy(thread_memory[tid].local_out_degree, out_degree, id_num * sizeof(Node));
+    memcpy(thread_memory[tid].local_succ_begin_pos, succ_begin_pos, id_num * sizeof(Node));
 
     memcpy(thread_memory[tid].local_g_pred, g_pred, pred_index * sizeof(Node));
-    memcpy(thread_memory[tid].local_in_degree, in_degree, id_num << 2);
-    memcpy(thread_memory[tid].local_pred_begin_pos, pred_begin_pos, id_num << 2);
+    memcpy(thread_memory[tid].local_in_degree, in_degree, id_num * sizeof(Node));
+    memcpy(thread_memory[tid].local_pred_begin_pos, pred_begin_pos, id_num * sizeof(Node));
 
     ui s_id;
     while (true)
