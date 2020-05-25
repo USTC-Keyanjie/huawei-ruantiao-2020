@@ -495,7 +495,7 @@ void dijkstra_priority_queue(ui s, ui tid)
 
     pq.push(Pq_elem(s, 0));
 
-    int id_stack_index = -1; // id_stack的指针
+    register int id_stack_index = -1; // id_stack的指针
     ull cur_dis, update_dis;
     ui cur_id, j, end;
     double coeff;
@@ -621,7 +621,7 @@ struct Res_pq_elem
 void save_fwrite(char *resultFile)
 {
     memcpy(global_score, thread_memory[0].score, id_num * sizeof(double));
-    int index = 1;
+    register int index = 1;
     while (index < NUM_THREADS)
     {
         /* code */ // neon 相加
