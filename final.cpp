@@ -66,12 +66,12 @@ struct Node
     ui dst_id;
     ull weight;
 
-    Node() {}
+    inline Node() {}
 
-    Node(ui cur_id, ull weight) : dst_id(cur_id), weight(weight) {}
+    inline Node(ui cur_id, ull weight) : dst_id(cur_id), weight(weight) {}
 
     // 依据next_id进行排序
-    bool operator<(const Node &nextNode) const
+    inline bool operator<(const Node &nextNode) const
     {
         return dst_id < nextNode.dst_id;
     }
@@ -166,10 +166,10 @@ struct Time_recorder
 
 #ifdef _WIN32
     unsigned int start_time;
-    unsigned int end_time;
+    unsigned int end_pos_time;
 #else
     struct timeval start_time;
-    struct timeval end_time;
+    struct timeval end_pos_time;
 #endif
 
     void setTime()
@@ -184,11 +184,11 @@ struct Time_recorder
     int getElapsedTimeMS()
     {
 #ifdef _WIN32
-        end_time = GetTickCount();
-        return int(end_time - start_time);
+        end_pos_time = GetTickCount();
+        return int(end_pos_time - start_time);
 #else
-        gettimeofday(&end_time, NULL);
-        return int(1000 * (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1000);
+        gettimeofday(&end_pos_time, NULL);
+        return int(1000 * (end_pos_time.tv_sec - start_time.tv_sec) + (end_pos_time.tv_usec - start_time.tv_usec) / 1000);
 #endif
     }
 
@@ -253,7 +253,7 @@ void input_mmap(char *testFile)
 #endif
     int fd = open(testFile, O_RDONLY);
     //get the size of the document
-    // long length = lseek(fd, 0, SEEK_END);
+    // long length = lseek(fd, 0, SEEK_end_pos);
 
     struct stat stat_buf;
     fstat(fd, &stat_buf);
@@ -299,7 +299,7 @@ void input_mmap(char *testFile)
     close(fd);
     munmap(buf, length);
 #ifdef TEST
-    cout << "mmap input time " << (double)(clock() - input_time) / CLOCKS_PER_SEC << "s" << endl;
+    cout << "mmap input time " << (double)(clock() - input_time) / CLOCKS_PER_SEC << "s" << end_posl;
 #endif
 }
 #endif
@@ -453,8 +453,6 @@ struct ThreadMemory
     ull dis[MAX_NUM_IDS];
     // 小根堆
     priority_queue<Pq_elem> pq;
-    // Pq_elem pq[MAX_NUM_IDS * 10];
-    ui pq_len;
     ui id_stack[MAX_NUM_IDS];             // 出栈的节点会离s越来越近
     ui sigma[MAX_NUM_IDS];                // 起点到当前点最短路径的数量
     double delta[MAX_NUM_IDS];            // sigma_st(index) / sigma_st
@@ -473,7 +471,6 @@ void dijkstra_priority_queue(ui s, ui tid)
         return;
     auto &dis = thread_memory[tid].dis;
     auto &pq = thread_memory[tid].pq;
-    auto &pq_len = thread_memory[tid].pq_len;
     auto &id_stack = thread_memory[tid].id_stack;
     auto &sigma = thread_memory[tid].sigma;
     auto &delta = thread_memory[tid].delta;
@@ -485,6 +482,11 @@ void dijkstra_priority_queue(ui s, ui tid)
     auto &local_in_degree = thread_memory[tid].local_in_degree;
     auto &local_succ_begin_pos = thread_memory[tid].local_succ_begin_pos;
     auto &local_pred_begin_pos = thread_memory[tid].local_pred_begin_pos;
+    
+    register int id_stack_index = -1; // id_stack的指针
+    ull cur_dis, update_dis;
+    ui cur_id, next_id, pred_id, j, end_pos;
+    double coeff;
 
     // 初始化 3n
     memset(dis, 0x3f, id_num << 3);
@@ -493,12 +495,7 @@ void dijkstra_priority_queue(ui s, ui tid)
     sigma[s] = 1;
     memset(delta, 0, id_num << 3);
 
-    pq.push(Pq_elem(s, 0));
-
-    register int id_stack_index = -1; // id_stack的指针
-    ull cur_dis, update_dis;
-    ui cur_id, j, end;
-    double coeff;
+    pq.emplace(Pq_elem(s, 0));
 
     // 最多循环n次
     while (!pq.empty())
@@ -514,42 +511,40 @@ void dijkstra_priority_queue(ui s, ui tid)
 
         id_stack[++id_stack_index] = cur_id;
         j = local_succ_begin_pos[cur_id];
-        end = j + local_out_degree[cur_id];
+        end_pos = j + local_out_degree[cur_id];
         // 遍历cur_id的后继 平均循环d次(平均出度)
-        while (j < end)
+        while (j < end_pos)
         {
             update_dis = dis[cur_id] + local_g_succ[j].weight;
-            if (update_dis < dis[local_g_succ[j].dst_id])
+            next_id = local_g_succ[j].dst_id;
+            if (update_dis < dis[next_id])
             {
-                dis[local_g_succ[j].dst_id] = update_dis;
-                sigma[local_g_succ[j].dst_id] = sigma[cur_id];
+                dis[next_id] = update_dis;
+                sigma[next_id] = sigma[cur_id];
                 // O(logn)
-                pq.push(Pq_elem(local_g_succ[j].dst_id, dis[local_g_succ[j].dst_id]));
+                pq.emplace(Pq_elem(next_id, dis[next_id]));
             }
-            else if (update_dis == dis[local_g_succ[j].dst_id])
+            else if (update_dis == dis[next_id])
             {
-                sigma[local_g_succ[j].dst_id] += sigma[cur_id];
+                sigma[next_id] += sigma[cur_id];
             }
             ++j;
         }
     }
 
-    ui pred_id;
     // 最多循环n次 O(n)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
         j = local_pred_begin_pos[cur_id];
-        end = j + local_in_degree[cur_id];
+        end_pos = j + local_in_degree[cur_id];
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
-        while (j < end)
+        while (j < end_pos)
         {
             pred_id = local_g_pred[j].dst_id;
             coeff = (1 + delta[cur_id]) / sigma[cur_id];
             if (dis[pred_id] + local_g_pred[j].weight == dis[cur_id])
-            {
                 delta[pred_id] += sigma[pred_id] * coeff;
-            }
             ++j;
         }
         score[cur_id] += delta[cur_id];
@@ -621,7 +616,7 @@ struct Res_pq_elem
 void save_fwrite(char *resultFile)
 {
     memcpy(global_score, thread_memory[0].score, id_num * sizeof(double));
-    register int index = 1;
+    int index = 1;
     while (index < NUM_THREADS)
     {
         /* code */ // neon 相加
@@ -639,7 +634,7 @@ void save_fwrite(char *resultFile)
     priority_queue<Res_pq_elem> pq;
     while (index < TopK)
     {
-        pq.push(Res_pq_elem(index, global_score[index]));
+        pq.emplace(Res_pq_elem(index, global_score[index]));
         ++index;
     }
 
@@ -648,7 +643,7 @@ void save_fwrite(char *resultFile)
         if (global_score[index] > pq.top().score && abs(global_score[index] - pq.top().score) > 0.0001)
         {
             pq.pop();
-            pq.push(Res_pq_elem(index, global_score[index]));
+            pq.emplace(Res_pq_elem(index, global_score[index]));
         }
         ++index;
     }
