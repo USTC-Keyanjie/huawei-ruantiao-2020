@@ -460,6 +460,7 @@ struct ThreadMemory
 int id_stack_index; // id_stack的指针
 ull cur_dis, update_dis;
 ui cur_id, next_id, pred_id, j, end_pos;
+double coeff;
 
 void dijkstra_priority_queue(ui s, ui tid)
 {
@@ -528,8 +529,9 @@ void dijkstra_priority_queue(ui s, ui tid)
         while (j < end_pos)
         {
             pred_id = g_pred[j].dst_id;
+            coeff = (1 + delta[cur_id]) / sigma[cur_id];
             if (dis[pred_id] + g_pred[j].weight == dis[cur_id])
-                delta[pred_id] += sigma[pred_id] * (1 + delta[cur_id]) / sigma[cur_id];
+                delta[pred_id] += sigma[pred_id] * coeff;
             ++j;
         }
         score[cur_id] += delta[cur_id];
