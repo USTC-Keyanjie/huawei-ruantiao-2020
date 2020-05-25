@@ -469,11 +469,11 @@ void dijkstra_priority_queue(ui s, ui tid)
     auto &score = thread_memory[tid].score;
 
     // 初始化 3n
-    fill(dis, dis + id_num, UINT64_MAX);
+    memset(dis, 0xffffffff, id_num << 3);
     dis[s] = 0;
     memset(sigma, 0, id_num << 2);
     sigma[s] = 1;
-    fill(delta, delta + id_num, 0);
+    memset(delta, 0, id_num << 3);
 
     pq.emplace(Pq_elem(s, 0));
 
