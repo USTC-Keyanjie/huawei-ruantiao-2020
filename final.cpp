@@ -435,11 +435,11 @@ struct Pq_elem
     ui id;
     ull dis;
 
-    inline Pq_elem() {}
+    Pq_elem() {}
 
-    inline Pq_elem(ui id, ull dis) : id(id), dis(dis) {}
+    Pq_elem(ui id, ull dis) : id(id), dis(dis) {}
 
-    inline bool operator<(const Pq_elem &nextNode) const
+    bool operator<(const Pq_elem &nextNode) const
     {
         return dis > nextNode.dis;
     }
@@ -451,15 +451,53 @@ struct ThreadMemory
     ull dis[MAX_NUM_IDS];
     // 小根堆
     priority_queue<Pq_elem> pq;
+    // Pq_elem pq[MAX_NUM_IDS * 10];
+    ui pq_len;
     ui id_stack[MAX_NUM_IDS];  // 出栈的节点会离s越来越近
     ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
     double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
     double score[MAX_NUM_IDS]; // 位置中心性
 } thread_memory[NUM_THREADS];
 
-int id_stack_index; // id_stack的指针
-ull cur_dis, update_dis;
-ui cur_id, next_id, pred_id, j, end_pos;
+void siftup(Pq_elem pq[], ui limit)
+{
+    while (limit > 1)
+    {
+        if (pq[(limit >> 1) - 1].dis > pq[limit - 1].dis) // 如果父节点比自己大
+        {
+            // 交换 pq[(limit >> 1) - 1] 和 pq[limit - 1] 的值
+            pq[(limit >> 1) - 1].id ^= pq[limit - 1].id ^= pq[(limit >> 1) - 1].id ^= pq[limit - 1].id;
+            pq[(limit >> 1) - 1].dis ^= pq[limit - 1].dis ^= pq[(limit >> 1) - 1].dis ^= pq[limit - 1].dis;
+        }
+        else
+        {
+            break;
+        }
+        limit >>= 1;
+    }
+}
+
+void siftdown(Pq_elem pq[], ui pq_len)
+{
+    ui index = 0, t_index = 0;
+    while ((index << 1) + 1 < pq_len) // 有左孩子
+    {
+        // 首先判断和左孩子的关系
+        if (pq[index].dis > pq[(index << 1) + 1].dis)
+            t_index = (index << 1) + 1;
+        if (((index + 1) << 1) < pq_len && pq[index].dis > pq[(index + 1) << 1].dis) // 右孩子存在且自己比右孩子大
+            t_index = (index + 1) << 1;
+        if (index == t_index)
+            break;
+        else
+        {
+            // 交换 pq[index] 和 pq[t_index] 的值
+            pq[index].id ^= pq[t_index].id ^= pq[index].id ^= pq[t_index].id;
+            pq[index].dis ^= pq[t_index].dis ^= pq[index].dis ^= pq[t_index].dis;
+            index = t_index;
+        }
+    }
+}
 
 void dijkstra_priority_queue(ui s, ui tid)
 {
@@ -467,24 +505,30 @@ void dijkstra_priority_queue(ui s, ui tid)
         return;
     auto &dis = thread_memory[tid].dis;
     auto &pq = thread_memory[tid].pq;
+    auto &pq_len = thread_memory[tid].pq_len;
     auto &id_stack = thread_memory[tid].id_stack;
     auto &sigma = thread_memory[tid].sigma;
     auto &delta = thread_memory[tid].delta;
     auto &score = thread_memory[tid].score;
 
     // 初始化 3n
-    memset(dis, 0xffffffff, id_num << 3);
+    fill(dis, dis + id_num, UINT64_MAX);
     dis[s] = 0;
-    memset(sigma, 0, id_num << 2);
+    memset(sigma, 0, id_num * sizeof(ui));
     sigma[s] = 1;
-    memset(delta, 0, id_num << 3);
+    memset(delta, 0, id_num * sizeof(double));
 
-    pq.emplace(Pq_elem(s, 0));
+    pq.push(Pq_elem(s, 0));
 
-    id_stack_index = -1;
+    // pq[pq_len++] = Pq_elem(s, 0);
+
+    int id_stack_index = -1; // id_stack的指针
+    ull cur_dis, update_dis;
+    ui cur_id, j, end;
 
     // 最多循环n次
     while (!pq.empty())
+    // while (pq_len > 0)
     {
         // 找到离s点最近的顶点
         cur_dis = pq.top().dis;
@@ -492,44 +536,58 @@ void dijkstra_priority_queue(ui s, ui tid)
         // O(logn)
         pq.pop();
 
+        // 找到离s点最近的顶点
+        // cur_dis = pq->dis;
+        // cur_id = pq->id;
+        // // O(logn)
+        // // pq.pop();
+        // pq[0] = pq[--pq_len];
+        // siftdown(pq, pq_len);
+
         if (cur_dis > dis[cur_id]) //dis[cur_id]可能经过松弛后变小了，原压入堆中的路径失去价值
             continue;
 
         id_stack[++id_stack_index] = cur_id;
         j = succ_begin_pos[cur_id];
-        end_pos = j + out_degree[cur_id];
+        end = j + out_degree[cur_id];
         // 遍历cur_id的后继 平均循环d次(平均出度)
-        while (j < end_pos)
+        while (j < end)
         {
             update_dis = dis[cur_id] + g_succ[j].weight;
-            next_id = g_succ[j].dst_id;
-            if (update_dis < dis[next_id])
+            if (update_dis < dis[g_succ[j].dst_id])
             {
-                dis[next_id] = update_dis;
-                sigma[next_id] = sigma[cur_id];
+                dis[g_succ[j].dst_id] = update_dis;
+                sigma[g_succ[j].dst_id] = sigma[cur_id];
                 // O(logn)
-                pq.emplace(Pq_elem(next_id, dis[next_id]));
+
+                pq.push(Pq_elem(g_succ[j].dst_id, dis[g_succ[j].dst_id]));
+
+                // pq[pq_len++] = Pq_elem(g_succ[j].dst_id, dis[g_succ[j].dst_id]);
+                // siftup(pq, pq_len);
             }
-            else if (update_dis == dis[next_id])
+            else if (update_dis == dis[g_succ[j].dst_id])
             {
-                sigma[next_id] += sigma[cur_id];
+                sigma[g_succ[j].dst_id] += sigma[cur_id];
             }
             ++j;
         }
     }
 
+    ui pred_id;
     // 最多循环n次 O(n)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
         j = pred_begin_pos[cur_id];
-        end_pos = j + in_degree[cur_id];
+        end = j + in_degree[cur_id];
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
-        while (j < end_pos)
+        while (j < end)
         {
             pred_id = g_pred[j].dst_id;
             if (dis[pred_id] + g_pred[j].weight == dis[cur_id])
-                delta[pred_id] += sigma[pred_id] * (1 + delta[cur_id]) / sigma[cur_id];
+            {
+                delta[pred_id] += (sigma[pred_id] * 1.0 / sigma[cur_id]) * (1 + delta[cur_id]);
+            }
             ++j;
         }
         score[cur_id] += delta[cur_id];
@@ -537,7 +595,7 @@ void dijkstra_priority_queue(ui s, ui tid)
 }
 
 mutex id_lock;
-ui wait_id;
+ui cur_id;
 
 void thread_process(ui tid)
 {
@@ -550,7 +608,7 @@ void thread_process(ui tid)
     while (true)
     {
         id_lock.lock();
-        if (wait_id >= id_num)
+        if (cur_id >= id_num)
         {
             id_lock.unlock();
             break;
@@ -558,10 +616,10 @@ void thread_process(ui tid)
         else
         {
 #ifdef TEST
-            if (wait_id % 10000 == 0)
+            if (cur_id % 10000 == 0)
                 printf("[%0.1f%%] ~ %u/%u\n", 100.0 * cur_id / id_num, cur_id, id_num);
 #endif
-            s_id = wait_id++;
+            s_id = cur_id++;
             id_lock.unlock();
             dijkstra_priority_queue(s_id, tid);
         }
@@ -611,7 +669,7 @@ void save_fwrite(char *resultFile)
     priority_queue<Res_pq_elem> pq;
     while (index < TopK)
     {
-        pq.emplace(Res_pq_elem(index, global_score[index]));
+        pq.push(Res_pq_elem(index, global_score[index]));
         ++index;
     }
 
@@ -620,7 +678,7 @@ void save_fwrite(char *resultFile)
         if (global_score[index] > pq.top().score && abs(global_score[index] - pq.top().score) > 0.0001)
         {
             pq.pop();
-            pq.emplace(Res_pq_elem(index, global_score[index]));
+            pq.push(Res_pq_elem(index, global_score[index]));
         }
         ++index;
     }
