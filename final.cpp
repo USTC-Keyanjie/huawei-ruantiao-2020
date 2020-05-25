@@ -34,7 +34,7 @@ using namespace std;
 // 0
 // 1
 // 2
-string dataset = "1";
+string dataset = "2";
 #endif
 
 #ifdef MMAP
@@ -495,7 +495,7 @@ void dijkstra_priority_queue(ui s, ui tid)
 
     pq.push(Pq_elem(s, 0));
 
-    register int id_stack_index = -1; // id_stack的指针
+    int id_stack_index = -1; // id_stack的指针
     ull cur_dis, update_dis;
     ui cur_id, j, end;
     double coeff;
@@ -524,7 +524,6 @@ void dijkstra_priority_queue(ui s, ui tid)
                 dis[local_g_succ[j].dst_id] = update_dis;
                 sigma[local_g_succ[j].dst_id] = sigma[cur_id];
                 // O(logn)
-
                 pq.push(Pq_elem(local_g_succ[j].dst_id, dis[local_g_succ[j].dst_id]));
             }
             else if (update_dis == dis[local_g_succ[j].dst_id])
@@ -562,18 +561,18 @@ ui cur_id;
 
 void thread_process(ui tid)
 {
-    memcpy(thread_memory[tid].local_g_succ, g_succ, succ_index * sizeof(Node));
-    memcpy(thread_memory[tid].local_out_degree, out_degree, id_num * sizeof(Node));
-    memcpy(thread_memory[tid].local_succ_begin_pos, succ_begin_pos, id_num * sizeof(Node));
-
-    memcpy(thread_memory[tid].local_g_pred, g_pred, pred_index * sizeof(Node));
-    memcpy(thread_memory[tid].local_in_degree, in_degree, id_num * sizeof(Node));
-    memcpy(thread_memory[tid].local_pred_begin_pos, pred_begin_pos, id_num * sizeof(Node));
-
 #ifdef TEST
     Time_recorder timer;
     timer.setTime();
 #endif
+
+    memcpy(thread_memory[tid].local_g_succ, g_succ, succ_index * sizeof(Node));
+    memcpy(thread_memory[tid].local_out_degree, out_degree, id_num << 2);
+    memcpy(thread_memory[tid].local_succ_begin_pos, succ_begin_pos, id_num << 2);
+
+    memcpy(thread_memory[tid].local_g_pred, g_pred, pred_index * sizeof(Node));
+    memcpy(thread_memory[tid].local_in_degree, in_degree, id_num << 2);
+    memcpy(thread_memory[tid].local_pred_begin_pos, pred_begin_pos, id_num << 2);
 
     ui s_id;
     while (true)
