@@ -451,7 +451,6 @@ struct ThreadMemory
     ull dis[MAX_NUM_IDS];
     // 小根堆
     priority_queue<Pq_elem> pq;
-    ui pq_len;
     ui id_stack[MAX_NUM_IDS];  // 出栈的节点会离s越来越近
     ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
     double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
@@ -464,7 +463,6 @@ void dijkstra_priority_queue(ui s, ui tid)
         return;
     auto &dis = thread_memory[tid].dis;
     auto &pq = thread_memory[tid].pq;
-    auto &pq_len = thread_memory[tid].pq_len;
     auto &id_stack = thread_memory[tid].id_stack;
     auto &sigma = thread_memory[tid].sigma;
     auto &delta = thread_memory[tid].delta;
@@ -473,9 +471,9 @@ void dijkstra_priority_queue(ui s, ui tid)
     // 初始化 3n
     fill(dis, dis + id_num, UINT64_MAX);
     dis[s] = 0;
-    memset(sigma, 0, id_num * sizeof(ui));
+    memset(sigma, 0, id_num << 2);
     sigma[s] = 1;
-    memset(delta, 0, id_num * sizeof(double));
+    fill(delta, delta + id_num, 0);
 
     pq.emplace(Pq_elem(s, 0));
 
