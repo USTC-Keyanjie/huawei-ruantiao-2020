@@ -562,12 +562,12 @@ void thread_process(ui tid)
 #endif
 
     memcpy(thread_memory[tid].local_g_succ, g_succ, succ_index * sizeof(Node));
-    memcpy(thread_memory[tid].local_out_degree, out_degree, id_num * sizeof(Node));
-    memcpy(thread_memory[tid].local_succ_begin_pos, succ_begin_pos, id_num * sizeof(Node));
+    memcpy(thread_memory[tid].local_out_degree, out_degree, id_num * sizeof(ui));
+    memcpy(thread_memory[tid].local_succ_begin_pos, succ_begin_pos, id_num * sizeof(ui));
 
     memcpy(thread_memory[tid].local_g_pred, g_pred, pred_index * sizeof(Node));
-    memcpy(thread_memory[tid].local_in_degree, in_degree, id_num * sizeof(Node));
-    memcpy(thread_memory[tid].local_pred_begin_pos, pred_begin_pos, id_num * sizeof(Node));
+    memcpy(thread_memory[tid].local_in_degree, in_degree, id_num * sizeof(ui));
+    memcpy(thread_memory[tid].local_pred_begin_pos, pred_begin_pos, id_num * sizeof(ui));
 
     ui s_id;
     while (true)
