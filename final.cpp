@@ -457,14 +457,13 @@ struct ThreadMemory
     double score[MAX_NUM_IDS]; // 位置中心性
 
 #ifdef TEST
+    struct timeval start_time;
+    struct timeval end_time;
     ull memset_time;
     ull dij_time;
     ull after_time;
 #endif
 } thread_memory[NUM_THREADS];
-
-struct timeval start_time;
-struct timeval end_time;
 
 void dijkstra_priority_queue(ui s, ui tid)
 {
@@ -479,6 +478,8 @@ void dijkstra_priority_queue(ui s, ui tid)
     auto &score = thread_memory[tid].score;
 
 #ifdef TEST
+    auto &start_time = thread_memory[tid].start_time;
+    auto &end_time = thread_memory[tid].end_time;
     auto &memset_time = thread_memory[tid].memset_time;
     auto &dij_time = thread_memory[tid].dij_time;
     auto &after_time = thread_memory[tid].after_time;
@@ -507,7 +508,6 @@ void dijkstra_priority_queue(ui s, ui tid)
 #endif
 
     pq.emplace(Pq_elem(s, 0));
-
 
     // 最多循环n次
     while (!pq.empty())
