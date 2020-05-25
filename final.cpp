@@ -760,35 +760,32 @@ int main(int argc, char *argv[])
     timer_global.logTime("Whole Process");
 #endif
 
-    printf("memset_time: %0.3llf\n", (double)(thread_memory[0].memset_time +
-                                              thread_memory[1].memset_time +
-                                              thread_memory[2].memset_time +
-                                              thread_memory[3].memset_time +
-                                              thread_memory[4].memset_time +
-                                              thread_memory[5].memset_time +
-                                              thread_memory[6].memset_time +
-                                              thread_memory[7].memset_time) /
-                                         id_num);
+    printf("memset_time: %llu\n", thread_memory[0].memset_time +
+                                      thread_memory[1].memset_time +
+                                      thread_memory[2].memset_time +
+                                      thread_memory[3].memset_time +
+                                      thread_memory[4].memset_time +
+                                      thread_memory[5].memset_time +
+                                      thread_memory[6].memset_time +
+                                      thread_memory[7].memset_time);
 
-    printf("dij_time: %0.3llf\n", (double)(thread_memory[0].dij_time +
-                                           thread_memory[1].dij_time +
-                                           thread_memory[2].dij_time +
-                                           thread_memory[3].dij_time +
-                                           thread_memory[4].dij_time +
-                                           thread_memory[5].dij_time +
-                                           thread_memory[6].dij_time +
-                                           thread_memory[7].dij_time) /
-                                      id_num);
+    printf("dij_time: %llu\n", thread_memory[0].dij_time +
+                                   thread_memory[1].dij_time +
+                                   thread_memory[2].dij_time +
+                                   thread_memory[3].dij_time +
+                                   thread_memory[4].dij_time +
+                                   thread_memory[5].dij_time +
+                                   thread_memory[6].dij_time +
+                                   thread_memory[7].dij_time);
 
-    printf("after_time: %0.3llf\n", (double)(thread_memory[0].after_time +
-                                             thread_memory[1].after_time +
-                                             thread_memory[2].after_time +
-                                             thread_memory[3].after_time +
-                                             thread_memory[4].after_time +
-                                             thread_memory[5].after_time +
-                                             thread_memory[6].after_time +
-                                             thread_memory[7].after_time) /
-                                        id_num);
+    printf("after_time: %llu\n", thread_memory[0].after_time +
+                                     thread_memory[1].after_time +
+                                     thread_memory[2].after_time +
+                                     thread_memory[3].after_time +
+                                     thread_memory[4].after_time +
+                                     thread_memory[5].after_time +
+                                     thread_memory[6].after_time +
+                                     thread_memory[7].after_time);
 
     return 0;
 }
