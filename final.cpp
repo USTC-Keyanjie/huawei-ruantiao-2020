@@ -466,11 +466,6 @@ struct ThreadMemory
 struct timeval start_time;
 struct timeval end_time;
 
-int id_stack_index = -1; // id_stack的指针
-ull cur_dis, update_dis;
-ui cur_id, next_id, pred_id, j, end_pos;
-double coeff;
-
 void dijkstra_priority_queue(ui s, ui tid)
 {
 
@@ -493,6 +488,11 @@ void dijkstra_priority_queue(ui s, ui tid)
     gettimeofday(&start_time, NULL);
 #endif
 
+    int id_stack_index = -1; // id_stack的指针
+    ull cur_dis, update_dis;
+    ui cur_id, next_id, pred_id, j, end_pos;
+    double coeff;
+
     // 初始化 3n
     memset(dis, 0xffffffff, id_num << 3);
     dis[s] = 0;
@@ -507,6 +507,7 @@ void dijkstra_priority_queue(ui s, ui tid)
 #endif
 
     pq.emplace(Pq_elem(s, 0));
+
 
     // 最多循环n次
     while (!pq.empty())
@@ -575,7 +576,7 @@ void dijkstra_priority_queue(ui s, ui tid)
 }
 
 mutex id_lock;
-ui current_id;
+ui cur_id;
 
 void thread_process(ui tid)
 {
@@ -588,7 +589,7 @@ void thread_process(ui tid)
     while (true)
     {
         id_lock.lock();
-        if (current_id >= id_num)
+        if (cur_id >= id_num)
         {
             id_lock.unlock();
             break;
@@ -596,10 +597,10 @@ void thread_process(ui tid)
         else
         {
 #ifdef TEST
-            if (current_id % 10000 == 0)
-                printf("[%0.1f%%] ~ %u/%u\n", 100.0 * current_id / id_num, current_id, id_num);
+            if (cur_id % 10000 == 0)
+                printf("[%0.1f%%] ~ %u/%u\n", 100.0 * cur_id / id_num, cur_id, id_num);
 #endif
-            s_id = current_id++;
+            s_id = cur_id++;
             id_lock.unlock();
             dijkstra_priority_queue(s_id, tid);
         }
