@@ -537,7 +537,7 @@ void dijkstra_priority_queue(ui s, ui tid)
 }
 
 mutex id_lock;
-ui cur_id;
+ui wait_id;
 
 void thread_process(ui tid)
 {
@@ -550,7 +550,7 @@ void thread_process(ui tid)
     while (true)
     {
         id_lock.lock();
-        if (cur_id >= id_num)
+        if (wait_id >= id_num)
         {
             id_lock.unlock();
             break;
@@ -558,10 +558,10 @@ void thread_process(ui tid)
         else
         {
 #ifdef TEST
-            if (cur_id % 10000 == 0)
+            if (wait_id % 10000 == 0)
                 printf("[%0.1f%%] ~ %u/%u\n", 100.0 * cur_id / id_num, cur_id, id_num);
 #endif
-            s_id = cur_id++;
+            s_id = wait_id++;
             id_lock.unlock();
             dijkstra_priority_queue(s_id, tid);
         }
