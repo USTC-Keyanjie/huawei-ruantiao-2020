@@ -86,9 +86,7 @@ ui u_ids[MAX_NUM_EDGES];
 ui v_ids[MAX_NUM_EDGES];
 ui ids[MAX_NUM_EDGES];
 Node g_succ[MAX_NUM_EDGES];
-ui succ_index;
 Node g_pred[MAX_NUM_EDGES];
-ui pred_index;
 ui out_degree[MAX_NUM_IDS];       // 每个节点的出度
 ui in_degree[MAX_NUM_IDS];        // 每个节点的入度
 ui succ_begin_pos[MAX_NUM_IDS];   // 对于邻接表每个节点的起始index
@@ -352,7 +350,7 @@ void merge_uv_ids()
 
 void build_g_succ()
 {
-    ui succ_iterator = 0, cur_id = 0;
+    ui succ_iterator = 0, succ_index = 0, cur_id = 0;
     while (cur_id < id_num)
     {
         succ_iterator = succ_begin_pos[cur_id];
@@ -368,7 +366,7 @@ void build_g_succ()
 
 void build_g_pred()
 {
-    ui pred_iterator = 0, cur_id = 0;
+    ui pred_iterator = 0, pred_index = 0, cur_id = 0;
     while (cur_id < id_num)
     {
         pred_iterator = pred_begin_pos[cur_id];
@@ -453,29 +451,18 @@ struct ThreadMemory
     ull dis[MAX_NUM_IDS];
     // 小根堆
     priority_queue<Pq_elem> pq;
-    ui id_stack[MAX_NUM_IDS];       // 出栈的节点会离s越来越近
-    ui sigma[MAX_NUM_IDS];          // 起点到当前点最短路径的数量
-    double delta[MAX_NUM_IDS];      // sigma_st(index) / sigma_st
-    double score[MAX_NUM_IDS];      // 位置中心性
-    Node g_succ[MAX_NUM_EDGES];     // 邻接表
-    Node g_pred[MAX_NUM_EDGES];     // 逆邻接表
-    ui out_degree[MAX_NUM_IDS];     // 每个节点的出度
-    ui in_degree[MAX_NUM_IDS];      // 每个节点的入度
-    ui succ_begin_pos[MAX_NUM_IDS]; // 对于邻接表每个节点的起始index
-    ui pred_begin_pos[MAX_NUM_IDS]; // 对于逆邻接表每个节点的起始index
-
-#ifdef TEST
-    struct timeval start_time;
-    struct timeval end_time;
-    ull memset_time;
-    ull dij_time;
-    ull after_time;
-#endif
+    ui id_stack[MAX_NUM_IDS];  // 出栈的节点会离s越来越近
+    ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
+    double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
+    double score[MAX_NUM_IDS]; // 位置中心性
 } thread_memory[NUM_THREADS];
+
+int id_stack_index; // id_stack的指针
+ull cur_dis, update_dis;
+ui cur_id, next_id, pred_id, j, end_pos;
 
 void dijkstra_priority_queue(ui s, ui tid)
 {
-
     if (out_degree[s] == 0)
         return;
     auto &dis = thread_memory[tid].dis;
@@ -484,29 +471,6 @@ void dijkstra_priority_queue(ui s, ui tid)
     auto &sigma = thread_memory[tid].sigma;
     auto &delta = thread_memory[tid].delta;
     auto &score = thread_memory[tid].score;
-    auto &thread_g_succ = thread_memory[tid].g_succ;
-    auto &thread_g_pred = thread_memory[tid].g_pred;
-    auto &thread_out_degree = thread_memory[tid].out_degree;
-    auto &thread_in_degree = thread_memory[tid].in_degree;
-    auto &thread_succ_begin_pos = thread_memory[tid].succ_begin_pos;
-    auto &thread_pred_begin_pos = thread_memory[tid].pred_begin_pos;
-
-#ifdef TEST
-    auto &start_time = thread_memory[tid].start_time;
-    auto &end_time = thread_memory[tid].end_time;
-    auto &memset_time = thread_memory[tid].memset_time;
-    auto &dij_time = thread_memory[tid].dij_time;
-    auto &after_time = thread_memory[tid].after_time;
-#endif
-
-#ifdef TEST
-    gettimeofday(&start_time, NULL);
-#endif
-
-    int id_stack_index = -1; // id_stack的指针
-    ull cur_dis, update_dis;
-    ui cur_id, next_id, pred_id, j, end_pos;
-    double coeff;
 
     // 初始化 3n
     memset(dis, 0xffffffff, id_num << 3);
@@ -515,13 +479,9 @@ void dijkstra_priority_queue(ui s, ui tid)
     sigma[s] = 1;
     memset(delta, 0, id_num << 3);
 
-#ifdef TEST
-    gettimeofday(&end_time, NULL);
-    memset_time += ull(1000 * (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1000);
-    gettimeofday(&start_time, NULL);
-#endif
-
     pq.emplace(Pq_elem(s, 0));
+
+    id_stack_index = -1;
 
     // 最多循环n次
     while (!pq.empty())
@@ -536,13 +496,13 @@ void dijkstra_priority_queue(ui s, ui tid)
             continue;
 
         id_stack[++id_stack_index] = cur_id;
-        j = thread_succ_begin_pos[cur_id];
-        end_pos = j + thread_out_degree[cur_id];
+        j = succ_begin_pos[cur_id];
+        end_pos = j + out_degree[cur_id];
         // 遍历cur_id的后继 平均循环d次(平均出度)
         while (j < end_pos)
         {
-            update_dis = dis[cur_id] + thread_g_succ[j].weight;
-            next_id = thread_g_succ[j].dst_id;
+            update_dis = dis[cur_id] + g_succ[j].weight;
+            next_id = g_succ[j].dst_id;
             if (update_dis < dis[next_id])
             {
                 dis[next_id] = update_dis;
@@ -558,35 +518,22 @@ void dijkstra_priority_queue(ui s, ui tid)
         }
     }
 
-#ifdef TEST
-    gettimeofday(&end_time, NULL);
-    dij_time += ull(1000 * (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1000);
-    gettimeofday(&start_time, NULL);
-#endif
-
     // 最多循环n次 O(n)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
-        j = thread_pred_begin_pos[cur_id];
-        end_pos = j + thread_in_degree[cur_id];
+        j = pred_begin_pos[cur_id];
+        end_pos = j + in_degree[cur_id];
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
         while (j < end_pos)
         {
-            pred_id = thread_g_pred[j].dst_id;
-            coeff = (1 + delta[cur_id]) / sigma[cur_id];
-            if (dis[pred_id] + thread_g_pred[j].weight == dis[cur_id])
-                delta[pred_id] += sigma[pred_id] * coeff;
+            pred_id = g_pred[j].dst_id;
+            if (dis[pred_id] + g_pred[j].weight == dis[cur_id])
+                delta[pred_id] += sigma[pred_id] * (1 + delta[cur_id]) / sigma[cur_id];
             ++j;
         }
         score[cur_id] += delta[cur_id];
     }
-
-#ifdef TEST
-    gettimeofday(&end_time, NULL);
-    after_time += ull(1000 * (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1000);
-    gettimeofday(&start_time, NULL);
-#endif
 }
 
 mutex id_lock;
@@ -598,13 +545,6 @@ void thread_process(ui tid)
     Time_recorder timer;
     timer.setTime();
 #endif
-    memcpy(thread_memory[tid].g_succ, g_succ, succ_index * sizeof(Node));
-    memcpy(thread_memory[tid].out_degree, out_degree, id_num * sizeof(Node));
-    memcpy(thread_memory[tid].succ_begin_pos, succ_begin_pos, id_num * sizeof(Node));
-
-    memcpy(thread_memory[tid].g_pred, g_pred, pred_index * sizeof(Node));
-    memcpy(thread_memory[tid].in_degree, in_degree, id_num * sizeof(Node));
-    memcpy(thread_memory[tid].pred_begin_pos, pred_begin_pos, id_num * sizeof(Node));
 
     ui s_id;
     while (true)
@@ -780,33 +720,6 @@ int main(int argc, char *argv[])
     timer_local.printLogs();
     timer_global.logTime("Whole Process");
 #endif
-
-    printf("memset_time: %llu\n", thread_memory[0].memset_time +
-                                      thread_memory[1].memset_time +
-                                      thread_memory[2].memset_time +
-                                      thread_memory[3].memset_time +
-                                      thread_memory[4].memset_time +
-                                      thread_memory[5].memset_time +
-                                      thread_memory[6].memset_time +
-                                      thread_memory[7].memset_time);
-
-    printf("dij_time: %llu\n", thread_memory[0].dij_time +
-                                   thread_memory[1].dij_time +
-                                   thread_memory[2].dij_time +
-                                   thread_memory[3].dij_time +
-                                   thread_memory[4].dij_time +
-                                   thread_memory[5].dij_time +
-                                   thread_memory[6].dij_time +
-                                   thread_memory[7].dij_time);
-
-    printf("after_time: %llu\n", thread_memory[0].after_time +
-                                     thread_memory[1].after_time +
-                                     thread_memory[2].after_time +
-                                     thread_memory[3].after_time +
-                                     thread_memory[4].after_time +
-                                     thread_memory[5].after_time +
-                                     thread_memory[6].after_time +
-                                     thread_memory[7].after_time);
 
     return 0;
 }
