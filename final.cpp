@@ -66,12 +66,12 @@ struct Node
     ui dst_id;
     ull weight;
 
-    inline Node() {}
+    Node() {}
 
-    inline Node(ui cur_id, ull weight) : dst_id(cur_id), weight(weight) {}
+    Node(ui cur_id, ull weight) : dst_id(cur_id), weight(weight) {}
 
     // 依据next_id进行排序
-    inline bool operator<(const Node &nextNode) const
+    bool operator<(const Node &nextNode) const
     {
         return dst_id < nextNode.dst_id;
     }
@@ -86,8 +86,8 @@ ui u_ids[MAX_NUM_EDGES];
 ui v_ids[MAX_NUM_EDGES];
 ui ids[MAX_NUM_EDGES];
 Node g_succ[MAX_NUM_EDGES];
-Node g_pred[MAX_NUM_EDGES];
 ui succ_index;
+Node g_pred[MAX_NUM_EDGES];
 ui pred_index;
 ui out_degree[MAX_NUM_IDS];       // 每个节点的出度
 ui in_degree[MAX_NUM_IDS];        // 每个节点的入度
@@ -166,10 +166,10 @@ struct Time_recorder
 
 #ifdef _WIN32
     unsigned int start_time;
-    unsigned int end_pos_time;
+    unsigned int end_time;
 #else
     struct timeval start_time;
-    struct timeval end_pos_time;
+    struct timeval end_time;
 #endif
 
     void setTime()
@@ -184,11 +184,11 @@ struct Time_recorder
     int getElapsedTimeMS()
     {
 #ifdef _WIN32
-        end_pos_time = GetTickCount();
-        return int(end_pos_time - start_time);
+        end_time = GetTickCount();
+        return int(end_time - start_time);
 #else
-        gettimeofday(&end_pos_time, NULL);
-        return int(1000 * (end_pos_time.tv_sec - start_time.tv_sec) + (end_pos_time.tv_usec - start_time.tv_usec) / 1000);
+        gettimeofday(&end_time, NULL);
+        return int(1000 * (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1000);
 #endif
     }
 
@@ -253,7 +253,7 @@ void input_mmap(char *testFile)
 #endif
     int fd = open(testFile, O_RDONLY);
     //get the size of the document
-    // long length = lseek(fd, 0, SEEK_end_pos);
+    // long length = lseek(fd, 0, SEEK_END);
 
     struct stat stat_buf;
     fstat(fd, &stat_buf);
@@ -299,7 +299,7 @@ void input_mmap(char *testFile)
     close(fd);
     munmap(buf, length);
 #ifdef TEST
-    cout << "mmap input time " << (double)(clock() - input_time) / CLOCKS_PER_SEC << "s" << end_posl;
+    cout << "mmap input time " << (double)(clock() - input_time) / CLOCKS_PER_SEC << "s" << endl;
 #endif
 }
 #endif
@@ -453,22 +453,26 @@ struct ThreadMemory
     ull dis[MAX_NUM_IDS];
     // 小根堆
     priority_queue<Pq_elem> pq;
-    ui id_stack[MAX_NUM_IDS];             // 出栈的节点会离s越来越近
-    ui sigma[MAX_NUM_IDS];                // 起点到当前点最短路径的数量
-    double delta[MAX_NUM_IDS];            // sigma_st(index) / sigma_st
-    double score[MAX_NUM_IDS];            // 位置中心性
-    Node local_g_succ[MAX_NUM_EDGES];     // 邻接表
-    Node local_g_pred[MAX_NUM_EDGES];     // 逆邻接表
-    ui local_out_degree[MAX_NUM_IDS];     // 每个节点的出度
-    ui local_in_degree[MAX_NUM_IDS];      // 每个节点的入度
-    ui local_succ_begin_pos[MAX_NUM_IDS]; // 对于邻接表每个节点的起始index
-    ui local_pred_begin_pos[MAX_NUM_IDS]; // 对于逆邻接表每个节点的起始index
+    ui id_stack[MAX_NUM_IDS];  // 出栈的节点会离s越来越近
+    ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
+    double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
+    double score[MAX_NUM_IDS]; // 位置中心性
+    Node g_succ[MAX_NUM_EDGES];
+    Node g_pred[MAX_NUM_EDGES];
+
+#ifdef TEST
+    struct timeval start_time;
+    struct timeval end_time;
+    ull memset_time;
+    ull dij_time;
+    ull after_time;
+#endif
 } thread_memory[NUM_THREADS];
 
 void dijkstra_priority_queue(ui s, ui tid)
 {
-    auto &local_out_degree = thread_memory[tid].local_out_degree;
-    if (local_out_degree[s] == 0)
+
+    if (out_degree[s] == 0)
         return;
     auto &dis = thread_memory[tid].dis;
     auto &pq = thread_memory[tid].pq;
@@ -476,24 +480,38 @@ void dijkstra_priority_queue(ui s, ui tid)
     auto &sigma = thread_memory[tid].sigma;
     auto &delta = thread_memory[tid].delta;
     auto &score = thread_memory[tid].score;
+    auto &thread_g_succ = thread_memory[tid].g_succ;
+    auto &thread_g_pred = thread_memory[tid].g_pred;
 
-    auto &local_g_succ = thread_memory[tid].local_g_succ;
-    auto &local_g_pred = thread_memory[tid].local_g_pred;
-    auto &local_in_degree = thread_memory[tid].local_in_degree;
-    auto &local_succ_begin_pos = thread_memory[tid].local_succ_begin_pos;
-    auto &local_pred_begin_pos = thread_memory[tid].local_pred_begin_pos;
+#ifdef TEST
+    auto &start_time = thread_memory[tid].start_time;
+    auto &end_time = thread_memory[tid].end_time;
+    auto &memset_time = thread_memory[tid].memset_time;
+    auto &dij_time = thread_memory[tid].dij_time;
+    auto &after_time = thread_memory[tid].after_time;
+#endif
 
-    register int id_stack_index = -1; // id_stack的指针
+#ifdef TEST
+    gettimeofday(&start_time, NULL);
+#endif
+
+    int id_stack_index = -1; // id_stack的指针
     ull cur_dis, update_dis;
     ui cur_id, next_id, pred_id, j, end_pos;
     double coeff;
 
     // 初始化 3n
-    memset(dis, 0x3f, id_num << 3);
+    memset(dis, 0xffffffff, id_num << 3);
     dis[s] = 0;
     memset(sigma, 0, id_num << 2);
     sigma[s] = 1;
     memset(delta, 0, id_num << 3);
+
+#ifdef TEST
+    gettimeofday(&end_time, NULL);
+    memset_time += ull(1000 * (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1000);
+    gettimeofday(&start_time, NULL);
+#endif
 
     pq.emplace(Pq_elem(s, 0));
 
@@ -510,13 +528,13 @@ void dijkstra_priority_queue(ui s, ui tid)
             continue;
 
         id_stack[++id_stack_index] = cur_id;
-        j = local_succ_begin_pos[cur_id];
-        end_pos = j + local_out_degree[cur_id];
+        j = succ_begin_pos[cur_id];
+        end_pos = j + out_degree[cur_id];
         // 遍历cur_id的后继 平均循环d次(平均出度)
         while (j < end_pos)
         {
-            update_dis = dis[cur_id] + local_g_succ[j].weight;
-            next_id = local_g_succ[j].dst_id;
+            update_dis = dis[cur_id] + thread_g_succ[j].weight;
+            next_id = thread_g_succ[j].dst_id;
             if (update_dis < dis[next_id])
             {
                 dis[next_id] = update_dis;
@@ -532,23 +550,35 @@ void dijkstra_priority_queue(ui s, ui tid)
         }
     }
 
+#ifdef TEST
+    gettimeofday(&end_time, NULL);
+    dij_time += ull(1000 * (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1000);
+    gettimeofday(&start_time, NULL);
+#endif
+
     // 最多循环n次 O(n)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
-        j = local_pred_begin_pos[cur_id];
-        end_pos = j + local_in_degree[cur_id];
-        coeff = (1 + delta[cur_id]) / sigma[cur_id];
+        j = pred_begin_pos[cur_id];
+        end_pos = j + in_degree[cur_id];
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
         while (j < end_pos)
         {
-            pred_id = local_g_pred[j].dst_id;
-            if (dis[pred_id] + local_g_pred[j].weight == dis[cur_id])
+            pred_id = thread_g_pred[j].dst_id;
+            coeff = (1 + delta[cur_id]) / sigma[cur_id];
+            if (dis[pred_id] + thread_g_pred[j].weight == dis[cur_id])
                 delta[pred_id] += sigma[pred_id] * coeff;
             ++j;
         }
         score[cur_id] += delta[cur_id];
     }
+
+#ifdef TEST
+    gettimeofday(&end_time, NULL);
+    after_time += ull(1000 * (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1000);
+    gettimeofday(&start_time, NULL);
+#endif
 }
 
 mutex id_lock;
@@ -560,14 +590,8 @@ void thread_process(ui tid)
     Time_recorder timer;
     timer.setTime();
 #endif
-
-    memcpy(thread_memory[tid].local_g_succ, g_succ, succ_index * sizeof(Node));
-    memcpy(thread_memory[tid].local_out_degree, out_degree, id_num * sizeof(ui));
-    memcpy(thread_memory[tid].local_succ_begin_pos, succ_begin_pos, id_num * sizeof(ui));
-
-    memcpy(thread_memory[tid].local_g_pred, g_pred, pred_index * sizeof(Node));
-    memcpy(thread_memory[tid].local_in_degree, in_degree, id_num * sizeof(ui));
-    memcpy(thread_memory[tid].local_pred_begin_pos, pred_begin_pos, id_num * sizeof(ui));
+    memcpy(thread_memory[tid].g_succ, g_succ, succ_index * sizeof(Node));
+    memcpy(thread_memory[tid].g_pred, g_pred, pred_index * sizeof(Node));
 
     ui s_id;
     while (true)
@@ -743,6 +767,33 @@ int main(int argc, char *argv[])
     timer_local.printLogs();
     timer_global.logTime("Whole Process");
 #endif
+
+    printf("memset_time: %llu\n", thread_memory[0].memset_time +
+                                      thread_memory[1].memset_time +
+                                      thread_memory[2].memset_time +
+                                      thread_memory[3].memset_time +
+                                      thread_memory[4].memset_time +
+                                      thread_memory[5].memset_time +
+                                      thread_memory[6].memset_time +
+                                      thread_memory[7].memset_time);
+
+    printf("dij_time: %llu\n", thread_memory[0].dij_time +
+                                   thread_memory[1].dij_time +
+                                   thread_memory[2].dij_time +
+                                   thread_memory[3].dij_time +
+                                   thread_memory[4].dij_time +
+                                   thread_memory[5].dij_time +
+                                   thread_memory[6].dij_time +
+                                   thread_memory[7].dij_time);
+
+    printf("after_time: %llu\n", thread_memory[0].after_time +
+                                     thread_memory[1].after_time +
+                                     thread_memory[2].after_time +
+                                     thread_memory[3].after_time +
+                                     thread_memory[4].after_time +
+                                     thread_memory[5].after_time +
+                                     thread_memory[6].after_time +
+                                     thread_memory[7].after_time);
 
     return 0;
 }
