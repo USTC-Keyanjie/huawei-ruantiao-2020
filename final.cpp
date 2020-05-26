@@ -34,7 +34,7 @@ using namespace std;
 // 0
 // 1
 // 2
-string dataset = "0";
+string dataset = "1";
 #endif
 
 #ifdef MMAP
@@ -462,12 +462,6 @@ void dijkstra_priority_queue(ui s, ui tid)
     ui cur_pos, end_pos;
     double coeff;
 
-    // 初始化 2n
-    for (ui i = 0; i < id_num; ++i)
-    {
-        dij_data[i].dis = UINT64_MAX;
-        bc_data[i].delta = 0;
-    }
     dij_data[s].dis = 0;
     dij_data[s].sigma = 1;
 
@@ -501,6 +495,7 @@ void dijkstra_priority_queue(ui s, ui tid)
                 // O(logn)
                 pq.emplace(Pq_elem(next_id, dij_data[next_id].dis));
                 bc_data[next_id].pred_begin_pos = STOP_FLAG;
+                bc_data[next_id].delta = 0;
             }
             if (update_dis == dij_data[next_id].dis)
             {
@@ -519,6 +514,7 @@ void dijkstra_priority_queue(ui s, ui tid)
         cur_id = id_stack[id_stack_index--];
         cur_pos = bc_data[cur_id].pred_begin_pos;
         bc_data[cur_id].score += bc_data[cur_id].delta;
+        dij_data[cur_id].dis = UINT64_MAX;
         coeff = (1 + bc_data[cur_id].delta) / dij_data[cur_id].sigma;
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
         while ((cur_pos & STOP_FLAG) == 0)
@@ -528,6 +524,7 @@ void dijkstra_priority_queue(ui s, ui tid)
             bc_data[pred_id].delta += dij_data[pred_id].sigma * coeff;
         }
     }
+    dij_data[s].dis = UINT64_MAX;
 }
 
 mutex id_lock;
@@ -540,6 +537,11 @@ void thread_process(ui tid)
     timer.setTime();
 #endif
     auto &dij_data = thread_memory[tid].dij_data;
+    // 初始化 2n
+    for (ui i = 0; i < id_num; ++i)
+    {
+        dij_data[i].dis = UINT64_MAX;
+    }
 
     for (ui i = 0; i <= id_num; ++i)
         dij_data[i].local_succ_begin_pos = succ_begin_pos[i];
