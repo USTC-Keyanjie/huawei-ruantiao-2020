@@ -1,6 +1,6 @@
 git pull
 
-g++ -O3 final.cpp -o final -lpthread -fpic
+g++ final.cpp -o final -O3 -g -lpthread -fpic
 
 rm -rf test_data_js/0/result.txt
 ./final 0
