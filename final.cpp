@@ -34,7 +34,7 @@ using namespace std;
 // 0
 // 1
 // 2
-string dataset = "1";
+string dataset = "0";
 #endif
 
 #ifdef MMAP
@@ -541,7 +541,7 @@ void thread_process(ui tid)
 #endif
     auto &dij_data = thread_memory[tid].dij_data;
 
-    for (ui i = 0; i < id_num; ++i)
+    for (ui i = 0; i <= id_num; ++i)
         dij_data[i].local_succ_begin_pos = succ_begin_pos[i];
 
     ui s_id;
