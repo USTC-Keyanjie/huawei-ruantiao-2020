@@ -86,11 +86,10 @@ ui u_ids[MAX_NUM_EDGES];
 ui v_ids[MAX_NUM_EDGES];
 ui ids[MAX_NUM_EDGES];
 Node g_succ[MAX_NUM_EDGES];
-Node g_pred[MAX_NUM_EDGES];
-ui out_degree[MAX_NUM_IDS];       // 每个节点的出度
-ui in_degree[MAX_NUM_IDS];        // 每个节点的入度
+// Node g_pred[MAX_NUM_EDGES];
+ui out_degree[MAX_NUM_IDS]; // 每个节点的出度
+// ui in_degree[MAX_NUM_IDS];        // 每个节点的入度
 ui succ_begin_pos[MAX_NUM_IDS];   // 对于邻接表每个节点的起始index
-ui pred_begin_pos[MAX_NUM_IDS];   // 对于逆邻接表每个节点的起始index
 double global_score[MAX_NUM_IDS]; // 存储答案的数组
 
 #ifdef TEST
@@ -364,21 +363,21 @@ void build_g_succ()
     }
 }
 
-void build_g_pred()
-{
-    ui pred_iterator = 0, pred_index = 0, cur_id = 0;
-    while (cur_id < id_num)
-    {
-        pred_iterator = pred_begin_pos[cur_id];
-        pred_begin_pos[cur_id] = pred_index;
-        while (pred_iterator != 0)
-        {
-            g_pred[pred_index++] = Node(input_u_ids[pred_iterator - 1], input_weights[pred_iterator - 1]);
-            pred_iterator = v_next[pred_iterator - 1];
-        }
-        ++cur_id;
-    }
-}
+// void build_g_pred()
+// {
+//     ui pred_iterator = 0, pred_index = 0, cur_id = 0;
+//     while (cur_id < id_num)
+//     {
+//         pred_iterator = pred_begin_pos[cur_id];
+//         pred_begin_pos[cur_id] = pred_index;
+//         while (pred_iterator != 0)
+//         {
+//             g_pred[pred_index++] = Node(input_u_ids[pred_iterator - 1], input_weights[pred_iterator - 1]);
+//             pred_iterator = v_next[pred_iterator - 1];
+//         }
+//         ++cur_id;
+//     }
+// }
 
 void pre_process()
 {
@@ -415,19 +414,21 @@ void pre_process()
 
         // 链表串起来
         u_next[index] = succ_begin_pos[u_hash_id];
-        succ_begin_pos[u_hash_id] = index + 1;
-        v_next[index] = pred_begin_pos[v_hash_id];
-        pred_begin_pos[v_hash_id] = ++index;
+        succ_begin_pos[u_hash_id] = ++index;
+        // v_next[index] = pred_begin_pos[v_hash_id];
+        // pred_begin_pos[v_hash_id] = ++index;
 
         // 出度和入度
         out_degree[u_hash_id]++;
-        in_degree[v_hash_id]++;
+        // in_degree[v_hash_id]++;
     }
 
-    thread thread_g_succ = thread(build_g_succ);
-    thread thread_g_pred = thread(build_g_pred);
-    thread_g_succ.join();
-    thread_g_pred.join();
+    build_g_succ();
+
+    // thread thread_g_succ = thread(build_g_succ);
+    // thread thread_g_pred = thread(build_g_pred);
+    // thread_g_succ.join();
+    // thread_g_pred.join();
 }
 
 struct Pq_elem
@@ -455,6 +456,8 @@ struct ThreadMemory
     ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
     double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
     double score[MAX_NUM_IDS]; // 位置中心性
+    ui pred_info[MAX_NUM_EDGES][2];
+    ui pred_begin_pos[MAX_NUM_IDS];
 } thread_memory[NUM_THREADS];
 
 void dijkstra_priority_queue(ui s, ui tid)
@@ -467,16 +470,18 @@ void dijkstra_priority_queue(ui s, ui tid)
     auto &sigma = thread_memory[tid].sigma;
     auto &delta = thread_memory[tid].delta;
     auto &score = thread_memory[tid].score;
+    auto &pred_info = thread_memory[tid].pred_info;
+    auto &pred_begin_pos = thread_memory[tid].pred_begin_pos;
 
     int id_stack_index = -1; // id_stack的指针
     ull cur_dis, update_dis;
-    ui cur_id, next_id, pred_id, j, end_pos;
+    ui cur_id, next_id, pred_id, j, end_pos, pred_info_len = 0;
     double coeff;
 
     // 初始化 3n
     memset(dis, 0x3f, id_num << 3);
     dis[s] = 0;
-    memset(sigma, 0, id_num << 2);
+    // memset(sigma, 0, id_num << 2);
     sigma[s] = 1;
     memset(delta, 0, id_num << 3);
 
@@ -505,13 +510,17 @@ void dijkstra_priority_queue(ui s, ui tid)
             if (update_dis < dis[next_id])
             {
                 dis[next_id] = update_dis;
-                sigma[next_id] = sigma[cur_id];
+                sigma[next_id] = 0;
                 // O(logn)
                 pq.emplace(Pq_elem(next_id, dis[next_id]));
+                pred_begin_pos[next_id] = 0x80000000;
             }
-            else if (update_dis == dis[next_id])
+            if (update_dis == dis[next_id])
             {
                 sigma[next_id] += sigma[cur_id];
+                pred_info[pred_info_len][0] = cur_id;
+                pred_info[pred_info_len][1] = pred_begin_pos[next_id];
+                pred_begin_pos[next_id] = pred_info_len++;
             }
             ++j;
         }
@@ -522,15 +531,13 @@ void dijkstra_priority_queue(ui s, ui tid)
     {
         cur_id = id_stack[id_stack_index--];
         j = pred_begin_pos[cur_id];
-        end_pos = j + in_degree[cur_id];
         coeff = (1 + delta[cur_id]) / sigma[cur_id];
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
-        while (j < end_pos)
+        while ((j & 0x80000000) == 0)
         {
-            pred_id = g_pred[j].dst_id;
-            if (dis[pred_id] + g_pred[j].weight == dis[cur_id])
-                delta[pred_id] += sigma[pred_id] * coeff;
-            ++j;
+            pred_id = pred_info[j][0];
+            j = pred_info[j][1];
+            delta[pred_id] += sigma[pred_id] * coeff;
         }
         score[cur_id] += delta[cur_id];
     }
