@@ -3,7 +3,7 @@
 // 2. open //#define MMAP
 // 3. open //#define NEON
 
-#define TEST
+// #define TEST
 #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
@@ -86,7 +86,7 @@ ui u_ids[MAX_NUM_EDGES];
 ui v_ids[MAX_NUM_EDGES];
 ui ids[MAX_NUM_EDGES];
 Node g_succ[MAX_NUM_EDGES];
-ui out_degree[MAX_NUM_IDS]; // 每个节点的出度
+ui out_degree[MAX_NUM_IDS];       // 每个节点的出度
 ui succ_begin_pos[MAX_NUM_IDS];   // 对于邻接表每个节点的起始index
 double global_score[MAX_NUM_IDS]; // 存储答案的数组
 
@@ -261,10 +261,9 @@ void input_mmap(char *testFile)
     ui *v_id_ptr = input_v_ids;
     ull *w_ptr = input_weights;
     ull num = 0;
-    ui index = 0, id_index = 0, sign = 0;
+    register ui index = 0, sign = 0;
     char cur_char;
     char *p = buf;
-    ui input_num = 0;
     while (index++ < length)
     {
         cur_char = *(p++);
@@ -277,10 +276,10 @@ void input_mmap(char *testFile)
         {
             if (cur_char != '\n')
             {
-                if (sign == 0)
-                    u_id_ptr[edge_num] = num;
-                else
+                if (sign)
                     v_id_ptr[edge_num] = num;
+                else
+                    u_id_ptr[edge_num] = num;
                 sign ^= 1;
             }
             else
