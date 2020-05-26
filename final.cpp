@@ -467,7 +467,8 @@ struct ThreadMemory
 
 void dijkstra_priority_queue(ui s, ui tid)
 {
-    if (out_degree[s] == 0)
+    auto &local_out_degree = thread_memory[tid].local_out_degree;
+    if (local_out_degree[s] == 0)
         return;
     auto &dis = thread_memory[tid].dis;
     auto &pq = thread_memory[tid].pq;
@@ -478,11 +479,10 @@ void dijkstra_priority_queue(ui s, ui tid)
 
     auto &local_g_succ = thread_memory[tid].local_g_succ;
     auto &local_g_pred = thread_memory[tid].local_g_pred;
-    auto &local_out_degree = thread_memory[tid].local_out_degree;
     auto &local_in_degree = thread_memory[tid].local_in_degree;
     auto &local_succ_begin_pos = thread_memory[tid].local_succ_begin_pos;
     auto &local_pred_begin_pos = thread_memory[tid].local_pred_begin_pos;
-    
+
     register int id_stack_index = -1; // id_stack的指针
     ull cur_dis, update_dis;
     ui cur_id, next_id, pred_id, j, end_pos;
