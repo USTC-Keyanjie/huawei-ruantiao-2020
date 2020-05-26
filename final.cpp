@@ -34,7 +34,7 @@ using namespace std;
 // 0
 // 1
 // 2
-string dataset = "0";
+string dataset = "1";
 #endif
 
 #ifdef MMAP
@@ -460,6 +460,9 @@ void dijkstra_priority_queue(ui s, ui tid)
     ull cur_dis, update_dis;
     ui cur_id, next_id, pred_id, cur_id_sigma, pred_info_len = 0;
     ui cur_pos, end_pos;
+    Dij_data *cur_dij_ptr, *next_dij_ptr;
+    BC_data *cur_bc_ptr, *pred_bc_ptr, *next_bc_ptr;
+    Node *g_succ_ptr;
     double coeff;
 
     // 初始化 2n
@@ -481,33 +484,38 @@ void dijkstra_priority_queue(ui s, ui tid)
         cur_id = pq.top().id;
         // O(logn)
         pq.pop();
+        cur_dij_ptr = dij_data + cur_id;
 
-        if (cur_dis > dij_data[cur_id].dis) //dis可能经过松弛后变小了，原压入堆中的路径失去价值
+        if (cur_dis > cur_dij_ptr->dis) //dis可能经过松弛后变小了，原压入堆中的路径失去价值
             continue;
 
         id_stack[++id_stack_index] = cur_id;
-        cur_pos = dij_data[cur_id].local_succ_begin_pos;
-        end_pos = dij_data[cur_id + 1].local_succ_begin_pos;
+        cur_pos = cur_dij_ptr->local_succ_begin_pos;
+        end_pos = (cur_dij_ptr + 1)->local_succ_begin_pos;
         // 遍历cur_id的后继 平均循环d次(平均出度)
         while (cur_pos < end_pos)
         {
-            cur_id_sigma = dij_data[cur_id].sigma;
-            update_dis = dij_data[cur_id].dis + g_succ[cur_pos].weight;
-            next_id = g_succ[cur_pos].dst_id;
-            if (update_dis < dij_data[next_id].dis)
+            g_succ_ptr = g_succ + cur_pos;
+            cur_id_sigma = cur_dij_ptr->sigma;
+            update_dis = cur_dij_ptr->dis + g_succ_ptr->weight;
+            next_id = g_succ_ptr->dst_id;
+            next_dij_ptr = dij_data + next_id;
+            next_bc_ptr = bc_data + next_id;
+
+            if (update_dis < next_dij_ptr->dis)
             {
-                dij_data[next_id].dis = update_dis;
-                dij_data[next_id].sigma = 0;
+                next_dij_ptr->dis = update_dis;
+                next_dij_ptr->sigma = 0;
                 // O(logn)
-                pq.emplace(Pq_elem(next_id, dij_data[next_id].dis));
-                bc_data[next_id].pred_begin_pos = STOP_FLAG;
+                pq.emplace(Pq_elem(next_id, next_dij_ptr->dis));
+                next_bc_ptr->pred_begin_pos = STOP_FLAG;
             }
-            if (update_dis == dij_data[next_id].dis)
+            if (update_dis == next_dij_ptr->dis)
             {
-                dij_data[next_id].sigma += cur_id_sigma;
+                next_dij_ptr->sigma += cur_id_sigma;
                 pred_info[pred_info_len][0] = cur_id;
-                pred_info[pred_info_len][1] = bc_data[next_id].pred_begin_pos;
-                bc_data[next_id].pred_begin_pos = pred_info_len++;
+                pred_info[pred_info_len][1] = next_bc_ptr->pred_begin_pos;
+                next_bc_ptr->pred_begin_pos = pred_info_len++;
             }
             ++cur_pos;
         }
@@ -517,15 +525,18 @@ void dijkstra_priority_queue(ui s, ui tid)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
-        cur_pos = bc_data[cur_id].pred_begin_pos;
-        bc_data[cur_id].score += bc_data[cur_id].delta;
-        coeff = (1 + bc_data[cur_id].delta) / dij_data[cur_id].sigma;
+        cur_bc_ptr = bc_data + cur_id;
+        cur_dij_ptr = dij_data + cur_id;
+
+        cur_pos = cur_bc_ptr->pred_begin_pos;
+        cur_bc_ptr->score += cur_bc_ptr->delta;
+        coeff = (1 + cur_bc_ptr->delta) / cur_dij_ptr->sigma;
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
         while ((cur_pos & STOP_FLAG) == 0)
         {
             pred_id = pred_info[cur_pos][0];
             cur_pos = pred_info[cur_pos][1];
-            bc_data[pred_id].delta += dij_data[pred_id].sigma * coeff;
+            (bc_data + pred_id)->delta += (dij_data + pred_id)->sigma * coeff;
         }
     }
 }
