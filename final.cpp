@@ -4,7 +4,7 @@
 // 3. open //#define NEON
 
 #define TEST
-#define MMAP // 使用mmap函数
+// #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
 // #include <bits/stdc++.h>
@@ -419,13 +419,12 @@ struct Pq_elem
 // 每个线程专属区域
 struct ThreadMemory
 {
-    ull dis[MAX_NUM_IDS];
+    ull dij_data[MAX_NUM_IDS][2];   // 0:dis 1:sigma
+    double bc_data[MAX_NUM_IDS][2]; // 0:delta 1:score
+
     // 小根堆
     priority_queue<Pq_elem> pq;
-    ui id_stack[MAX_NUM_IDS];  // 出栈的节点会离s越来越近
-    ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
-    double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
-    double score[MAX_NUM_IDS]; // 位置中心性
+    ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
     ui pred_info[MAX_NUM_EDGES][2];
     ui pred_begin_pos[MAX_NUM_IDS];
 } thread_memory[NUM_THREADS];
@@ -434,12 +433,10 @@ void dijkstra_priority_queue(ui s, ui tid)
 {
     if (succ_begin_pos[s] == succ_begin_pos[s + 1])
         return;
-    auto &dis = thread_memory[tid].dis;
+    auto &dij_data = thread_memory[tid].dij_data;
+    auto &bc_data = thread_memory[tid].bc_data;
     auto &pq = thread_memory[tid].pq;
     auto &id_stack = thread_memory[tid].id_stack;
-    auto &sigma = thread_memory[tid].sigma;
-    auto &delta = thread_memory[tid].delta;
-    auto &score = thread_memory[tid].score;
     auto &pred_info = thread_memory[tid].pred_info;
     auto &pred_begin_pos = thread_memory[tid].pred_begin_pos;
 
@@ -450,10 +447,13 @@ void dijkstra_priority_queue(ui s, ui tid)
     double coeff;
 
     // 初始化 2n
-    memset(dis, 0x3f, id_num << 3);
-    dis[s] = 0;
-    sigma[s] = 1;
-    memset(delta, 0, id_num << 3);
+    for (ui i = 0; i < id_num; ++i)
+    {
+        dij_data[i][0] = UINT64_MAX;
+        bc_data[i][0] = 0;
+    }
+    dij_data[s][0] = 0;
+    dij_data[s][1] = 1;
 
     pq.emplace(Pq_elem(s, 0));
 
@@ -466,7 +466,7 @@ void dijkstra_priority_queue(ui s, ui tid)
         // O(logn)
         pq.pop();
 
-        if (cur_dis > dis[cur_id]) //dis[cur_id]可能经过松弛后变小了，原压入堆中的路径失去价值
+        if (cur_dis > dij_data[cur_id][0]) //dij_data[cur_id][0]可能经过松弛后变小了，原压入堆中的路径失去价值
             continue;
 
         id_stack[++id_stack_index] = cur_id;
@@ -475,19 +475,19 @@ void dijkstra_priority_queue(ui s, ui tid)
         // 遍历cur_id的后继 平均循环d次(平均出度)
         while (cur_pos < end_pos)
         {
-            update_dis = dis[cur_id] + g_succ[cur_pos].weight;
+            update_dis = dij_data[cur_id][0] + g_succ[cur_pos].weight;
             next_id = g_succ[cur_pos].dst_id;
-            if (update_dis < dis[next_id])
+            if (update_dis < dij_data[next_id][0])
             {
-                dis[next_id] = update_dis;
-                sigma[next_id] = 0;
+                dij_data[next_id][0] = update_dis;
+                dij_data[next_id][1] = 0;
                 // O(logn)
-                pq.emplace(Pq_elem(next_id, dis[next_id]));
+                pq.emplace(Pq_elem(next_id, dij_data[next_id][0]));
                 pred_begin_pos[next_id] = 0x80000000;
             }
-            if (update_dis == dis[next_id])
+            if (update_dis == dij_data[next_id][0])
             {
-                sigma[next_id] += sigma[cur_id];
+                dij_data[next_id][1] += dij_data[cur_id][1];
                 pred_info[pred_info_len][0] = cur_id;
                 pred_info[pred_info_len][1] = pred_begin_pos[next_id];
                 pred_begin_pos[next_id] = pred_info_len++;
@@ -501,15 +501,15 @@ void dijkstra_priority_queue(ui s, ui tid)
     {
         cur_id = id_stack[id_stack_index--];
         cur_pos = pred_begin_pos[cur_id];
-        coeff = (1 + delta[cur_id]) / sigma[cur_id];
+        coeff = (1 + bc_data[cur_id][0]) / dij_data[cur_id][1];
+        bc_data[cur_id][1] += bc_data[cur_id][0];
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
         while ((cur_pos & 0x80000000) == 0)
         {
             pred_id = pred_info[cur_pos][0];
             cur_pos = pred_info[cur_pos][1];
-            delta[pred_id] += sigma[pred_id] * coeff;
+            bc_data[pred_id][0] += dij_data[pred_id][1] * coeff;
         }
-        score[cur_id] += delta[cur_id];
     }
 }
 
@@ -569,22 +569,15 @@ struct Res_pq_elem
 
 void save_fwrite(char *resultFile)
 {
-    memcpy(global_score, thread_memory[0].score, id_num * sizeof(double));
-    int index = 1;
-    while (index < NUM_THREADS)
+    for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
     {
-        /* code */ // neon 相加
-        ui score_index = 0;
-        while (score_index < id_num)
+        for (ui id_index = 0; id_index < id_num; ++id_index)
         {
-            global_score[score_index] += thread_memory[index].score[score_index];
-            ++score_index;
+            global_score[id_index] += thread_memory[thread_index].bc_data[id_index][1];
         }
-
-        ++index;
     }
 
-    index = 0;
+    int index = 0;
     priority_queue<Res_pq_elem> pq;
     while (index < TopK)
     {
