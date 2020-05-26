@@ -261,8 +261,7 @@ void input_mmap(char *testFile)
     ui *v_id_ptr = input_u_ids;
     ull *w_ptr = input_weights;
     ull num = 0;
-    ui index = 0, ui id_index = 0;
-    byte sign = 0;
+    ui index = 0, id_index = 0, sign = 0;
     char cur_char;
     char *p = buf;
     ui input_num = 0;
