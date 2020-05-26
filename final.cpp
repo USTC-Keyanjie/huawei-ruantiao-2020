@@ -4,7 +4,7 @@
 // 3. open //#define NEON
 
 #define TEST
-#define MMAP // 使用mmap函数
+// #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
 // #include <bits/stdc++.h>
