@@ -3,8 +3,8 @@
 // 2. open //#define MMAP
 // 3. open //#define NEON
 
-// #define TEST
-#define MMAP // 使用mmap函数
+#define TEST
+// #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
 // #include <bits/stdc++.h>
@@ -357,27 +357,12 @@ void build_g_succ()
         }
         ++cur_id;
     }
+    succ_begin_pos[cur_id] = succ_index;
 }
-
-// void build_g_pred()
-// {
-//     ui pred_iterator = 0, pred_index = 0, cur_id = 0;
-//     while (cur_id < id_num)
-//     {
-//         pred_iterator = pred_begin_pos[cur_id];
-//         pred_begin_pos[cur_id] = pred_index;
-//         while (pred_iterator != 0)
-//         {
-//             g_pred[pred_index++] = Node(input_u_ids[pred_iterator - 1], input_weights[pred_iterator - 1]);
-//             pred_iterator = v_next[pred_iterator - 1];
-//         }
-//         ++cur_id;
-//     }
-// }
 
 void pre_process()
 {
-    ui index = 0;
+    register ui index = 0;
     thread u_thread = thread(sort_u_ids_and_unique);
     thread v_thread = thread(sort_v_ids_and_unique);
     u_thread.join();
@@ -411,20 +396,9 @@ void pre_process()
         // 链表串起来
         u_next[index] = succ_begin_pos[u_hash_id];
         succ_begin_pos[u_hash_id] = ++index;
-        // v_next[index] = pred_begin_pos[v_hash_id];
-        // pred_begin_pos[v_hash_id] = ++index;
-
-        // 出度和入度
-        out_degree[u_hash_id]++;
-        // in_degree[v_hash_id]++;
     }
 
     build_g_succ();
-
-    // thread thread_g_succ = thread(build_g_succ);
-    // thread thread_g_pred = thread(build_g_pred);
-    // thread_g_succ.join();
-    // thread_g_pred.join();
 }
 
 struct Pq_elem
@@ -458,7 +432,7 @@ struct ThreadMemory
 
 void dijkstra_priority_queue(ui s, ui tid)
 {
-    if (out_degree[s] == 0)
+    if (succ_begin_pos[s] == succ_begin_pos[s + 1])
         return;
     auto &dis = thread_memory[tid].dis;
     auto &pq = thread_memory[tid].pq;
@@ -469,15 +443,15 @@ void dijkstra_priority_queue(ui s, ui tid)
     auto &pred_info = thread_memory[tid].pred_info;
     auto &pred_begin_pos = thread_memory[tid].pred_begin_pos;
 
-    int id_stack_index = -1; // id_stack的指针
+    register int id_stack_index = -1; // id_stack的指针
     ull cur_dis, update_dis;
-    ui cur_id, next_id, pred_id, j, end_pos, pred_info_len = 0;
+    ui cur_id, next_id, pred_id, pred_info_len = 0;
+    register ui cur_pos, end_pos;
     double coeff;
 
-    // 初始化 3n
+    // 初始化 2n
     memset(dis, 0x3f, id_num << 3);
     dis[s] = 0;
-    // memset(sigma, 0, id_num << 2);
     sigma[s] = 1;
     memset(delta, 0, id_num << 3);
 
@@ -496,13 +470,13 @@ void dijkstra_priority_queue(ui s, ui tid)
             continue;
 
         id_stack[++id_stack_index] = cur_id;
-        j = succ_begin_pos[cur_id];
-        end_pos = j + out_degree[cur_id];
+        cur_pos = succ_begin_pos[cur_id];
+        end_pos = succ_begin_pos[cur_id + 1];
         // 遍历cur_id的后继 平均循环d次(平均出度)
-        while (j < end_pos)
+        while (cur_pos < end_pos)
         {
-            update_dis = dis[cur_id] + g_succ[j].weight;
-            next_id = g_succ[j].dst_id;
+            update_dis = dis[cur_id] + g_succ[cur_pos].weight;
+            next_id = g_succ[cur_pos].dst_id;
             if (update_dis < dis[next_id])
             {
                 dis[next_id] = update_dis;
@@ -518,7 +492,7 @@ void dijkstra_priority_queue(ui s, ui tid)
                 pred_info[pred_info_len][1] = pred_begin_pos[next_id];
                 pred_begin_pos[next_id] = pred_info_len++;
             }
-            ++j;
+            ++cur_pos;
         }
     }
 
@@ -526,13 +500,13 @@ void dijkstra_priority_queue(ui s, ui tid)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
-        j = pred_begin_pos[cur_id];
+        cur_pos = pred_begin_pos[cur_id];
         coeff = (1 + delta[cur_id]) / sigma[cur_id];
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
-        while ((j & 0x80000000) == 0)
+        while ((cur_pos & 0x80000000) == 0)
         {
-            pred_id = pred_info[j][0];
-            j = pred_info[j][1];
+            pred_id = pred_info[cur_pos][0];
+            cur_pos = pred_info[cur_pos][1];
             delta[pred_id] += sigma[pred_id] * coeff;
         }
         score[cur_id] += delta[cur_id];
