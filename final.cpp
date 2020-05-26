@@ -454,7 +454,7 @@ struct ThreadMemory
     // 小根堆
     priority_queue<Pq_elem> pq;
     ui id_stack[MAX_NUM_IDS];  // 出栈的节点会离s越来越近
-    ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
+    double sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
     double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
     double score[MAX_NUM_IDS]; // 位置中心性
     Node g_succ[MAX_NUM_EDGES];
@@ -503,7 +503,7 @@ void dijkstra_priority_queue(ui s, ui tid)
     // 初始化 3n
     memset(dis, 0xffffffff, id_num << 3);
     dis[s] = 0;
-    memset(sigma, 0, id_num << 2);
+    memset(sigma, 0, id_num << 3);
     sigma[s] = 1;
     memset(delta, 0, id_num << 3);
 
@@ -556,14 +556,14 @@ void dijkstra_priority_queue(ui s, ui tid)
     gettimeofday(&start_time, NULL);
 #endif
 
-    // 最多循环n次 O(n)
+    // O(M)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
         j = pred_begin_pos[cur_id];
         end_pos = j + in_degree[cur_id];
         coeff = (1 + delta[cur_id]) / sigma[cur_id];
-        // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
+        // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上
         while (j < end_pos)
         {
             pred_id = thread_g_pred[j].dst_id;
