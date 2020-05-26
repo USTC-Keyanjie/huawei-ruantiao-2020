@@ -562,11 +562,11 @@ void dijkstra_priority_queue(ui s, ui tid)
         cur_id = id_stack[id_stack_index--];
         j = pred_begin_pos[cur_id];
         end_pos = j + in_degree[cur_id];
+        coeff = (1 + delta[cur_id]) / sigma[cur_id];
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
         while (j < end_pos)
         {
             pred_id = thread_g_pred[j].dst_id;
-            coeff = (1 + delta[cur_id]) / sigma[cur_id];
             if (dis[pred_id] + thread_g_pred[j].weight == dis[cur_id])
                 delta[pred_id] += sigma[pred_id] * coeff;
             ++j;
