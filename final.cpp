@@ -4,7 +4,7 @@
 // 3. open //#define NEON
 
 #define TEST
-// #define MMAP // 使用mmap函数
+#define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
 // #include <bits/stdc++.h>
@@ -86,9 +86,7 @@ ui u_ids[MAX_NUM_EDGES];
 ui v_ids[MAX_NUM_EDGES];
 ui ids[MAX_NUM_EDGES];
 Node g_succ[MAX_NUM_EDGES];
-// Node g_pred[MAX_NUM_EDGES];
 ui out_degree[MAX_NUM_IDS]; // 每个节点的出度
-// ui in_degree[MAX_NUM_IDS];        // 每个节点的入度
 ui succ_begin_pos[MAX_NUM_IDS];   // 对于邻接表每个节点的起始index
 double global_score[MAX_NUM_IDS]; // 存储答案的数组
 
