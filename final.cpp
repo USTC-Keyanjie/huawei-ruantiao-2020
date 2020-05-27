@@ -67,11 +67,11 @@ ui id_num = 0, edge_num = 0;
 struct Node
 {
     ui dst_id;
-    ull weight;
+    ui weight;
 
     Node() {}
 
-    Node(ui cur_id, ull weight) : dst_id(cur_id), weight(weight) {}
+    Node(ui cur_id, ui weight) : dst_id(cur_id), weight(weight) {}
 
     // 依据next_id进行排序
     bool operator<(const Node &nextNode) const
@@ -83,7 +83,7 @@ struct Node
 bool is_sparse;
 ui input_u_ids[MAX_NUM_EDGES];
 ui input_v_ids[MAX_NUM_EDGES];
-ull input_weights[MAX_NUM_EDGES];
+ui input_weights[MAX_NUM_EDGES];
 ui u_next[MAX_NUM_EDGES];
 ui v_next[MAX_NUM_EDGES];
 ui u_ids[MAX_NUM_EDGES];
@@ -233,7 +233,7 @@ void input_fstream(char *testFile)
 
     FILE *file = fopen(testFile, "r");
     ui u, v;
-    ull weight;
+    ui weight;
     while (fscanf(file, "%u,%u,%llu\n", &u, &v, &weight) != EOF)
     {
         if (weight > 0)
@@ -269,7 +269,7 @@ void input_mmap(char *testFile)
 
     ui *u_id_ptr = input_u_ids;
     ui *v_id_ptr = input_v_ids;
-    ull *w_ptr = input_weights;
+    ui *w_ptr = input_weights;
     ull num = 0;
     ui index = 0, sign = 0;
     char cur_char;
