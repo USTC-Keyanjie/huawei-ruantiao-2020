@@ -3,7 +3,7 @@
 // 2. open //#define MMAP
 // 3. open //#define NEON
 
-#define TEST
+// #define TEST
 #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
@@ -358,7 +358,7 @@ void build_g_succ()
     ui succ_iterator = 0, succ_index = 0, cur_id = 0;
     while (cur_id < id_num)
     {
-        if (in_degree[cur_id] > 0 || out_degree[cur_id] > 1)
+        if (delete_recorder[cur_id] == false)
         {
             succ_iterator = succ_begin_pos[cur_id];
             succ_begin_pos[cur_id] = succ_index;
