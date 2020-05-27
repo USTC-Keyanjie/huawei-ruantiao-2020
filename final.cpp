@@ -4,7 +4,7 @@
 // 3. open //#define NEON
 
 #define TEST
-// #define MMAP // 使用mmap函数
+#define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
 // #include <bits/stdc++.h>
@@ -35,7 +35,7 @@ using namespace std;
 // 1
 // 2
 // 3
-string dataset = "1";
+string dataset = "test";
 #endif
 
 #ifdef MMAP
@@ -54,6 +54,9 @@ string dataset = "1";
 #define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5
 #define MAX_NUM_IDS 2500005   // 最大可接受id数 250w+5
 
+// #define MAX_NUM_EDGES 255 // 最大可接受边数 250w+5
+// #define MAX_NUM_IDS 255   // 最大可接受id数 250w+5
+
 #define TopK 100 // 只输出前TopK个结果
 
 #define STOP_FLAG 0x80000000
@@ -63,22 +66,6 @@ typedef unsigned int ui;
 
 // 总id数，总边数
 ui id_num = 0, edge_num = 0;
-
-struct Node
-{
-    ui dst_id;
-    ui weight;
-
-    Node() {}
-
-    Node(ui cur_id, ui weight) : dst_id(cur_id), weight(weight) {}
-
-    // 依据next_id进行排序
-    bool operator<(const Node &nextNode) const
-    {
-        return weight > nextNode.weight;
-    }
-};
 
 bool is_sparse;
 ui input_u_ids[MAX_NUM_EDGES];
@@ -365,7 +352,7 @@ void build_g_succ()
             while (succ_iterator != 0)
             {
                 g_succ[succ_index][0] = input_v_ids[succ_iterator - 1];
-                g_succ[succ_index][1] = input_weights[succ_iterator - 1];
+                g_succ[succ_index++][1] = input_weights[succ_iterator - 1];
                 succ_iterator = u_next[succ_iterator - 1];
             }
             // sort(g_succ + succ_begin_pos[cur_id], g_succ + succ_index);
