@@ -366,7 +366,7 @@ void build_g_succ()
                 g_succ[succ_index++] = Node(input_v_ids[succ_iterator - 1], input_weights[succ_iterator - 1]);
                 succ_iterator = u_next[succ_iterator - 1];
             }
-            sort(g_succ + succ_begin_pos[cur_id], g_succ + succ_index);
+            // sort(g_succ + succ_begin_pos[cur_id], g_succ + succ_index);
         }
         ++cur_id;
     }
@@ -574,10 +574,7 @@ void dijkstra_priority_queue(ui s, ui tid)
     {
         cur_id = id_stack[id_stack_index--];
         cur_pos = bc_data[cur_id].pred_begin_pos;
-        if (multiple > 1)
-            bc_data[cur_id].score += bc_data[cur_id].delta * multiple;
-        else
-            bc_data[cur_id].score += bc_data[cur_id].delta;
+        bc_data[cur_id].score += bc_data[cur_id].delta * multiple;
         dij_data[cur_id].dis = UINT64_MAX;
         coeff = (1 + bc_data[cur_id].delta) / dij_data[cur_id].sigma;
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
