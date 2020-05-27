@@ -608,8 +608,8 @@ struct ThreadMemoryDense
     ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
     double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
     double score[MAX_NUM_IDS]; // 位置中心性
-    ui pred_info[MAX_NUM_EDGES][2];
-    ui pred_begin_pos[MAX_NUM_IDS];
+    ui local_pred_info[MAX_NUM_EDGES][2];
+    ui local_pred_begin_pos[MAX_NUM_IDS];
 } thread_memory_dense[NUM_THREADS];
 
 void dijkstra_priority_queue_dense(ui s, ui tid)
@@ -620,8 +620,8 @@ void dijkstra_priority_queue_dense(ui s, ui tid)
     auto &sigma = thread_memory_dense[tid].sigma;
     auto &delta = thread_memory_dense[tid].delta;
     auto &score = thread_memory_dense[tid].score;
-    auto &pred_info = thread_memory_dense[tid].pred_info;
-    auto &pred_begin_pos = thread_memory_dense[tid].pred_begin_pos;
+    auto &local_pred_info = thread_memory_dense[tid].local_pred_info;
+    auto &local_pred_begin_pos = thread_memory_dense[tid].local_pred_begin_pos;
 
     int id_stack_index = -1; // id_stack的指针
     ull cur_dis, update_dis;
@@ -663,14 +663,14 @@ void dijkstra_priority_queue_dense(ui s, ui tid)
                 sigma[next_id] = 0;
                 // O(logn)
                 pq.emplace(Pq_elem(next_id, dis[next_id]));
-                pred_begin_pos[next_id] = 0x80000000;
+                local_pred_begin_pos[next_id] = 0x80000000;
             }
             if (update_dis == dis[next_id])
             {
                 sigma[next_id] += sigma[cur_id];
-                pred_info[pred_info_len][0] = cur_id;
-                pred_info[pred_info_len][1] = pred_begin_pos[next_id];
-                pred_begin_pos[next_id] = pred_info_len++;
+                local_pred_info[pred_info_len][0] = cur_id;
+                local_pred_info[pred_info_len][1] = local_pred_begin_pos[next_id];
+                local_pred_begin_pos[next_id] = pred_info_len++;
             }
             ++cur_pos;
         }
@@ -680,13 +680,13 @@ void dijkstra_priority_queue_dense(ui s, ui tid)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
-        cur_pos = pred_begin_pos[cur_id];
+        cur_pos = local_pred_begin_pos[cur_id];
         coeff = (1 + delta[cur_id]) / sigma[cur_id];
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
         while ((cur_pos & 0x80000000) == 0)
         {
-            pred_id = pred_info[cur_pos][0];
-            cur_pos = pred_info[cur_pos][1];
+            pred_id = local_pred_info[cur_pos][0];
+            cur_pos = local_pred_info[cur_pos][1];
             delta[pred_id] += sigma[pred_id] * coeff;
         }
         score[cur_id] += delta[cur_id];
