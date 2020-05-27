@@ -3,7 +3,7 @@
 // 2. open //#define MMAP
 // 3. open //#define NEON
 
-// #define TEST
+#define TEST
 #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
@@ -388,6 +388,7 @@ void pre_process()
     else
         is_sparse = true;
 
+    is_sparse = true; // 测试用，强制稀疏图
     // is_sparse = false; // 测试用，强制稠密图
 
     // 真实id与hashid的映射处理
