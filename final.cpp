@@ -5,7 +5,7 @@
 
 #define TEST
 // #define MMAP // 使用mmap函数
-// #define NEON // 打开NEON特性的算子，暂时不支持
+// #define NEON // 打开NEON特性的算子，开了反而会慢
 
 // #include <bits/stdc++.h>
 #include <algorithm>
@@ -72,6 +72,12 @@ struct Node
     Node() {}
 
     Node(ui cur_id, ull weight) : dst_id(cur_id), weight(weight) {}
+
+    // 依据next_id进行排序
+    bool operator<(const Node &nextNode) const
+    {
+        return dst_id < nextNode.dst_id;
+    }
 };
 
 ui input_u_ids[MAX_NUM_EDGES];
@@ -86,14 +92,10 @@ Node g_succ[MAX_NUM_EDGES];
 ui out_degree[MAX_NUM_IDS];     // 每个节点的出度
 ui in_degree[MAX_NUM_IDS];      // 每个节点的入度
 ui succ_begin_pos[MAX_NUM_IDS]; // 对于邻接表每个节点的起始index
-
-ui brande_algo_pred_begin_pos[MAX_NUM_IDS]; // Brande算法中，存储逆邻接表子表的起始位置
-
-ui topo_stack[MAX_NUM_IDS];          // 拓扑排序的栈
-ui topo_pred_info[MAX_NUM_IDS][2];   // 存储前驱点个数  第一维：id 第二维：下一个兄弟index
-ui topo_pred_num[MAX_NUM_IDS];       // 前驱数量
-ui topo_pred_begin_pos[MAX_NUM_IDS]; // 拓扑排序存储结构的起始点记录
-
+ui pred_begin_pos[MAX_NUM_IDS];
+ui topo_stack[MAX_NUM_IDS];        // 拓扑排序的栈
+ui topo_pred_info[MAX_NUM_IDS][2]; // 存储前驱点个数  第一维：id 第二维：下一个兄弟index
+ui topo_pred_num[MAX_NUM_IDS];     // 前驱数量
 bool delete_recorder[MAX_NUM_IDS];
 double global_score[MAX_NUM_IDS]; // 存储答案的数组
 
@@ -370,17 +372,6 @@ void build_g_succ()
     succ_begin_pos[cur_id] = succ_index;
 }
 
-void build_g_pred_begin_pos()
-{
-    ui pred_iterator = 0, pred_index = 0, cur_id = 0;
-    while (cur_id < id_num)
-    {
-        brande_algo_pred_begin_pos[cur_id] = pred_index;
-        pred_index += in_degree[cur_id];
-        ++cur_id;
-    }
-}
-
 void pre_process()
 {
     ui index = 0;
@@ -441,8 +432,8 @@ void pre_process()
         v_hash_id = input_v_ids[index - 1];
 
         topo_pred_info[topo_pred_info_len][0] = u_hash_id;
-        topo_pred_info[topo_pred_info_len][1] = topo_pred_begin_pos[v_hash_id];
-        topo_pred_begin_pos[v_hash_id] = ++topo_pred_info_len;
+        topo_pred_info[topo_pred_info_len][1] = pred_begin_pos[v_hash_id];
+        pred_begin_pos[v_hash_id] = ++topo_pred_info_len;
         topo_pred_num[v_hash_id] += topo_pred_num[u_hash_id] + 1;
 
         --out_degree[u_hash_id];
@@ -454,10 +445,7 @@ void pre_process()
         }
     }
 
-    thread thread_g_succ = thread(build_g_succ);
-    thread thread_g_pred = thread(build_g_pred_begin_pos);
-    thread_g_succ.join();
-    thread_g_pred.join();
+    build_g_succ();
 }
 
 struct Pq_elem
@@ -484,7 +472,7 @@ struct Dij_data
 
 struct BC_data
 {
-    ui pred_len;
+    ui pred_begin_pos;
     double delta; // sigma_st(index) / sigma_st
     double score; // 位置中心性
 };
@@ -498,15 +486,14 @@ struct ThreadMemory
     // 小根堆
     priority_queue<Pq_elem> pq;
     ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
-    ui pred_info[MAX_NUM_EDGES];
-    ui pred_begin_pos[MAX_NUM_IDS];
+    ui pred_info[MAX_NUM_EDGES][2];
 
 } thread_memory[NUM_THREADS];
 
 void dfs(ui cur_id, ui depth, ui num, ui tid)
 {
     ui pred_id, pred_num;
-    for (ui i = topo_pred_begin_pos[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
+    for (ui i = pred_begin_pos[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
     {
         pred_id = topo_pred_info[i - 1][0];
         pred_num = topo_pred_num[pred_id] + 1;
@@ -525,7 +512,6 @@ void dijkstra_priority_queue(ui s, ui tid)
     auto &pq = thread_memory[tid].pq;
     auto &id_stack = thread_memory[tid].id_stack;
     auto &pred_info = thread_memory[tid].pred_info;
-    auto &pred_begin_pos = thread_memory[tid].pred_begin_pos;
 
     int id_stack_index = -1; // id_stack的指针
     ull cur_dis, update_dis;
@@ -565,16 +551,15 @@ void dijkstra_priority_queue(ui s, ui tid)
                 dij_data[next_id].dis = update_dis;
                 dij_data[next_id].sigma = 0;
                 // O(logn)
-                pq.emplace(Pq_elem(next_id, update_dis));
-                // bc_data[next_id].topo_pred_begin_pos = STOP_FLAG;
-                bc_data[next_id].pred_len = 0;
+                pq.emplace(Pq_elem(next_id, dij_data[next_id].dis));
+                bc_data[next_id].pred_begin_pos = STOP_FLAG;
             }
             if (update_dis == dij_data[next_id].dis) // 23.75 cmp
             {
                 dij_data[next_id].sigma += cur_id_sigma;
-                pred_info[pred_begin_pos[next_id] + bc_data[next_id].pred_len] = cur_id;
-                bc_data[next_id].pred_len++;
-                // bc_data[next_id].topo_pred_begin_pos = pred_info_len++; // 7.45 str
+                pred_info[pred_info_len][0] = cur_id;
+                pred_info[pred_info_len][1] = bc_data[next_id].pred_begin_pos;
+                bc_data[next_id].pred_begin_pos = pred_info_len++; // 7.45 str
             }
             ++cur_pos;
         }
@@ -587,9 +572,7 @@ void dijkstra_priority_queue(ui s, ui tid)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
-        // cur_pos = bc_data[cur_id].topo_pred_begin_pos;
-        cur_pos = pred_begin_pos[cur_id];
-        end_pos = cur_pos + bc_data[cur_id].pred_len;
+        cur_pos = bc_data[cur_id].pred_begin_pos;
         if (multiple > 1)
             bc_data[cur_id].score += bc_data[cur_id].delta * multiple;
         else
@@ -597,9 +580,10 @@ void dijkstra_priority_queue(ui s, ui tid)
         dij_data[cur_id].dis = UINT64_MAX;
         coeff = (1 + bc_data[cur_id].delta) / dij_data[cur_id].sigma;
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
-        while (cur_pos < end_pos)
+        while ((cur_pos & STOP_FLAG) == 0)
         {
-            pred_id = pred_info[cur_pos++];
+            pred_id = pred_info[cur_pos][0];
+            cur_pos = pred_info[cur_pos][1];
             bc_data[pred_id].delta += dij_data[pred_id].sigma * coeff;
         }
     }
@@ -616,7 +600,6 @@ void thread_process(ui tid)
     timer.setTime();
 #endif
     auto &dij_data = thread_memory[tid].dij_data;
-
     // 初始化
     for (ui i = 0; i < id_num; ++i)
     {
@@ -625,8 +608,6 @@ void thread_process(ui tid)
 
     for (ui i = 0; i <= id_num; ++i)
         dij_data[i].local_succ_begin_pos = succ_begin_pos[i];
-
-    memcpy(thread_memory[tid].pred_begin_pos, brande_algo_pred_begin_pos, id_num * sizeof(ui));
 
     ui s_id;
     while (true)
