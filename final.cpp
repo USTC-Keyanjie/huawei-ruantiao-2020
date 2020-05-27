@@ -4,7 +4,7 @@
 // 3. open //#define NEON
 
 #define TEST
-#define MMAP // 使用mmap函数
+// #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
 // #include <bits/stdc++.h>
@@ -234,7 +234,7 @@ void input_fstream(char *testFile)
     FILE *file = fopen(testFile, "r");
     ui u, v;
     ui weight;
-    while (fscanf(file, "%u,%u,%llu\n", &u, &v, &weight) != EOF)
+    while (fscanf(file, "%u,%u,%u\n", &u, &v, &weight) != EOF)
     {
         if (weight > 0)
         {
