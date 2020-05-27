@@ -365,7 +365,7 @@ void build_g_succ()
             while (succ_iterator != 0)
             {
                 g_succ[succ_index][0] = input_v_ids[succ_iterator - 1];
-                g_succ[succ_index][0] = input_weights[succ_iterator - 1];
+                g_succ[succ_index][1] = input_weights[succ_iterator - 1];
                 succ_iterator = u_next[succ_iterator - 1];
             }
             // sort(g_succ + succ_begin_pos[cur_id], g_succ + succ_index);
