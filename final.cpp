@@ -76,7 +76,7 @@ struct Node
     // 依据next_id进行排序
     bool operator<(const Node &nextNode) const
     {
-        return dst_id < nextNode.dst_id;
+        return weight > nextNode.weight;
     }
 };
 
@@ -366,6 +366,7 @@ void build_g_succ()
                 g_succ[succ_index++] = Node(input_v_ids[succ_iterator - 1], input_weights[succ_iterator - 1]);
                 succ_iterator = u_next[succ_iterator - 1];
             }
+            sort(g_succ + succ_begin_pos[cur_id], g_succ + succ_index);
         }
         ++cur_id;
     }
