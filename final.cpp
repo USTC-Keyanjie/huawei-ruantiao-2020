@@ -80,6 +80,7 @@ struct Node
     }
 };
 
+bool is_sparse;
 ui input_u_ids[MAX_NUM_EDGES];
 ui input_v_ids[MAX_NUM_EDGES];
 ull input_weights[MAX_NUM_EDGES];
@@ -94,7 +95,7 @@ ui in_degree[MAX_NUM_IDS];      // 每个节点的入度
 ui succ_begin_pos[MAX_NUM_IDS]; // 对于邻接表每个节点的起始index
 ui pred_begin_pos[MAX_NUM_IDS];
 ui topo_stack[MAX_NUM_IDS];        // 拓扑排序的栈
-ui topo_pred_info[MAX_NUM_IDS][2]; // 存储前驱点个数  第一维：id 第二维：下一个兄弟index
+ui topo_pred_info[MAX_NUM_IDS][2]; // 存储前驱点信息  第一维：id 第二维：下一个兄弟index
 ui topo_pred_num[MAX_NUM_IDS];     // 前驱数量
 bool delete_recorder[MAX_NUM_IDS];
 double global_score[MAX_NUM_IDS]; // 存储答案的数组
@@ -382,6 +383,13 @@ void pre_process()
     v_thread.join();
     merge_uv_ids();
 
+    if (id_num * 2 < edge_num)
+        is_sparse = false;
+    else
+        is_sparse = true;
+
+    // is_sparse = false; // 测试用，强制稠密图
+
     // 真实id与hashid的映射处理
     while (index < id_num - 3)
     {
@@ -414,35 +422,38 @@ void pre_process()
         in_degree[v_hash_id]++;
     }
 
-    // topo sort
-    // 去除所有入度为0且出度为1的点
-    int topo_index = -1;
-    for (index = 0; index < id_num; ++index)
+    if (is_sparse)
     {
-        if (in_degree[index] == 0 && out_degree[index] == 1)
+        // topo sort
+        // 去除所有入度为0且出度为1的点
+        int topo_index = -1;
+        for (index = 0; index < id_num; ++index)
         {
-            topo_stack[++topo_index] = index;
-            delete_recorder[index] = true;
+            if (in_degree[index] == 0 && out_degree[index] == 1)
+            {
+                topo_stack[++topo_index] = index;
+                delete_recorder[index] = true;
+            }
         }
-    }
-    ui topo_pred_info_len = 0;
-    while (topo_index >= 0)
-    {
-        u_hash_id = topo_stack[topo_index--];
-        index = succ_begin_pos[u_hash_id];
-        v_hash_id = input_v_ids[index - 1];
-
-        topo_pred_info[topo_pred_info_len][0] = u_hash_id;
-        topo_pred_info[topo_pred_info_len][1] = pred_begin_pos[v_hash_id];
-        pred_begin_pos[v_hash_id] = ++topo_pred_info_len;
-        topo_pred_num[v_hash_id] += topo_pred_num[u_hash_id] + 1;
-
-        --out_degree[u_hash_id];
-        --in_degree[v_hash_id];
-        if (in_degree[v_hash_id] == 0 && out_degree[v_hash_id] == 1)
+        ui topo_pred_info_len = 0;
+        while (topo_index >= 0)
         {
-            topo_stack[++topo_index] = v_hash_id;
-            delete_recorder[v_hash_id] = true;
+            u_hash_id = topo_stack[topo_index--];
+            index = succ_begin_pos[u_hash_id];
+            v_hash_id = input_v_ids[index - 1];
+
+            topo_pred_info[topo_pred_info_len][0] = u_hash_id;
+            topo_pred_info[topo_pred_info_len][1] = pred_begin_pos[v_hash_id];
+            pred_begin_pos[v_hash_id] = ++topo_pred_info_len;
+            topo_pred_num[v_hash_id] += topo_pred_num[u_hash_id] + 1;
+
+            --out_degree[u_hash_id];
+            --in_degree[v_hash_id];
+            if (in_degree[v_hash_id] == 0 && out_degree[v_hash_id] == 1)
+            {
+                topo_stack[++topo_index] = v_hash_id;
+                delete_recorder[v_hash_id] = true;
+            }
         }
     }
 
@@ -479,7 +490,7 @@ struct BC_data
 };
 
 // 每个线程专属区域
-struct ThreadMemory
+struct ThreadMemorySparse
 {
     Dij_data dij_data[MAX_NUM_IDS];
     BC_data bc_data[MAX_NUM_IDS];
@@ -489,7 +500,7 @@ struct ThreadMemory
     ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
     ui pred_info[MAX_NUM_EDGES][2];
 
-} thread_memory[NUM_THREADS];
+} thread_memory_sparse[NUM_THREADS];
 
 void dfs(ui cur_id, ui depth, ui num, ui tid)
 {
@@ -498,7 +509,7 @@ void dfs(ui cur_id, ui depth, ui num, ui tid)
     {
         pred_id = topo_pred_info[i - 1][0];
         pred_num = topo_pred_num[pred_id] + 1;
-        thread_memory[tid].bc_data[cur_id].score += pred_num * (num + depth);
+        thread_memory_sparse[tid].bc_data[cur_id].score += pred_num * (num + depth);
         if (pred_num > 1)
         {
             dfs(pred_id, depth + 1, num, tid);
@@ -506,13 +517,13 @@ void dfs(ui cur_id, ui depth, ui num, ui tid)
     }
 }
 
-void dijkstra_priority_queue(ui s, ui tid)
+void dijkstra_priority_queue_sparse(ui s, ui tid)
 {
-    auto &dij_data = thread_memory[tid].dij_data;
-    auto &bc_data = thread_memory[tid].bc_data;
-    auto &pq = thread_memory[tid].pq;
-    auto &id_stack = thread_memory[tid].id_stack;
-    auto &pred_info = thread_memory[tid].pred_info;
+    auto &dij_data = thread_memory_sparse[tid].dij_data;
+    auto &bc_data = thread_memory_sparse[tid].bc_data;
+    auto &pq = thread_memory_sparse[tid].pq;
+    auto &id_stack = thread_memory_sparse[tid].id_stack;
+    auto &pred_info = thread_memory_sparse[tid].pred_info;
 
     int id_stack_index = -1; // id_stack的指针
     ull cur_dis, update_dis;
@@ -588,6 +599,100 @@ void dijkstra_priority_queue(ui s, ui tid)
     dij_data[s].dis = UINT64_MAX;
 }
 
+struct ThreadMemoryDense
+{
+    ull dis[MAX_NUM_IDS];
+    // 小根堆
+    priority_queue<Pq_elem> pq;
+    ui id_stack[MAX_NUM_IDS];  // 出栈的节点会离s越来越近
+    ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
+    double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
+    double score[MAX_NUM_IDS]; // 位置中心性
+    ui pred_info[MAX_NUM_EDGES][2];
+    ui pred_begin_pos[MAX_NUM_IDS];
+} thread_memory_dense[NUM_THREADS];
+
+void dijkstra_priority_queue_dense(ui s, ui tid)
+{
+    auto &dis = thread_memory_dense[tid].dis;
+    auto &pq = thread_memory_dense[tid].pq;
+    auto &id_stack = thread_memory_dense[tid].id_stack;
+    auto &sigma = thread_memory_dense[tid].sigma;
+    auto &delta = thread_memory_dense[tid].delta;
+    auto &score = thread_memory_dense[tid].score;
+    auto &pred_info = thread_memory_dense[tid].pred_info;
+    auto &pred_begin_pos = thread_memory_dense[tid].pred_begin_pos;
+
+    int id_stack_index = -1; // id_stack的指针
+    ull cur_dis, update_dis;
+    ui cur_id, next_id, pred_id, pred_info_len = 0;
+    ui cur_pos, end_pos;
+    double coeff;
+
+    // 初始化 2n
+    memset(dis, 0x3f, id_num << 3);
+    dis[s] = 0;
+    sigma[s] = 1;
+    memset(delta, 0, id_num << 3);
+
+    pq.emplace(Pq_elem(s, 0));
+
+    // 最多循环n次
+    while (!pq.empty())
+    {
+        // 找到离s点最近的顶点
+        cur_dis = pq.top().dis;
+        cur_id = pq.top().id;
+        // O(logn)
+        pq.pop();
+
+        if (cur_dis > dis[cur_id]) //dis[cur_id]可能经过松弛后变小了，原压入堆中的路径失去价值
+            continue;
+
+        id_stack[++id_stack_index] = cur_id;
+        cur_pos = succ_begin_pos[cur_id];
+        end_pos = succ_begin_pos[cur_id + 1];
+        // 遍历cur_id的后继 平均循环d次(平均出度)
+        while (cur_pos < end_pos)
+        {
+            update_dis = dis[cur_id] + g_succ[cur_pos].weight;
+            next_id = g_succ[cur_pos].dst_id;
+            if (update_dis < dis[next_id])
+            {
+                dis[next_id] = update_dis;
+                sigma[next_id] = 0;
+                // O(logn)
+                pq.emplace(Pq_elem(next_id, dis[next_id]));
+                pred_begin_pos[next_id] = 0x80000000;
+            }
+            if (update_dis == dis[next_id])
+            {
+                sigma[next_id] += sigma[cur_id];
+                pred_info[pred_info_len][0] = cur_id;
+                pred_info[pred_info_len][1] = pred_begin_pos[next_id];
+                pred_begin_pos[next_id] = pred_info_len++;
+            }
+            ++cur_pos;
+        }
+    }
+
+    // O(M)
+    while (id_stack_index > 0)
+    {
+        cur_id = id_stack[id_stack_index--];
+        cur_pos = pred_begin_pos[cur_id];
+        coeff = (1 + delta[cur_id]) / sigma[cur_id];
+        // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
+        while ((cur_pos & 0x80000000) == 0)
+        {
+            pred_id = pred_info[cur_pos][0];
+            cur_pos = pred_info[cur_pos][1];
+            delta[pred_id] += sigma[pred_id] * coeff;
+        }
+        score[cur_id] += delta[cur_id];
+    }
+}
+
 mutex id_lock;
 ui cur_id;
 
@@ -597,7 +702,7 @@ void thread_process(ui tid)
     Time_recorder timer;
     timer.setTime();
 #endif
-    auto &dij_data = thread_memory[tid].dij_data;
+    auto &dij_data = thread_memory_sparse[tid].dij_data;
     // 初始化
     for (ui i = 0; i < id_num; ++i)
     {
@@ -634,7 +739,10 @@ void thread_process(ui tid)
             }
 
             id_lock.unlock();
-            dijkstra_priority_queue(s_id, tid);
+            if (is_sparse)
+                dijkstra_priority_queue_sparse(s_id, tid);
+            else
+                dijkstra_priority_queue_dense(s_id, tid);
         }
     }
 
@@ -663,11 +771,24 @@ struct Res_pq_elem
 
 void save_fwrite(char *resultFile)
 {
-    for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
+    if (is_sparse)
     {
-        for (ui id_index = 0; id_index < id_num; ++id_index)
+        for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
         {
-            global_score[id_index] += thread_memory[thread_index].bc_data[id_index].score;
+            for (ui id_index = 0; id_index < id_num; ++id_index)
+            {
+                global_score[id_index] += thread_memory_sparse[thread_index].bc_data[id_index].score;
+            }
+        }
+    }
+    else
+    {
+        for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
+        {
+            for (ui id_index = 0; id_index < id_num; ++id_index)
+            {
+                global_score[id_index] += thread_memory_dense[thread_index].score[id_index];
+            }
         }
     }
 
