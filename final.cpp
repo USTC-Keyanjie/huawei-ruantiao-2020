@@ -586,7 +586,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
         cur_id = id_stack[id_stack_index--];
         cur_pos = bc_data[cur_id].pred_begin_pos;
         bc_data[cur_id].score += bc_data[cur_id].delta * multiple;
-        dij_data[cur_id].dis = UINT64_MAX;
+        dij_data[cur_id].dis = UINT32_MAX;
         coeff = (1 + bc_data[cur_id].delta) / dij_data[cur_id].sigma;
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
         while ((cur_pos & STOP_FLAG) == 0)
@@ -596,7 +596,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
             bc_data[pred_id].delta += dij_data[pred_id].sigma * coeff;
         }
     }
-    dij_data[s].dis = UINT64_MAX;
+    dij_data[s].dis = UINT32_MAX;
 }
 
 struct ThreadMemoryDense
@@ -706,7 +706,7 @@ void thread_process(ui tid)
     // 初始化
     for (ui i = 0; i < id_num; ++i)
     {
-        dij_data[i].dis = UINT64_MAX;
+        dij_data[i].dis = UINT32_MAX;
     }
 
     for (ui i = 0; i <= id_num; ++i)
