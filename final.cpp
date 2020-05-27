@@ -35,7 +35,7 @@ using namespace std;
 // 1
 // 2
 // 3
-string dataset = "test";
+string dataset = "1";
 #endif
 
 #ifdef MMAP
@@ -481,7 +481,7 @@ struct BC_data
 // 每个线程专属区域
 struct ThreadMemorySparse
 {
-    Dij_data dij_data[MAX_NUM_IDS];
+    ui dij_data[MAX_NUM_IDS][3];  // 0: dis 1: local_succ_begin_pos 2: sigma
     BC_data bc_data[MAX_NUM_IDS];
 
     // 小根堆
@@ -520,8 +520,8 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     ui cur_pos, end_pos;
     double coeff;
 
-    dij_data[s].dis = 0;
-    dij_data[s].sigma = 1;
+    dij_data[s][0] = 0;
+    dij_data[s][2] = 1;
 
     pq.emplace(Pq_elem(s, 0));
 
@@ -534,30 +534,30 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
         // O(logn)
         pq.pop();
 
-        if (cur_dis > dij_data[cur_id].dis) // dis可能经过松弛后变小了，原压入堆中的路径失去价值
+        if (cur_dis > dij_data[cur_id][0]) // dis可能经过松弛后变小了，原压入堆中的路径失去价值
             continue;
 
         id_stack[++id_stack_index] = cur_id;
         bc_data[cur_id].delta = 0;
-        cur_pos = dij_data[cur_id].local_succ_begin_pos;
+        cur_pos = dij_data[cur_id][1];
         end_pos = cur_pos + out_degree[cur_id];
         // 遍历cur_id的后继 平均循环d次(平均出度)
         while (cur_pos < end_pos)
         {
-            cur_id_sigma = dij_data[cur_id].sigma;
-            update_dis = dij_data[cur_id].dis + g_succ[cur_pos][1]; // 11.05 ldr
+            cur_id_sigma = dij_data[cur_id][2];
+            update_dis = dij_data[cur_id][0] + g_succ[cur_pos][1]; // 11.05 ldr
             next_id = g_succ[cur_pos][0];
-            if (update_dis < dij_data[next_id].dis)
+            if (update_dis < dij_data[next_id][0])
             {
-                dij_data[next_id].dis = update_dis;
-                dij_data[next_id].sigma = 0;
+                dij_data[next_id][0] = update_dis;
+                dij_data[next_id][2] = 0;
                 // O(logn)
-                pq.emplace(Pq_elem(next_id, dij_data[next_id].dis));
+                pq.emplace(Pq_elem(next_id, dij_data[next_id][0]));
                 bc_data[next_id].pred_begin_pos = STOP_FLAG;
             }
-            if (update_dis == dij_data[next_id].dis) // 23.75 cmp
+            if (update_dis == dij_data[next_id][0]) // 23.75 cmp
             {
-                dij_data[next_id].sigma += cur_id_sigma;
+                dij_data[next_id][2] += cur_id_sigma;
                 pred_info[pred_info_len][0] = cur_id;
                 pred_info[pred_info_len][1] = bc_data[next_id].pred_begin_pos;
                 bc_data[next_id].pred_begin_pos = pred_info_len++; // 7.45 str
@@ -575,17 +575,17 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
         cur_id = id_stack[id_stack_index--];
         cur_pos = bc_data[cur_id].pred_begin_pos;
         bc_data[cur_id].score += bc_data[cur_id].delta * multiple;
-        dij_data[cur_id].dis = UINT32_MAX;
-        coeff = (1 + bc_data[cur_id].delta) / dij_data[cur_id].sigma;
+        dij_data[cur_id][0] = UINT32_MAX;
+        coeff = (1 + bc_data[cur_id].delta) / dij_data[cur_id][2];
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
         while ((cur_pos & STOP_FLAG) == 0)
         {
             pred_id = pred_info[cur_pos][0];
             cur_pos = pred_info[cur_pos][1];
-            bc_data[pred_id].delta += dij_data[pred_id].sigma * coeff;
+            bc_data[pred_id].delta += dij_data[pred_id][2] * coeff;
         }
     }
-    dij_data[s].dis = UINT32_MAX;
+    dij_data[s][0] = UINT32_MAX;
 }
 
 struct ThreadMemoryDense
@@ -695,11 +695,9 @@ void thread_process(ui tid)
     // 初始化
     for (ui i = 0; i < id_num; ++i)
     {
-        dij_data[i].dis = UINT32_MAX;
-    }
-
-    for (ui i = 0; i <= id_num; ++i)
-        dij_data[i].local_succ_begin_pos = succ_begin_pos[i];
+        dij_data[i][0] = UINT32_MAX;
+        dij_data[i][1] = succ_begin_pos[i];
+    }   
 
     ui s_id;
     while (true)
