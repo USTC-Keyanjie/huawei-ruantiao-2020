@@ -3,7 +3,7 @@
 // 2. open //#define MMAP
 // 3. open //#define NEON
 
-#define TEST
+// #define TEST
 #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
@@ -463,11 +463,11 @@ void pre_process()
 struct Pq_elem
 {
     ui id;
-    ull dis;
+    ui dis;
 
     inline Pq_elem() {}
 
-    inline Pq_elem(ui id, ull dis) : id(id), dis(dis) {}
+    inline Pq_elem(ui id, ui dis) : id(id), dis(dis) {}
 
     inline bool operator<(const Pq_elem &nextNode) const
     {
@@ -477,7 +477,7 @@ struct Pq_elem
 
 struct Dij_data
 {
-    ull dis;
+    ui dis;
     ui local_succ_begin_pos;
     ui sigma; // 起点到当前点最短路径的数量
 };
@@ -526,7 +526,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     auto &pred_info = thread_memory_sparse[tid].pred_info;
 
     int id_stack_index = -1; // id_stack的指针
-    ull cur_dis, update_dis;
+    ui cur_dis, update_dis;
     ui cur_id, next_id, pred_id, cur_id_sigma, multiple, pred_info_len = 0;
     ui cur_pos, end_pos;
     double coeff;
@@ -601,7 +601,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
 
 struct ThreadMemoryDense
 {
-    ull dis[MAX_NUM_IDS];
+    ui dis[MAX_NUM_IDS];
     // 小根堆
     priority_queue<Pq_elem> pq;
     ui id_stack[MAX_NUM_IDS];  // 出栈的节点会离s越来越近
@@ -624,7 +624,7 @@ void dijkstra_priority_queue_dense(ui s, ui tid)
     auto &local_pred_begin_pos = thread_memory_dense[tid].local_pred_begin_pos;
 
     int id_stack_index = -1; // id_stack的指针
-    ull cur_dis, update_dis;
+    ui cur_dis, update_dis;
     ui cur_id, next_id, pred_id, pred_info_len = 0;
     ui cur_pos, end_pos;
     double coeff;
