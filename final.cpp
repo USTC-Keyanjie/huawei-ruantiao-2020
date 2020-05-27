@@ -89,7 +89,7 @@ ui v_next[MAX_NUM_EDGES];
 ui u_ids[MAX_NUM_EDGES];
 ui v_ids[MAX_NUM_EDGES];
 ui ids[MAX_NUM_EDGES];
-Node g_succ[MAX_NUM_EDGES];
+ui g_succ[MAX_NUM_EDGES][2];
 ui out_degree[MAX_NUM_IDS];     // 每个节点的出度
 ui in_degree[MAX_NUM_IDS];      // 每个节点的入度
 ui succ_begin_pos[MAX_NUM_IDS]; // 对于邻接表每个节点的起始index
@@ -364,7 +364,8 @@ void build_g_succ()
             succ_begin_pos[cur_id] = succ_index;
             while (succ_iterator != 0)
             {
-                g_succ[succ_index++] = Node(input_v_ids[succ_iterator - 1], input_weights[succ_iterator - 1]);
+                g_succ[succ_index][0] = input_v_ids[succ_iterator - 1];
+                g_succ[succ_index][0] = input_weights[succ_iterator - 1];
                 succ_iterator = u_next[succ_iterator - 1];
             }
             // sort(g_succ + succ_begin_pos[cur_id], g_succ + succ_index);
@@ -557,8 +558,8 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
         while (cur_pos < end_pos)
         {
             cur_id_sigma = dij_data[cur_id].sigma;
-            update_dis = dij_data[cur_id].dis + g_succ[cur_pos].weight; // 11.05 ldr
-            next_id = g_succ[cur_pos].dst_id;
+            update_dis = dij_data[cur_id].dis + g_succ[cur_pos][1]; // 11.05 ldr
+            next_id = g_succ[cur_pos][0];
             if (update_dis < dij_data[next_id].dis)
             {
                 dij_data[next_id].dis = update_dis;
@@ -656,8 +657,8 @@ void dijkstra_priority_queue_dense(ui s, ui tid)
         // 遍历cur_id的后继 平均循环d次(平均出度)
         while (cur_pos < end_pos)
         {
-            update_dis = dis[cur_id] + g_succ[cur_pos].weight;
-            next_id = g_succ[cur_pos].dst_id;
+            update_dis = dis[cur_id] + g_succ[cur_pos][1];
+            next_id = g_succ[cur_pos][0];
             if (update_dis < dis[next_id])
             {
                 dis[next_id] = update_dis;
