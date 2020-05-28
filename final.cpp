@@ -727,7 +727,7 @@ struct magical_heap
     }
     inline bool pop(us &x, T &item)
     { // return false -> empty
-        while (p[cur] > 0)
+        while (p[cur] == 0)
         {
             cur++;
             if (cur > term)
