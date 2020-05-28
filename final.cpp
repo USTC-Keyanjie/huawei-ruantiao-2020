@@ -604,7 +604,7 @@ struct magical_heap
     }
     inline void clear(int n)
     { // n: number of vertices
-        memset(p, 0, sizeof(int) * 2 * n);
+        memset(p, 0, sizeof(int) * 2 * (term + 1));
         cur = 0;
         term = 0;
     }
