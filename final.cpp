@@ -757,6 +757,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
 
 void dijkstra_priority_queue_magic(ui s, ui tid)
 {
+    cout << 1 << endl;
     auto &dij_data = thread_memory_magic[tid].dij_data;
     auto &bc_data = thread_memory_magic[tid].bc_data;
     auto &heap = thread_memory_magic[tid].heap;
