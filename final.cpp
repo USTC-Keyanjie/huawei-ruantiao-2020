@@ -651,13 +651,13 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
         // 遍历cur_id的后继 平均循环d次(平均出度)
         while (cur_pos < end_pos)
         {
-            cur_id_sigma = sigma[cur_id];
+            // cur_id_sigma = sigma[cur_id];
             update_dis = dij_data[cur_id][0] + g_succ[cur_pos][1]; // 11.05 ldr
             next_id = g_succ[cur_pos][0];
 
             if (update_dis == dij_data[next_id][0])
             {
-                sigma[next_id] += cur_id_sigma;
+                sigma[next_id] += sigma[cur_id];
 
                 pred_info[pred_begin_and_len[next_id][0] + pred_begin_and_len[next_id][1]] = cur_id;
                 pred_begin_and_len[next_id][1]++;
@@ -668,7 +668,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
                 // O(logn)
                 pq.emplace(Pq_elem(next_id, dij_data[next_id][0]));
 
-                sigma[next_id] = cur_id_sigma;
+                sigma[next_id] = sigma[cur_id];
 
                 pred_info[pred_begin_and_len[next_id][0]] = cur_id;
                 pred_begin_and_len[next_id][1] = 1;
@@ -823,13 +823,13 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         // 遍历cur_id的后继 平均循环d次(平均出度)
         while (cur_pos < end_pos)
         {
-            cur_id_sigma = sigma[cur_id];
+            // cur_id_sigma = sigma[cur_id];
             update_dis = dij_data[cur_id][0] + g_succ[cur_pos][1]; // 11.05 ldr
             next_id = g_succ[cur_pos][0];
 
             if (update_dis == dij_data[next_id][0])
             {
-                sigma[next_id] += cur_id_sigma;
+                sigma[next_id] += sigma[cur_id];
                 pred_info[pred_begin_and_len[next_id][0] + pred_begin_and_len[next_id][1]] = cur_id;
                 pred_begin_and_len[next_id][1]++;
             }
@@ -840,7 +840,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
                 // pq.emplace(Pq_elem(next_id, dij_data[next_id][0]));
                 heap.push(dij_data[next_id][0], next_id);
 
-                sigma[next_id] = cur_id_sigma;
+                sigma[next_id] = sigma[cur_id];
 
                 pred_info[pred_begin_and_len[next_id][0]] = cur_id;
                 pred_begin_and_len[next_id][1] = 1;
