@@ -4,6 +4,7 @@
 // 3. open //#define NEON
 
 #define TEST
+#define HEAP_OPT
 // #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
@@ -588,7 +589,8 @@ struct BC_data
 // 每个线程专属区域
 struct ThreadMemorySparse
 {
-    ui dij_data[MAX_NUM_IDS][3]; // 0: dis 1: local_succ_begin_pos 2: sigma
+    ui dij_data[MAX_NUM_IDS][2]; // 0: dis 1: local_succ_begin_pos
+    us sigma[MAX_NUM_IDS];
     BC_data bc_data[MAX_NUM_IDS];
 
     // 小根堆
@@ -618,6 +620,7 @@ void sparse_dfs(ui cur_id, ui depth, ui num, ui tid)
 void dijkstra_priority_queue_sparse(ui s, ui tid)
 {
     auto &dij_data = thread_memory_sparse[tid].dij_data;
+    auto &sigma = thread_memory_sparse[tid].sigma;
     auto &bc_data = thread_memory_sparse[tid].bc_data;
     auto &pq = thread_memory_sparse[tid].pq;
     auto &id_stack = thread_memory_sparse[tid].id_stack;
@@ -630,7 +633,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     double coeff;
 
     dij_data[s][0] = 0;
-    dij_data[s][2] = 1;
+    sigma[s] = 1;
 
     pq.emplace(Pq_elem(s, 0));
 
@@ -653,13 +656,13 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
         // 遍历cur_id的后继 平均循环d次(平均出度)
         while (cur_pos < end_pos)
         {
-            cur_id_sigma = dij_data[cur_id][2];
+            cur_id_sigma = sigma[cur_id];
             update_dis = dij_data[cur_id][0] + g_succ[cur_pos][1]; // 11.05 ldr
             next_id = g_succ[cur_pos][0];
 
             if (update_dis == dij_data[next_id][0])
             {
-                dij_data[next_id][2] += cur_id_sigma;
+                sigma[next_id] += cur_id_sigma;
 
                 pred_info[bc_data[next_id].pred_begin_pos + bc_data[next_id].pred_len] = cur_id;
                 bc_data[next_id].pred_len++;
@@ -670,7 +673,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
                 // O(logn)
                 pq.emplace(Pq_elem(next_id, dij_data[next_id][0]));
 
-                dij_data[next_id][2] = cur_id_sigma;
+                sigma[next_id] = cur_id_sigma;
 
                 pred_info[bc_data[next_id].pred_begin_pos] = cur_id;
                 bc_data[next_id].pred_len = 1;
@@ -688,7 +691,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
         cur_id = id_stack[id_stack_index--];
         bc_data[cur_id].score += bc_data[cur_id].delta * multiple;
         dij_data[cur_id][0] = UINT32_MAX;
-        coeff = (1 + bc_data[cur_id].delta) / dij_data[cur_id][2];
+        coeff = (1 + bc_data[cur_id].delta) / sigma[cur_id];
 
         cur_pos = bc_data[cur_id].pred_begin_pos;
         end_pos = cur_pos + bc_data[cur_id].pred_len;
@@ -697,12 +700,13 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
         while (cur_pos < end_pos)
         {
             pred_id = pred_info[cur_pos++];
-            bc_data[pred_id].delta += dij_data[pred_id][2] * coeff;
+            bc_data[pred_id].delta += sigma[pred_id] * coeff;
         }
     }
     dij_data[s][0] = UINT32_MAX;
 }
 
+#ifdef HEAP_OPT
 const size_t max_length = 1 << 16;
 const size_t max_bucket_size = 1 << 16;
 const size_t magical_heap_size = max_length * max_bucket_size;
@@ -754,7 +758,8 @@ struct magical_heap
 // 每个线程专属区域
 struct ThreadMemoryMagic
 {
-    ui dij_data[MAX_NUM_IDS][3]; // 0: dis 1: local_succ_begin_pos 2: sigma
+    ui dij_data[MAX_NUM_IDS][2]; // 0: dis 1: local_succ_begin_pos
+    us sigma[MAX_NUM_IDS];
     BC_data bc_data[MAX_NUM_IDS];
 
     // 小根堆
@@ -783,6 +788,7 @@ void magic_dfs(ui cur_id, ui depth, ui num, ui tid)
 void dijkstra_priority_queue_magic(ui s, ui tid)
 {
     auto &dij_data = thread_memory_magic[tid].dij_data;
+    auto &sigma = thread_memory_magic[tid].sigma;
     auto &bc_data = thread_memory_magic[tid].bc_data;
     auto &heap = thread_memory_magic[tid].heap;
 
@@ -796,7 +802,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     double coeff;
 
     dij_data[s][0] = 0;
-    dij_data[s][2] = 1;
+    sigma[s] = 1;
 
     // pq.emplace(Pq_elem(s, 0));
     heap.push(0, s);
@@ -820,13 +826,13 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         // 遍历cur_id的后继 平均循环d次(平均出度)
         while (cur_pos < end_pos)
         {
-            cur_id_sigma = dij_data[cur_id][2];
+            cur_id_sigma = sigma[cur_id];
             update_dis = dij_data[cur_id][0] + g_succ[cur_pos][1]; // 11.05 ldr
             next_id = g_succ[cur_pos][0];
 
             if (update_dis == dij_data[next_id][0])
             {
-                dij_data[next_id][2] += cur_id_sigma;
+                sigma[next_id] += cur_id_sigma;
                 pred_info[bc_data[next_id].pred_begin_pos + bc_data[next_id].pred_len] = cur_id;
                 bc_data[next_id].pred_len++;
             }
@@ -837,7 +843,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
                 // pq.emplace(Pq_elem(next_id, dij_data[next_id][0]));
                 heap.push(dij_data[next_id][0], next_id);
 
-                dij_data[next_id][2] = cur_id_sigma;
+                sigma[next_id] = cur_id_sigma;
 
                 pred_info[bc_data[next_id].pred_begin_pos] = cur_id;
                 bc_data[next_id].pred_len = 1;
@@ -855,7 +861,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         cur_id = id_stack[id_stack_index--];
         bc_data[cur_id].score += bc_data[cur_id].delta * multiple;
         dij_data[cur_id][0] = UINT32_MAX;
-        coeff = (1 + bc_data[cur_id].delta) / dij_data[cur_id][2];
+        coeff = (1 + bc_data[cur_id].delta) / sigma[cur_id];
 
         cur_pos = bc_data[cur_id].pred_begin_pos;
         end_pos = cur_pos + bc_data[cur_id].pred_len;
@@ -864,12 +870,13 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         while (cur_pos < end_pos)
         {
             pred_id = pred_info[cur_pos++];
-            bc_data[pred_id].delta += dij_data[pred_id][2] * coeff;
+            bc_data[pred_id].delta += sigma[pred_id] * coeff;
         }
     }
     dij_data[s][0] = UINT32_MAX;
     heap.clear();
 }
+#endif
 
 mutex id_lock;
 ui cur_id;
@@ -881,6 +888,7 @@ void thread_process(ui tid)
     timer.setTime();
 #endif
 
+#ifdef HEAP_OPT
     if (is_magic_heap)
     {
         auto &dij_data = thread_memory_magic[tid].dij_data;
@@ -896,7 +904,7 @@ void thread_process(ui tid)
     }
     else
     {
-
+#endif
         auto &dij_data = thread_memory_sparse[tid].dij_data;
         auto &bc_data = thread_memory_sparse[tid].bc_data;
         // 初始化
@@ -906,7 +914,9 @@ void thread_process(ui tid)
             dij_data[i][1] = succ_begin_pos2[i];
             bc_data[i].pred_begin_pos = pred_begin_pos2[i];
         }
+#ifdef HEAP_OPT
     }
+#endif
 
     ui s_id;
     while (true)
@@ -936,12 +946,15 @@ void thread_process(ui tid)
 
             id_lock.unlock();
 
+#ifdef HEAP_OPT
             if (is_magic_heap)
                 dijkstra_priority_queue_magic(s_id, tid);
             else
-
+#endif
                 dijkstra_priority_queue_sparse(s_id, tid);
+#ifdef HEAP_OPT
         }
+#endif
     }
 
 #ifdef TEST
@@ -970,6 +983,7 @@ struct Res_pq_elem
 void save_fwrite(char *resultFile)
 {
 
+#ifdef HEAP_OPT
     if (is_magic_heap)
     {
         for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
@@ -982,7 +996,7 @@ void save_fwrite(char *resultFile)
     }
     else
     {
-
+#endif
         for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
         {
             for (ui id_index = 0; id_index < id_num; ++id_index)
@@ -990,7 +1004,9 @@ void save_fwrite(char *resultFile)
                 global_score[id_index] += thread_memory_sparse[thread_index].bc_data[id_index].score;
             }
         }
+#ifdef HEAP_OPT
     }
+#endif
 
     int index = 0;
     priority_queue<Res_pq_elem> pq;
@@ -1056,8 +1072,8 @@ int main(int argc, char *argv[])
     strcpy(testFile, input_file.c_str());
     strcpy(resultFile, output_file.c_str());
 #else
-    char testFile[] = "/data/test_data.txt";
-    char resultFile[] = "/projects/student/result.txt";
+        char testFile[] = "/data/test_data.txt";
+        char resultFile[] = "/projects/student/result.txt";
 #endif
 
 #ifdef TEST
@@ -1068,7 +1084,7 @@ int main(int argc, char *argv[])
 #ifdef MMAP
     input_mmap(testFile);
 #else
-    input_fstream(testFile);
+        input_fstream(testFile);
 #endif
 #ifdef TEST
     timer_local.resetTimeWithTag("Read Input File");
