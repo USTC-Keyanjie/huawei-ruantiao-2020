@@ -708,9 +708,9 @@ template <class T>
 struct magical_heap
 {
     char *region;
-    us p[max_length];
-    us cur;
-    us term;
+    ui p[max_length];
+    ui cur;
+    ui term;
     magical_heap()
     {
         region = (decltype(region))mmap64(
@@ -720,12 +720,12 @@ struct magical_heap
         cur = 0;
         term = 0;
     }
-    inline void push(const us &x, const T &item)
+    inline void push(const ui &x, const T &item)
     {
         ((T *)(region + max_bucket_size * x))[p[x]++] = item;
         term = x > term ? x : term;
     }
-    inline bool pop(us &x, T &item)
+    inline bool pop(ui &x, T &item)
     { // return false -> empty
         while (p[cur] == 0)
         {
@@ -752,7 +752,7 @@ struct magical_heap
 struct ThreadMemoryMagic
 {
     ui dis[MAX_NUM_IDS];
-    us sigma[MAX_NUM_IDS];          // s -> t 的路径条数
+    ui sigma[MAX_NUM_IDS];          // s -> t 的路径条数
     ui pred_next_ptr[MAX_NUM_IDS];  // 下一个后继插入位置
     double bc_data[MAX_NUM_IDS][2]; // 0: delta = sigma_st(index) / sigma_st  1: 位置中心性
 
@@ -791,7 +791,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     auto &pred_info = thread_memory_magic[tid].pred_info;
 
     int id_stack_index = -1; // id_stack的指针
-    us cur_dis, update_dis;
+    ui cur_dis, update_dis;
     ui cur_id, next_id, pred_id, cur_id_sigma, multiple, pred_info_len = 0;
     ui cur_pos, end_pos;
     double coeff;
@@ -885,7 +885,7 @@ void thread_process(ui tid)
         auto &dis = thread_memory_magic[tid].dis;
 
         // 初始化
-        memset(dis, 0xff, id_num * sizeof(us));
+        memset(dis, 0xff, id_num * sizeof(ui));
     }
     else
     {
