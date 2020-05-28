@@ -725,7 +725,7 @@ struct magical_heap
         ((T *)(region + max_bucket_size * x))[p[x]++] = item;
         term = std::max(x, term);
 
-        cout << "push " << p[x] << endl;
+        printf("push id: %u  x: %u  p[x]: %u", item, x, p[x]);
     }
     inline bool pop(ui &x, T &item)
     { // return false -> empty
@@ -739,7 +739,7 @@ struct magical_heap
         }
         x = cur;
         item = ((T *)(region + max_bucket_size * x))[--p[x]];
-        cout << "pop " << p[x] << endl;
+        printf("pop id: %u  x: %u  p[x]: %u", item, x, p[x]);
         return true;
     }
     inline void clear()
