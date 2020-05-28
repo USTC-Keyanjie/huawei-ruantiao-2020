@@ -52,7 +52,7 @@ string dataset = "1";
 #include <stddef.h>
 #endif
 
-#define NUM_THREADS 1 // 线程数
+#define NUM_THREADS 8 // 线程数
 
 #define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5
 #define MAX_NUM_IDS 2500005   // 最大可接受id数 250w+5
@@ -667,8 +667,6 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     // pq.emplace(Pq_elem(s, 0));
     heap.push(0, s);
 
-    printf("start_dis: %u, start_id: %u\n", 0, s);
-
     // 最多循环n次
     while (heap.pop(cur_dis, cur_id))
     {
@@ -677,8 +675,6 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
         // cur_id = pq.top().id;
         // O(logn)
         // pq.pop();
-
-        printf("cur_dis: %u, cur_id: %u\n", cur_dis, cur_id);
 
         if (cur_dis > dij_data[cur_id][0]) // dis可能经过松弛后变小了，原压入堆中的路径失去价值
             continue;
