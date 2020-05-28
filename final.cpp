@@ -53,7 +53,7 @@ string dataset = "1";
 #include <stddef.h>
 #endif
 
-#define NUM_THREADS 1 // 线程数
+#define NUM_THREADS 8 // 线程数
 
 #define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5
 #define MAX_NUM_IDS 2500005   // 最大可接受id数 250w+5
