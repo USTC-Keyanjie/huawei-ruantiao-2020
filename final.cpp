@@ -708,7 +708,7 @@ template <class T>
 struct magical_heap
 {
     char *region;
-    ui p[max_length][2];
+    ui p[max_length];
     ui cur;
     ui term;
     magical_heap()
@@ -722,12 +722,12 @@ struct magical_heap
     }
     inline void push(const ui &x, const T &item)
     {
-        ((T *)(region + max_bucket_size * x))[p[x][1]++] = item;
+        ((T *)(region + max_bucket_size * x))[p[x]++] = item;
         term = std::max(x, term);
     }
     inline bool pop(ui &x, T &item)
     { // return false -> empty
-        while (p[cur][0] >= p[cur][1])
+        while (p[cur] > 0)
         {
             cur++;
             if (cur > term)
@@ -736,7 +736,7 @@ struct magical_heap
             }
         }
         x = cur;
-        item = ((T *)(region + max_bucket_size * x))[p[x][0]++];
+        item = ((T *)(region + max_bucket_size * x))[--p[x]];
         return true;
     }
     inline void clear()
@@ -867,7 +867,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         }
     }
     dis[s] = UINT32_MAX;
-    heap.clear();
+    // heap.clear();
 }
 
 mutex id_lock;
