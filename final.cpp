@@ -53,7 +53,7 @@ string dataset = "1";
 #include <stddef.h>
 #endif
 
-#define NUM_THREADS 8 // 线程数
+#define NUM_THREADS 1 // 线程数
 
 #define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5
 #define MAX_NUM_IDS 2500005   // 最大可接受id数 250w+5
@@ -725,7 +725,7 @@ struct magical_heap
         ((T *)(region + max_bucket_size * x))[p[x]++] = item;
         term = std::max(x, term);
 
-        printf("push id: %u  x: %u  p[x]: %u", item, x, p[x]);
+        printf("push id: %u  x: %u  p[x]: %u\n", item, x, p[x]);
     }
     inline bool pop(ui &x, T &item)
     { // return false -> empty
@@ -739,7 +739,7 @@ struct magical_heap
         }
         x = cur;
         item = ((T *)(region + max_bucket_size * x))[--p[x]];
-        printf("pop id: %u  x: %u  p[x]: %u", item, x, p[x]);
+        printf("pop id: %u  x: %u  p[x]: %u\n", item, x, p[x]);
         return true;
     }
     inline void clear()
