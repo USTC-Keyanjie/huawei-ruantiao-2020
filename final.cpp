@@ -667,6 +667,8 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     // pq.emplace(Pq_elem(s, 0));
     heap.push(0, s);
 
+    printf("cur_dis: %u, cur_id: %u\n", 0, s);
+
     // 最多循环n次
     while (!heap.pop(cur_dis, cur_id))
     {
@@ -680,7 +682,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
             continue;
 
         printf("cur_dis: %u, cur_id: %u\n", cur_dis, cur_id);
-        
+
         id_stack[++id_stack_index] = cur_id;
         bc_data[cur_id].delta = 0;
         cur_pos = dij_data[cur_id][1];
