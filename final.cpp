@@ -703,7 +703,6 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     dij_data[s][0] = UINT32_MAX;
 }
 
-/*
 const size_t max_length = 1 << 16;
 const size_t max_bucket_size = 1 << 16;
 const size_t magical_heap_size = max_length * max_bucket_size;
@@ -871,7 +870,6 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     dij_data[s][0] = UINT32_MAX;
     heap.clear();
 }
-*/
 
 mutex id_lock;
 ui cur_id;
@@ -883,7 +881,6 @@ void thread_process(ui tid)
     timer.setTime();
 #endif
 
-    /*
     if (is_magic_heap)
     {
         auto &dij_data = thread_memory_magic[tid].dij_data;
@@ -900,19 +897,17 @@ void thread_process(ui tid)
     else
     {
 
-        */
-    auto &dij_data = thread_memory_sparse[tid].dij_data;
-    auto &bc_data = thread_memory_sparse[tid].bc_data;
-    // 初始化
-    for (ui i = 0; i < id_num; ++i)
-    {
-        dij_data[i][0] = UINT32_MAX;
-        dij_data[i][1] = succ_begin_pos2[i];
-        bc_data[i].pred_begin_pos = pred_begin_pos2[i];
+        auto &dij_data = thread_memory_sparse[tid].dij_data;
+        auto &bc_data = thread_memory_sparse[tid].bc_data;
+        // 初始化
+        for (ui i = 0; i < id_num; ++i)
+        {
+            dij_data[i][0] = UINT32_MAX;
+            dij_data[i][1] = succ_begin_pos2[i];
+            bc_data[i].pred_begin_pos = pred_begin_pos2[i];
+        }
     }
-    /*
-    }
-*/
+
     ui s_id;
     while (true)
     {
@@ -940,12 +935,12 @@ void thread_process(ui tid)
             }
 
             id_lock.unlock();
-            /*
+
             if (is_magic_heap)
                 dijkstra_priority_queue_magic(s_id, tid);
             else
-            */
-            dijkstra_priority_queue_sparse(s_id, tid);
+
+                dijkstra_priority_queue_sparse(s_id, tid);
         }
     }
 
@@ -975,7 +970,6 @@ struct Res_pq_elem
 void save_fwrite(char *resultFile)
 {
 
-    /*
     if (is_magic_heap)
     {
         for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
@@ -988,17 +982,15 @@ void save_fwrite(char *resultFile)
     }
     else
     {
-        */
-    for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
-    {
-        for (ui id_index = 0; id_index < id_num; ++id_index)
+
+        for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
         {
-            global_score[id_index] += thread_memory_sparse[thread_index].bc_data[id_index].score;
+            for (ui id_index = 0; id_index < id_num; ++id_index)
+            {
+                global_score[id_index] += thread_memory_sparse[thread_index].bc_data[id_index].score;
+            }
         }
     }
-    /*
-    }
-    */
 
     int index = 0;
     priority_queue<Res_pq_elem> pq;
