@@ -3,8 +3,8 @@
 // 2. open //#define MMAP
 // 3. open //#define NEON
 
-#define TEST
-// #define MMAP // 使用mmap函数
+// #define TEST
+#define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
 #ifndef TEST
@@ -602,7 +602,7 @@ struct magical_heap
         item = ((T *)(region + max_bucket_size * x))[p[x][0]++];
         return true;
     }
-    inline void clear(int n)
+    inline void clear()
     { // n: number of vertices
         memset(p, 0, sizeof(int) * 2 * (term + 1));
         cur = 0;
@@ -640,31 +640,17 @@ struct ThreadMemorySparse
 
 } thread_memory_sparse[NUM_THREADS];
 
-// 每个线程专属区域
-struct ThreadMemoryMagic
-{
-    ui dij_data[MAX_NUM_IDS][3]; // 0: dis 1: local_succ_begin_pos 2: sigma
-    BC_data bc_data[MAX_NUM_IDS];
-
-    // 小根堆
-    magical_heap<ui> heap;
-
-    ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
-    ui pred_info[MAX_NUM_EDGES][2];
-
-} thread_memory_magic[NUM_THREADS];
-
-void dfs(ui cur_id, ui depth, ui num, ui tid)
+void sparse_dfs(ui cur_id, ui depth, ui num, ui tid)
 {
     ui pred_id, pred_num;
     for (ui i = pred_begin_pos2[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
     {
         pred_id = topo_pred_info[i - 1][0];
         pred_num = topo_pred_num[pred_id] + 1;
-        thread_memory_magic[tid].bc_data[cur_id].score += pred_num * (num + depth);
+        thread_memory_sparse[tid].bc_data[cur_id].score += pred_num * (num + depth);
         if (pred_num > 1)
         {
-            dfs(pred_id, depth + 1, num, tid);
+            sparse_dfs(pred_id, depth + 1, num, tid);
         }
     }
 }
@@ -734,7 +720,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     }
 
     multiple = topo_pred_num[s] + 1;
-    dfs(s, 0, id_stack_index, tid);
+    sparse_dfs(s, 0, id_stack_index, tid);
 
     // O(M)
     while (id_stack_index > 0)
@@ -753,6 +739,35 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
         }
     }
     dij_data[s][0] = UINT32_MAX;
+}
+
+// 每个线程专属区域
+struct ThreadMemoryMagic
+{
+    ui dij_data[MAX_NUM_IDS][3]; // 0: dis 1: local_succ_begin_pos 2: sigma
+    BC_data bc_data[MAX_NUM_IDS];
+
+    // 小根堆
+    magical_heap<ui> heap;
+
+    ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
+    ui pred_info[MAX_NUM_EDGES][2];
+
+} thread_memory_magic[NUM_THREADS];
+
+void magic_dfs(ui cur_id, ui depth, ui num, ui tid)
+{
+    ui pred_id, pred_num;
+    for (ui i = pred_begin_pos2[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
+    {
+        pred_id = topo_pred_info[i - 1][0];
+        pred_num = topo_pred_num[pred_id] + 1;
+        thread_memory_magic[tid].bc_data[cur_id].score += pred_num * (num + depth);
+        if (pred_num > 1)
+        {
+            magic_dfs(pred_id, depth + 1, num, tid);
+        }
+    }
 }
 
 void dijkstra_priority_queue_magic(ui s, ui tid)
@@ -823,7 +838,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     }
 
     multiple = topo_pred_num[s] + 1;
-    dfs(s, 0, id_stack_index, tid);
+    magic_dfs(s, 0, id_stack_index, tid);
 
     // O(M)
     while (id_stack_index > 0)
@@ -842,7 +857,6 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         }
     }
     dij_data[s][0] = UINT32_MAX;
-    heap.clear(max_length);
 }
 
 mutex id_lock;
