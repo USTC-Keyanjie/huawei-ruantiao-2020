@@ -4,7 +4,7 @@
 // 3. open //#define NEON
 
 #define TEST
-#define MMAP // 使用mmap函数
+// #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
 #ifndef TEST
@@ -857,6 +857,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         }
     }
     dij_data[s][0] = UINT32_MAX;
+    heap.clear();
 }
 
 mutex id_lock;
