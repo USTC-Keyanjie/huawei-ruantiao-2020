@@ -39,7 +39,7 @@ using namespace std;
 // 1
 // 2
 // 3
-string dataset = "1";
+string dataset = "2";
 #endif
 
 #ifdef MMAP
@@ -700,15 +700,17 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     dis[s] = UINT32_MAX;
 }
 
+// 1
 const size_t max_length = 1 << 16;
 const size_t max_bucket_size = 1 << 16;
 const size_t magical_heap_size = max_length * max_bucket_size;
+
 
 template <class T>
 struct magical_heap
 {
     char *region;
-    ui p[max_length];
+    ui p[max_length][2];
     ui cur;
     ui term;
     magical_heap()
@@ -722,12 +724,12 @@ struct magical_heap
     }
     inline void push(const ui &x, const T &item)
     {
-        ((T *)(region + max_bucket_size * x))[p[x]++] = item;
-        term = x > term ? x : term;
+        ((T *)(region + max_bucket_size * x))[p[x][1]++] = item;
+        term = std::max(x, term);
     }
     inline bool pop(ui &x, T &item)
     { // return false -> empty
-        while (p[cur] == 0)
+        while (p[cur][0] >= p[cur][1])
         {
             cur++;
             if (cur > term)
@@ -736,7 +738,7 @@ struct magical_heap
             }
         }
         x = cur;
-        item = ((T *)(region + max_bucket_size * x))[--p[x]];
+        item = ((T *)(region + max_bucket_size * x))[p[x][0]++];
         return true;
     }
     inline void clear()
@@ -752,7 +754,7 @@ struct magical_heap
 struct ThreadMemoryMagic
 {
     ui dis[MAX_NUM_IDS];
-    ui sigma[MAX_NUM_IDS];          // s -> t 的路径条数
+    us sigma[MAX_NUM_IDS];          // s -> t 的路径条数
     ui pred_next_ptr[MAX_NUM_IDS];  // 下一个后继插入位置
     double bc_data[MAX_NUM_IDS][2]; // 0: delta = sigma_st(index) / sigma_st  1: 位置中心性
 
@@ -853,7 +855,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     {
         cur_id = id_stack[id_stack_index--];
         bc_data[cur_id][1] += bc_data[cur_id][0] * multiple;
-        dis[cur_id] = UINT16_MAX;
+        dis[cur_id] = UINT32_MAX;
         coeff = (1 + bc_data[cur_id][0]) / sigma[cur_id];
 
         cur_pos = pred_begin_pos2[cur_id];
@@ -866,7 +868,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
             bc_data[pred_id][0] += sigma[pred_id] * coeff;
         }
     }
-    dis[s] = UINT16_MAX;
+    dis[s] = UINT32_MAX;
     // heap.clear();
 }
 
@@ -880,6 +882,7 @@ void thread_process(ui tid)
     timer.setTime();
 #endif
 
+    // 2
     if (is_magic_heap)
     {
         auto &dis = thread_memory_magic[tid].dis;
@@ -889,11 +892,12 @@ void thread_process(ui tid)
     }
     else
     {
+
         auto &dis = thread_memory_sparse[tid].dis;
 
         // 初始化
         memset(dis, 0xff, id_num * sizeof(ui));
-    }
+    } //3
 
     ui s_id;
     while (true)
@@ -922,9 +926,10 @@ void thread_process(ui tid)
             }
 
             id_lock.unlock();
-
+            // 4
             if (is_magic_heap)
                 dijkstra_priority_queue_magic(s_id, tid);
+
             else
                 dijkstra_priority_queue_sparse(s_id, tid);
         }
@@ -955,7 +960,7 @@ struct Res_pq_elem
 
 void save_fwrite(char *resultFile)
 {
-
+    // 5
     if (is_magic_heap)
     {
         for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
