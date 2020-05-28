@@ -670,7 +670,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     printf("start_dis: %u, start_id: %u\n", 0, s);
 
     // 最多循环n次
-    while (!heap.pop(cur_dis, cur_id))
+    while (heap.pop(cur_dis, cur_id))
     {
         // 找到离s点最近的顶点
         // cur_dis = pq.top().dis;
