@@ -563,7 +563,7 @@ struct magical_heap
     char *region;
     int p[max_length][2];
     int cur;
-    int term;
+    ui term;
     magical_heap()
     {
         region = (decltype(region))mmap64(
@@ -599,11 +599,6 @@ struct magical_heap
         term = 0;
     }
     ~magical_heap() { munmap(region, magical_heap_size); }
-};
-
-struct Node
-{
-    int u;
 };
 
 struct Dij_data
