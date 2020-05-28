@@ -757,7 +757,6 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
 
 void dijkstra_priority_queue_magic(ui s, ui tid)
 {
-    cout << 1 << endl;
     auto &dij_data = thread_memory_magic[tid].dij_data;
     auto &bc_data = thread_memory_magic[tid].bc_data;
     auto &heap = thread_memory_magic[tid].heap;
@@ -855,12 +854,25 @@ void thread_process(ui tid)
     Time_recorder timer;
     timer.setTime();
 #endif
-    auto &dij_data = thread_memory_sparse[tid].dij_data;
-    // 初始化
-    for (ui i = 0; i < id_num; ++i)
+    if (is_magic_heap)
     {
-        dij_data[i][0] = UINT32_MAX;
-        dij_data[i][1] = succ_begin_pos2[i];
+        auto &dij_data = thread_memory_magic[tid].dij_data;
+        // 初始化
+        for (ui i = 0; i < id_num; ++i)
+        {
+            dij_data[i][0] = UINT32_MAX;
+            dij_data[i][1] = succ_begin_pos2[i];
+        }
+    }
+    else
+    {
+        auto &dij_data = thread_memory_sparse[tid].dij_data;
+        // 初始化
+        for (ui i = 0; i < id_num; ++i)
+        {
+            dij_data[i][0] = UINT32_MAX;
+            dij_data[i][1] = succ_begin_pos2[i];
+        }
     }
 
     ui s_id;
