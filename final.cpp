@@ -7,7 +7,11 @@
 // #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
-// #include <bits/stdc++.h>
+#ifndef TEST
+#include <bits/stdc++.h>
+#include <sys/mman.h>
+#endif
+
 #include <algorithm>
 #include <fcntl.h>
 #include <iostream>
@@ -550,6 +554,59 @@ struct Pq_elem
     }
 };
 
+const size_t max_length = 1 << 20;
+const size_t max_bucket_size = 1 << 20;
+const size_t magical_heap_size = max_length * max_bucket_size;
+
+template <class T>
+struct magical_heap
+{
+    char *region;
+    int p[max_length][2];
+    int cur;
+    int term;
+    magical_heap()
+    {
+        region = (decltype(region))mmap64(
+            NULL, magical_heap_size, PROT_READ | PROT_WRITE,
+            MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+        memset(p, 0, sizeof(p));
+        cur = 0;
+        term = 0;
+    }
+    inline void push(const ui &x, const T &item)
+    {
+        ((T *)(region + max_bucket_size * x))[p[x][1]++] = item;
+        term = std::max(x, term);
+    }
+    inline bool pop(ui &x, T &item)
+    { // return false -> empty
+        while (p[cur][0] >= p[cur][1])
+        {
+            cur++;
+            if (cur > term)
+            {
+                return false;
+            }
+        }
+        x = cur;
+        item = ((T *)(region + max_bucket_size * x))[p[x][0]++];
+        return true;
+    }
+    inline void clear(int n)
+    { // n: number of vertices
+        memset(p, 0, sizeof(int) * 2 * n);
+        cur = 0;
+        term = 0;
+    }
+    ~magical_heap() { munmap(region, magical_heap_size); }
+};
+
+struct Node
+{
+    int u;
+};
+
 struct Dij_data
 {
     ui dis;
@@ -571,7 +628,9 @@ struct ThreadMemorySparse
     BC_data bc_data[MAX_NUM_IDS];
 
     // 小根堆
-    priority_queue<Pq_elem> pq;
+    // priority_queue<Pq_elem> pq;
+    magical_heap<ui> heap;
+
     ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
     ui pred_info[MAX_NUM_EDGES][2];
 
@@ -596,7 +655,9 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
 {
     auto &dij_data = thread_memory_sparse[tid].dij_data;
     auto &bc_data = thread_memory_sparse[tid].bc_data;
-    auto &pq = thread_memory_sparse[tid].pq;
+    // auto &pq = thread_memory_sparse[tid].pq;
+    auto &heap = thread_memory_sparse[tid].heap;
+
     auto &id_stack = thread_memory_sparse[tid].id_stack;
     auto &pred_info = thread_memory_sparse[tid].pred_info;
 
@@ -609,16 +670,17 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     dij_data[s][0] = 0;
     dij_data[s][2] = 1;
 
-    pq.emplace(Pq_elem(s, 0));
+    // pq.emplace(Pq_elem(s, 0));
+    heap.push(0, s);
 
     // 最多循环n次
-    while (!pq.empty())
+    while (!heap.pop(cur_dis, cur_id))
     {
         // 找到离s点最近的顶点
-        cur_dis = pq.top().dis;
-        cur_id = pq.top().id;
+        // cur_dis = pq.top().dis;
+        // cur_id = pq.top().id;
         // O(logn)
-        pq.pop();
+        // pq.pop();
 
         if (cur_dis > dij_data[cur_id][0]) // dis可能经过松弛后变小了，原压入堆中的路径失去价值
             continue;
@@ -645,7 +707,8 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
             {
                 dij_data[next_id][0] = update_dis;
                 // O(logn)
-                pq.emplace(Pq_elem(next_id, dij_data[next_id][0]));
+                // pq.emplace(Pq_elem(next_id, dij_data[next_id][0]));
+                heap.push(dij_data[next_id][0], next_id);
 
                 dij_data[next_id][2] = cur_id_sigma;
                 pred_info[pred_info_len][0] = cur_id;
