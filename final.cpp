@@ -39,7 +39,7 @@ using namespace std;
 // 1
 // 2
 // 3
-string dataset = "2";
+string dataset = "1";
 #endif
 
 #ifdef MMAP
@@ -700,11 +700,9 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     dis[s] = UINT32_MAX;
 }
 
-// 1
 const size_t max_length = 1 << 16;
 const size_t max_bucket_size = 1 << 16;
 const size_t magical_heap_size = max_length * max_bucket_size;
-
 
 template <class T>
 struct magical_heap
@@ -869,7 +867,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         }
     }
     dis[s] = UINT32_MAX;
-    // heap.clear();
+    heap.clear();
 }
 
 mutex id_lock;
@@ -882,22 +880,24 @@ void thread_process(ui tid)
     timer.setTime();
 #endif
 
-    // 2
     if (is_magic_heap)
     {
         auto &dis = thread_memory_magic[tid].dis;
-
         // 初始化
-        memset(dis, 0xff, id_num * sizeof(ui));
+        for (ui i = 0; i < id_num; ++i)
+        {
+            dis[i] = UINT32_MAX;
+        }
     }
     else
     {
-
         auto &dis = thread_memory_sparse[tid].dis;
-
         // 初始化
-        memset(dis, 0xff, id_num * sizeof(ui));
-    } //3
+        for (ui i = 0; i < id_num; ++i)
+        {
+            dis[i] = UINT32_MAX;
+        }
+    }
 
     ui s_id;
     while (true)
@@ -926,10 +926,9 @@ void thread_process(ui tid)
             }
 
             id_lock.unlock();
-            // 4
+
             if (is_magic_heap)
                 dijkstra_priority_queue_magic(s_id, tid);
-
             else
                 dijkstra_priority_queue_sparse(s_id, tid);
         }
@@ -960,7 +959,7 @@ struct Res_pq_elem
 
 void save_fwrite(char *resultFile)
 {
-    // 5
+
     if (is_magic_heap)
     {
         for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
