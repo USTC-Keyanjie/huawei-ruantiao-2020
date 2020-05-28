@@ -622,7 +622,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     auto &pred_info = thread_memory_sparse[tid].pred_info;
 
     int id_stack_index = -1; // id_stack的指针
-    ui cur_dis, update_dis;
+    ui cur_dis;
     ui cur_id, next_id, pred_id, cur_id_sigma, multiple, pred_info_len = 0;
     ui cur_pos, end_pos;
     double coeff;
@@ -652,18 +652,18 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
         while (cur_pos < end_pos)
         {
             // cur_id_sigma = sigma[cur_id];
-            update_dis = dis[cur_id] + g_succ[cur_pos][1]; // 11.05 ldr
+            // update_dis = dis[cur_id] + g_succ[cur_pos][1]; // 11.05 ldr
             next_id = g_succ[cur_pos][0];
 
-            if (update_dis == dis[next_id])
+            if (dis[cur_id] + g_succ[cur_pos][1] == dis[next_id])
             {
                 sigma[next_id] += sigma[cur_id];
 
                 pred_info[pred_next_ptr[next_id]++] = cur_id;
             }
-            else if (update_dis < dis[next_id])
+            else if (dis[cur_id] + g_succ[cur_pos][1] < dis[next_id])
             {
-                dis[next_id] = update_dis;
+                dis[next_id] = dis[cur_id] + g_succ[cur_pos][1];
                 // O(logn)
                 pq.emplace(Pq_elem(next_id, dis[next_id]));
 
@@ -791,7 +791,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     auto &pred_info = thread_memory_magic[tid].pred_info;
 
     int id_stack_index = -1; // id_stack的指针
-    us cur_dis, update_dis;
+    us cur_dis;
     ui cur_id, next_id, pred_id, cur_id_sigma, multiple, pred_info_len = 0;
     ui cur_pos, end_pos;
     double coeff;
@@ -821,17 +821,17 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         // 遍历cur_id的后继 平均循环d次(平均出度)
         while (cur_pos < end_pos)
         {
-            update_dis = dis[cur_id] + g_succ[cur_pos][1]; // 11.05 ldr
+            // update_dis = dis[cur_id] + g_succ[cur_pos][1]; // 11.05 ldr
             next_id = g_succ[cur_pos][0];
 
-            if (update_dis == dis[next_id])
+            if (dis[cur_id] + g_succ[cur_pos][1] == dis[next_id])
             {
                 sigma[next_id] += sigma[cur_id];
                 pred_info[pred_next_ptr[next_id]++] = cur_id;
             }
-            else if (update_dis < dis[next_id])
+            else if (dis[cur_id] + g_succ[cur_pos][1] < dis[next_id])
             {
-                dis[next_id] = update_dis;
+                dis[next_id] = dis[cur_id] + g_succ[cur_pos][1];
                 // O(logn)
                 // pq.emplace(Pq_elem(next_id, dij_data[next_id][0]));
                 heap.push(dis[next_id], next_id);
