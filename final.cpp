@@ -561,8 +561,8 @@ template <class T>
 struct magical_heap
 {
     char *region;
-    int p[max_length][2];
-    int cur;
+    ui p[max_length][2];
+    ui cur;
     ui term;
     magical_heap()
     {
