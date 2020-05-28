@@ -737,6 +737,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
         }
     }
     dij_data[s][0] = UINT32_MAX;
+    heap.clear(max_length);
 }
 
 mutex id_lock;
