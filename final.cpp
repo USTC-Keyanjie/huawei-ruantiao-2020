@@ -583,7 +583,7 @@ struct ThreadMemorySparse
 {
     ui dij_data[MAX_NUM_IDS][2];           // 0: dis 1: local_succ_begin_pos
     us sigma[MAX_NUM_IDS];                 // s -> t 的路径条数
-    us pred_begin_and_len[MAX_NUM_IDS][2]; // 0: pred_begin_pos 1: pred_len
+    ui pred_begin_and_len[MAX_NUM_IDS][2]; // 0: pred_begin_pos 1: pred_len
     double bc_data[MAX_NUM_IDS][2];        // 0: delta = sigma_st(index) / sigma_st  1: 位置中心性
 
     // 小根堆
@@ -755,7 +755,7 @@ struct ThreadMemoryMagic
 {
     ui dij_data[MAX_NUM_IDS][2];           // 0: dis 1: local_succ_begin_pos
     us sigma[MAX_NUM_IDS];                 // s -> t 的路径条数
-    us pred_begin_and_len[MAX_NUM_IDS][2]; // 0: pred_begin_pos 1: pred_len
+    ui pred_begin_and_len[MAX_NUM_IDS][2]; // 0: pred_begin_pos 1: pred_len
     double bc_data[MAX_NUM_IDS][2];        // 0: delta = sigma_st(index) / sigma_st  1: 位置中心性
 
     // 小根堆
