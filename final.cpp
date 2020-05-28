@@ -9,7 +9,6 @@
 
 #ifndef TEST
 #include <bits/stdc++.h>
-#include <sys/mman.h>
 #endif
 
 #include <algorithm>
@@ -45,8 +44,8 @@ string dataset = "1";
 #ifdef MMAP
 #include <linux/fb.h>
 #include <sys/ioctl.h>
-#include <sys/mman.h>
 #endif
+#include <sys/mman.h>
 
 #ifdef NEON
 #include <arm_neon.h>
