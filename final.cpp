@@ -744,7 +744,7 @@ struct magical_heap
     }
     inline void clear()
     { // n: number of vertices
-        memset(p, 0, sizeof(int) * 2 * (term + 1));
+        // memset(p, 0, sizeof(int) * 2 * (term + 1));
         cur = 0;
         term = 0;
     }
@@ -870,7 +870,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         }
     }
     dis[s] = UINT32_MAX;
-    // heap.clear();
+    heap.clear();
 }
 
 mutex id_lock;
