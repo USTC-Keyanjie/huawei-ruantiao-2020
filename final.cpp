@@ -679,6 +679,8 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
         if (cur_dis > dij_data[cur_id][0]) // dis可能经过松弛后变小了，原压入堆中的路径失去价值
             continue;
 
+        printf("cur_dis: %u, cur_id: %u\n", cur_dis, cur_id);
+        
         id_stack[++id_stack_index] = cur_id;
         bc_data[cur_id].delta = 0;
         cur_pos = dij_data[cur_id][1];
