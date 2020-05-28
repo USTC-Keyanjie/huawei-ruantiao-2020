@@ -4,7 +4,7 @@
 // 3. open //#define NEON
 
 #define TEST
-#define MMAP // 使用mmap函数
+// #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
 // #include <bits/stdc++.h>
@@ -79,6 +79,8 @@ ui ids[MAX_NUM_EDGES];
 ui g_succ[MAX_NUM_EDGES][2];
 ui out_degree[MAX_NUM_IDS];     // 每个节点的出度
 ui in_degree[MAX_NUM_IDS];      // 每个节点的入度
+ui out_degree2[MAX_NUM_IDS];    // id重排序后每个节点的出度
+ui in_degree2[MAX_NUM_IDS];     // id重排序后每个节点的入度
 ui succ_begin_pos[MAX_NUM_IDS]; // 对于邻接表每个节点的起始index
 ui pred_begin_pos[MAX_NUM_IDS];
 ui topo_stack[MAX_NUM_IDS];        // 拓扑排序的栈
@@ -481,7 +483,7 @@ struct BC_data
 // 每个线程专属区域
 struct ThreadMemorySparse
 {
-    ui dij_data[MAX_NUM_IDS][3];  // 0: dis 1: local_succ_begin_pos 2: sigma
+    ui dij_data[MAX_NUM_IDS][3]; // 0: dis 1: local_succ_begin_pos 2: sigma
     BC_data bc_data[MAX_NUM_IDS];
 
     // 小根堆
@@ -547,19 +549,23 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
             cur_id_sigma = dij_data[cur_id][2];
             update_dis = dij_data[cur_id][0] + g_succ[cur_pos][1]; // 11.05 ldr
             next_id = g_succ[cur_pos][0];
-            if (update_dis < dij_data[next_id][0])
-            {
-                dij_data[next_id][0] = update_dis;
-                dij_data[next_id][2] = 0;
-                // O(logn)
-                pq.emplace(Pq_elem(next_id, dij_data[next_id][0]));
-                bc_data[next_id].pred_begin_pos = STOP_FLAG;
-            }
-            if (update_dis == dij_data[next_id][0]) // 23.75 cmp
+
+            if (update_dis == dij_data[next_id][0])
             {
                 dij_data[next_id][2] += cur_id_sigma;
                 pred_info[pred_info_len][0] = cur_id;
                 pred_info[pred_info_len][1] = bc_data[next_id].pred_begin_pos;
+                bc_data[next_id].pred_begin_pos = pred_info_len++; // 7.45 str
+            }
+            else if (update_dis < dij_data[next_id][0])
+            {
+                dij_data[next_id][0] = update_dis;
+                // O(logn)
+                pq.emplace(Pq_elem(next_id, dij_data[next_id][0]));
+
+                dij_data[next_id][2] = cur_id_sigma;
+                pred_info[pred_info_len][0] = cur_id;
+                pred_info[pred_info_len][1] = bc_data[next_id].pred_begin_pos = STOP_FLAG;
                 bc_data[next_id].pred_begin_pos = pred_info_len++; // 7.45 str
             }
             ++cur_pos;
@@ -697,7 +703,7 @@ void thread_process(ui tid)
     {
         dij_data[i][0] = UINT32_MAX;
         dij_data[i][1] = succ_begin_pos[i];
-    }   
+    }
 
     ui s_id;
     while (true)
