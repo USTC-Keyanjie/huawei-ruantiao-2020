@@ -49,13 +49,13 @@ string dataset = "1";
 #include <stddef.h>
 #endif
 
-#define NUM_THREADS 8 // 线程数
+#define NUM_THREADS 1 // 线程数
 
-#define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5
-#define MAX_NUM_IDS 2500005   // 最大可接受id数 250w+5
+// #define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5
+// #define MAX_NUM_IDS 2500005   // 最大可接受id数 250w+5
 
-// #define MAX_NUM_EDGES 255 // 最大可接受边数 250w+5
-// #define MAX_NUM_IDS 255   // 最大可接受id数 250w+5
+#define MAX_NUM_EDGES 25500 // 最大可接受边数 250w+5
+#define MAX_NUM_IDS 25500   // 最大可接受id数 250w+5
 
 #define TopK 100 // 只输出前TopK个结果
 
@@ -75,24 +75,37 @@ ui u_next[MAX_NUM_EDGES];
 ui v_next[MAX_NUM_EDGES];
 ui u_ids[MAX_NUM_EDGES];
 ui v_ids[MAX_NUM_EDGES];
-ui ids[MAX_NUM_EDGES];
+
 ui g_succ[MAX_NUM_EDGES][2];
+
 ui out_degree[MAX_NUM_IDS];     // 每个节点的出度
 ui in_degree[MAX_NUM_IDS];      // 每个节点的入度
-ui out_degree2[MAX_NUM_IDS];    // id重排序后每个节点的出度
-ui in_degree2[MAX_NUM_IDS];     // id重排序后每个节点的入度
 ui succ_begin_pos[MAX_NUM_IDS]; // 对于邻接表每个节点的起始index
 ui pred_begin_pos[MAX_NUM_IDS];
+ui ids[MAX_NUM_IDS];
+
+ui input_u_ids2[MAX_NUM_EDGES];
+ui input_v_ids2[MAX_NUM_EDGES];
+ui out_degree2[MAX_NUM_IDS]; // id重排序后每个节点的出度
+ui in_degree2[MAX_NUM_IDS];  // id重排序后每个节点的入度
+ui succ_begin_pos2[MAX_NUM_IDS];
+ui pred_begin_pos2[MAX_NUM_IDS];
+ui ids2[MAX_NUM_IDS];
+bool vis[MAX_NUM_IDS];
+
 ui topo_stack[MAX_NUM_IDS];        // 拓扑排序的栈
 ui topo_pred_info[MAX_NUM_IDS][2]; // 存储前驱点信息  第一维：id 第二维：下一个兄弟index
 ui topo_pred_num[MAX_NUM_IDS];     // 前驱数量
+
 bool delete_recorder[MAX_NUM_IDS];
 double global_score[MAX_NUM_IDS]; // 存储答案的数组
 
 #ifdef TEST
 unordered_map<ui, ui> id_map;
+unordered_map<ui, ui> id_map2;
 #else
-__gnu_pbds::gp_hash_table<ui, ui> id_map; // map really id to regular id(0,1,2,...)
+__gnu_pbds::gp_hash_table<ui, ui> id_map;  // map really id to regular id(0,1,2,...)
+__gnu_pbds::gp_hash_table<ui, ui> id_map2; // map really id to regular id(0,1,2,...)
 #endif
 
 #ifdef NEON
@@ -342,6 +355,78 @@ void merge_uv_ids()
     }
 }
 
+struct Bundle
+{
+    ui id;
+    ui hash_id;
+
+    inline Bundle(ui id, ui hash_id) : id(id), hash_id(hash_id) {}
+};
+
+void id_re_hash()
+{
+    ui cur_id = 0, cur_hash_id, next_id, hash_index = 0, u_hash_index, start_id = 0;
+    queue<Bundle> q;
+
+    while (true)
+    {
+        while (start_id < id_num && vis[start_id])
+        {
+            start_id++;
+        }
+
+        if (start_id == id_num)
+        {
+            break;
+        }
+
+        vis[start_id] = true;
+        q.push(Bundle(start_id, hash_index));
+        hash_index++;
+
+        while (!q.empty())
+        {
+            Bundle bundle = q.front();
+            cur_id = bundle.id;
+            cur_hash_id = bundle.hash_id;
+            id_map2[cur_id] = cur_hash_id;
+            ids2[cur_hash_id] = cur_id;
+            u_hash_index = cur_hash_id;
+
+            q.pop();
+            for (ui next_index = succ_begin_pos[cur_id]; next_index != 0; next_index = u_next[next_index - 1])
+            {
+                next_id = input_v_ids[next_index - 1];
+
+                if (!vis[next_id])
+                {
+                    input_u_ids2[next_index - 1] = u_hash_index;
+                    input_v_ids2[next_index - 1] = hash_index;
+
+                    vis[next_id] = true;
+                    ids2[hash_index] = next_id;
+                    id_map2[next_id] = hash_index;
+                    q.push(Bundle(next_id, hash_index));
+                    hash_index++;
+                }
+                else
+                {
+                    input_u_ids2[next_index - 1] = u_hash_index;
+                    input_v_ids2[next_index - 1] = id_map2[next_id];
+                }
+            }
+        }
+    }
+
+    for (ui i = 0; i < id_num; i++)
+    {
+        succ_begin_pos2[id_map2[i]] = succ_begin_pos[i];
+        pred_begin_pos2[id_map2[i]] = pred_begin_pos[i];
+        out_degree2[id_map2[i]] = out_degree[i];
+        in_degree2[id_map2[i]] = in_degree[i];
+    }
+}
+
 void build_g_succ()
 {
     ui succ_iterator = 0, succ_index = 0, cur_id = 0;
@@ -349,11 +434,11 @@ void build_g_succ()
     {
         if (delete_recorder[cur_id] == false)
         {
-            succ_iterator = succ_begin_pos[cur_id];
-            succ_begin_pos[cur_id] = succ_index;
+            succ_iterator = succ_begin_pos2[cur_id];
+            succ_begin_pos2[cur_id] = succ_index;
             while (succ_iterator != 0)
             {
-                g_succ[succ_index][0] = input_v_ids[succ_iterator - 1];
+                g_succ[succ_index][0] = input_v_ids2[succ_iterator - 1];
                 g_succ[succ_index++][1] = input_weights[succ_iterator - 1];
                 succ_iterator = u_next[succ_iterator - 1];
             }
@@ -361,7 +446,7 @@ void build_g_succ()
         }
         ++cur_id;
     }
-    succ_begin_pos[cur_id] = succ_index;
+    succ_begin_pos2[cur_id] = succ_index;
 }
 
 void pre_process()
@@ -413,38 +498,37 @@ void pre_process()
         in_degree[v_hash_id]++;
     }
 
-    if (is_sparse)
+    id_re_hash();
+
+    // topo sort
+    // 去除所有入度为0且出度为1的点
+    int topo_index = -1;
+    for (index = 0; index < id_num; ++index)
     {
-        // topo sort
-        // 去除所有入度为0且出度为1的点
-        int topo_index = -1;
-        for (index = 0; index < id_num; ++index)
+        if (in_degree2[index] == 0 && out_degree2[index] == 1)
         {
-            if (in_degree[index] == 0 && out_degree[index] == 1)
-            {
-                topo_stack[++topo_index] = index;
-                delete_recorder[index] = true;
-            }
+            topo_stack[++topo_index] = index;
+            delete_recorder[index] = true;
         }
-        ui topo_pred_info_len = 0;
-        while (topo_index >= 0)
+    }
+    ui topo_pred_info_len = 0;
+    while (topo_index >= 0)
+    {
+        u_hash_id = topo_stack[topo_index--];
+        index = succ_begin_pos2[u_hash_id];
+        v_hash_id = input_v_ids2[index - 1];
+
+        topo_pred_info[topo_pred_info_len][0] = u_hash_id;
+        topo_pred_info[topo_pred_info_len][1] = pred_begin_pos2[v_hash_id];
+        pred_begin_pos2[v_hash_id] = ++topo_pred_info_len;
+        topo_pred_num[v_hash_id] += topo_pred_num[u_hash_id] + 1;
+
+        --out_degree2[u_hash_id];
+        --in_degree2[v_hash_id];
+        if (in_degree2[v_hash_id] == 0 && out_degree2[v_hash_id] == 1)
         {
-            u_hash_id = topo_stack[topo_index--];
-            index = succ_begin_pos[u_hash_id];
-            v_hash_id = input_v_ids[index - 1];
-
-            topo_pred_info[topo_pred_info_len][0] = u_hash_id;
-            topo_pred_info[topo_pred_info_len][1] = pred_begin_pos[v_hash_id];
-            pred_begin_pos[v_hash_id] = ++topo_pred_info_len;
-            topo_pred_num[v_hash_id] += topo_pred_num[u_hash_id] + 1;
-
-            --out_degree[u_hash_id];
-            --in_degree[v_hash_id];
-            if (in_degree[v_hash_id] == 0 && out_degree[v_hash_id] == 1)
-            {
-                topo_stack[++topo_index] = v_hash_id;
-                delete_recorder[v_hash_id] = true;
-            }
+            topo_stack[++topo_index] = v_hash_id;
+            delete_recorder[v_hash_id] = true;
         }
     }
 
@@ -496,7 +580,7 @@ struct ThreadMemorySparse
 void dfs(ui cur_id, ui depth, ui num, ui tid)
 {
     ui pred_id, pred_num;
-    for (ui i = pred_begin_pos[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
+    for (ui i = pred_begin_pos2[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
     {
         pred_id = topo_pred_info[i - 1][0];
         pred_num = topo_pred_num[pred_id] + 1;
@@ -542,7 +626,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
         id_stack[++id_stack_index] = cur_id;
         bc_data[cur_id].delta = 0;
         cur_pos = dij_data[cur_id][1];
-        end_pos = cur_pos + out_degree[cur_id];
+        end_pos = cur_pos + out_degree2[cur_id];
         // 遍历cur_id的后继 平均循环d次(平均出度)
         while (cur_pos < end_pos)
         {
@@ -594,100 +678,6 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     dij_data[s][0] = UINT32_MAX;
 }
 
-struct ThreadMemoryDense
-{
-    ui dis[MAX_NUM_IDS];
-    // 小根堆
-    priority_queue<Pq_elem> pq;
-    ui id_stack[MAX_NUM_IDS];  // 出栈的节点会离s越来越近
-    ui sigma[MAX_NUM_IDS];     // 起点到当前点最短路径的数量
-    double delta[MAX_NUM_IDS]; // sigma_st(index) / sigma_st
-    double score[MAX_NUM_IDS]; // 位置中心性
-    ui local_pred_info[MAX_NUM_EDGES][2];
-    ui local_pred_begin_pos[MAX_NUM_IDS];
-} thread_memory_dense[NUM_THREADS];
-
-void dijkstra_priority_queue_dense(ui s, ui tid)
-{
-    auto &dis = thread_memory_dense[tid].dis;
-    auto &pq = thread_memory_dense[tid].pq;
-    auto &id_stack = thread_memory_dense[tid].id_stack;
-    auto &sigma = thread_memory_dense[tid].sigma;
-    auto &delta = thread_memory_dense[tid].delta;
-    auto &score = thread_memory_dense[tid].score;
-    auto &local_pred_info = thread_memory_dense[tid].local_pred_info;
-    auto &local_pred_begin_pos = thread_memory_dense[tid].local_pred_begin_pos;
-
-    int id_stack_index = -1; // id_stack的指针
-    ui cur_dis, update_dis;
-    ui cur_id, next_id, pred_id, pred_info_len = 0;
-    ui cur_pos, end_pos;
-    double coeff;
-
-    // 初始化 2n
-    memset(dis, 0x3f, id_num << 3);
-    dis[s] = 0;
-    sigma[s] = 1;
-    memset(delta, 0, id_num << 3);
-
-    pq.emplace(Pq_elem(s, 0));
-
-    // 最多循环n次
-    while (!pq.empty())
-    {
-        // 找到离s点最近的顶点
-        cur_dis = pq.top().dis;
-        cur_id = pq.top().id;
-        // O(logn)
-        pq.pop();
-
-        if (cur_dis > dis[cur_id]) //dis[cur_id]可能经过松弛后变小了，原压入堆中的路径失去价值
-            continue;
-
-        id_stack[++id_stack_index] = cur_id;
-        cur_pos = succ_begin_pos[cur_id];
-        end_pos = succ_begin_pos[cur_id + 1];
-        // 遍历cur_id的后继 平均循环d次(平均出度)
-        while (cur_pos < end_pos)
-        {
-            update_dis = dis[cur_id] + g_succ[cur_pos][1];
-            next_id = g_succ[cur_pos][0];
-            if (update_dis < dis[next_id])
-            {
-                dis[next_id] = update_dis;
-                sigma[next_id] = 0;
-                // O(logn)
-                pq.emplace(Pq_elem(next_id, dis[next_id]));
-                local_pred_begin_pos[next_id] = 0x80000000;
-            }
-            if (update_dis == dis[next_id])
-            {
-                sigma[next_id] += sigma[cur_id];
-                local_pred_info[pred_info_len][0] = cur_id;
-                local_pred_info[pred_info_len][1] = local_pred_begin_pos[next_id];
-                local_pred_begin_pos[next_id] = pred_info_len++;
-            }
-            ++cur_pos;
-        }
-    }
-
-    // O(M)
-    while (id_stack_index > 0)
-    {
-        cur_id = id_stack[id_stack_index--];
-        cur_pos = local_pred_begin_pos[cur_id];
-        coeff = (1 + delta[cur_id]) / sigma[cur_id];
-        // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
-        while ((cur_pos & 0x80000000) == 0)
-        {
-            pred_id = local_pred_info[cur_pos][0];
-            cur_pos = local_pred_info[cur_pos][1];
-            delta[pred_id] += sigma[pred_id] * coeff;
-        }
-        score[cur_id] += delta[cur_id];
-    }
-}
-
 mutex id_lock;
 ui cur_id;
 
@@ -702,7 +692,7 @@ void thread_process(ui tid)
     for (ui i = 0; i < id_num; ++i)
     {
         dij_data[i][0] = UINT32_MAX;
-        dij_data[i][1] = succ_begin_pos[i];
+        dij_data[i][1] = succ_begin_pos2[i];
     }
 
     ui s_id;
@@ -732,10 +722,7 @@ void thread_process(ui tid)
             }
 
             id_lock.unlock();
-            if (is_sparse)
-                dijkstra_priority_queue_sparse(s_id, tid);
-            else
-                dijkstra_priority_queue_dense(s_id, tid);
+            dijkstra_priority_queue_sparse(s_id, tid);
         }
     }
 
@@ -758,30 +745,18 @@ struct Res_pq_elem
         if (abs(score - nextNode.score) > 0.0001)
             return score > nextNode.score;
         else
-            return id < nextNode.id;
+            return ids2[id] < ids2[nextNode.id];
     }
 };
 
 void save_fwrite(char *resultFile)
 {
-    if (is_sparse)
+
+    for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
     {
-        for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
+        for (ui id_index = 0; id_index < id_num; ++id_index)
         {
-            for (ui id_index = 0; id_index < id_num; ++id_index)
-            {
-                global_score[id_index] += thread_memory_sparse[thread_index].bc_data[id_index].score;
-            }
-        }
-    }
-    else
-    {
-        for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
-        {
-            for (ui id_index = 0; id_index < id_num; ++id_index)
-            {
-                global_score[id_index] += thread_memory_dense[thread_index].score[id_index];
-            }
+            global_score[id_index] += thread_memory_sparse[thread_index].bc_data[id_index].score;
         }
     }
 
@@ -818,7 +793,7 @@ void save_fwrite(char *resultFile)
     index = 0;
     while (index < 100)
     {
-        fprintf(fp, "%u,%.3lf\n", ids[res_arr[index].id], res_arr[index].score);
+        fprintf(fp, "%u,%.3lf\n", ids[ids2[res_arr[index].id]], res_arr[index].score);
         ++index;
     }
 
