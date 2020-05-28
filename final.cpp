@@ -853,7 +853,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     {
         cur_id = id_stack[id_stack_index--];
         bc_data[cur_id][1] += bc_data[cur_id][0] * multiple;
-        dis[cur_id] = UINT32_MAX;
+        dis[cur_id] = UINT16_MAX;
         coeff = (1 + bc_data[cur_id][0]) / sigma[cur_id];
 
         cur_pos = pred_begin_pos2[cur_id];
@@ -866,7 +866,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
             bc_data[pred_id][0] += sigma[pred_id] * coeff;
         }
     }
-    dis[s] = UINT32_MAX;
+    dis[s] = UINT16_MAX;
     heap.clear();
 }
 
@@ -886,7 +886,7 @@ void thread_process(ui tid)
         // 初始化
         for (ui i = 0; i < id_num; ++i)
         {
-            dis[i] = UINT32_MAX;
+            dis[i] = UINT16_MAX;
         }
     }
     else
