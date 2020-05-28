@@ -66,6 +66,7 @@ string dataset = "1";
 
 typedef unsigned long long ull;
 typedef unsigned int ui;
+typedef unsigned short us;
 
 // 总id数，总边数
 ui id_num = 0, edge_num = 0;
@@ -94,6 +95,7 @@ ui out_degree2[MAX_NUM_IDS]; // id重排序后每个节点的出度
 ui in_degree2[MAX_NUM_IDS];  // id重排序后每个节点的入度
 ui succ_begin_pos2[MAX_NUM_IDS];
 ui pred_begin_pos2[MAX_NUM_IDS];
+ui topo_pred_begin_pos2[MAX_NUM_IDS];
 ui ids2[MAX_NUM_IDS];
 bool vis[MAX_NUM_IDS];
 
@@ -457,6 +459,17 @@ void build_g_succ()
     succ_begin_pos2[cur_id] = succ_index;
 }
 
+void build_g_pred_begin_pos()
+{
+    ui pred_iterator = 0, pred_index = 0, cur_id = 0;
+    while (cur_id < id_num)
+    {
+        pred_begin_pos2[cur_id] = pred_index;
+        pred_index += in_degree2[cur_id];
+        ++cur_id;
+    }
+}
+
 void pre_process()
 {
     ui index = 0;
@@ -532,8 +545,8 @@ void pre_process()
         v_hash_id = input_v_ids2[index - 1];
 
         topo_pred_info[topo_pred_info_len][0] = u_hash_id;
-        topo_pred_info[topo_pred_info_len][1] = pred_begin_pos2[v_hash_id];
-        pred_begin_pos2[v_hash_id] = ++topo_pred_info_len;
+        topo_pred_info[topo_pred_info_len][1] = topo_pred_begin_pos2[v_hash_id];
+        topo_pred_begin_pos2[v_hash_id] = ++topo_pred_info_len;
         topo_pred_num[v_hash_id] += topo_pred_num[u_hash_id] + 1;
 
         --out_degree2[u_hash_id];
@@ -546,6 +559,7 @@ void pre_process()
     }
 
     build_g_succ();
+    build_g_pred_begin_pos();
 }
 
 struct Pq_elem
@@ -563,64 +577,10 @@ struct Pq_elem
     }
 };
 
-const size_t max_length = 1 << 16;
-const size_t max_bucket_size = 1 << 16;
-const size_t magical_heap_size = max_length * max_bucket_size;
-
-template <class T>
-struct magical_heap
-{
-    char *region;
-    ui p[max_length][2];
-    ui cur;
-    ui term;
-    magical_heap()
-    {
-        region = (decltype(region))mmap64(
-            NULL, magical_heap_size, PROT_READ | PROT_WRITE,
-            MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
-        memset(p, 0, sizeof(p));
-        cur = 0;
-        term = 0;
-    }
-    inline void push(const ui &x, const T &item)
-    {
-        ((T *)(region + max_bucket_size * x))[p[x][1]++] = item;
-        term = std::max(x, term);
-    }
-    inline bool pop(ui &x, T &item)
-    { // return false -> empty
-        while (p[cur][0] >= p[cur][1])
-        {
-            cur++;
-            if (cur > term)
-            {
-                return false;
-            }
-        }
-        x = cur;
-        item = ((T *)(region + max_bucket_size * x))[p[x][0]++];
-        return true;
-    }
-    inline void clear()
-    { // n: number of vertices
-        memset(p, 0, sizeof(int) * 2 * (term + 1));
-        cur = 0;
-        term = 0;
-    }
-    ~magical_heap() { munmap(region, magical_heap_size); }
-};
-
-struct Dij_data
-{
-    ui dis;
-    ui local_succ_begin_pos;
-    ui sigma; // 起点到当前点最短路径的数量
-};
-
 struct BC_data
 {
     ui pred_begin_pos;
+    ui pred_len;
     double delta; // sigma_st(index) / sigma_st
     double score; // 位置中心性
 };
@@ -633,17 +593,17 @@ struct ThreadMemorySparse
 
     // 小根堆
     priority_queue<Pq_elem> pq;
-    magical_heap<ui> heap;
+    // magical_heap<ui> heap;
 
-    ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
-    ui pred_info[MAX_NUM_EDGES][2];
+    ui id_stack[MAX_NUM_IDS];    // 出栈的节点会离s越来越近
+    ui pred_info[MAX_NUM_EDGES]; // 前向星前驱表
 
 } thread_memory_sparse[NUM_THREADS];
 
 void sparse_dfs(ui cur_id, ui depth, ui num, ui tid)
 {
     ui pred_id, pred_num;
-    for (ui i = pred_begin_pos2[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
+    for (ui i = topo_pred_begin_pos2[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
     {
         pred_id = topo_pred_info[i - 1][0];
         pred_num = topo_pred_num[pred_id] + 1;
@@ -700,9 +660,9 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
             if (update_dis == dij_data[next_id][0])
             {
                 dij_data[next_id][2] += cur_id_sigma;
-                pred_info[pred_info_len][0] = cur_id;
-                pred_info[pred_info_len][1] = bc_data[next_id].pred_begin_pos;
-                bc_data[next_id].pred_begin_pos = pred_info_len++; // 7.45 str
+
+                pred_info[bc_data[next_id].pred_begin_pos + bc_data[next_id].pred_len] = cur_id;
+                bc_data[next_id].pred_len++;
             }
             else if (update_dis < dij_data[next_id][0])
             {
@@ -711,9 +671,9 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
                 pq.emplace(Pq_elem(next_id, dij_data[next_id][0]));
 
                 dij_data[next_id][2] = cur_id_sigma;
-                pred_info[pred_info_len][0] = cur_id;
-                pred_info[pred_info_len][1] = bc_data[next_id].pred_begin_pos = STOP_FLAG;
-                bc_data[next_id].pred_begin_pos = pred_info_len++; // 7.45 str
+
+                pred_info[bc_data[next_id].pred_begin_pos] = cur_id;
+                bc_data[next_id].pred_len = 1;
             }
             ++cur_pos;
         }
@@ -726,20 +686,71 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
-        cur_pos = bc_data[cur_id].pred_begin_pos;
         bc_data[cur_id].score += bc_data[cur_id].delta * multiple;
         dij_data[cur_id][0] = UINT32_MAX;
         coeff = (1 + bc_data[cur_id].delta) / dij_data[cur_id][2];
+
+        cur_pos = bc_data[cur_id].pred_begin_pos;
+        end_pos = cur_pos + bc_data[cur_id].pred_len;
+
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
-        while ((cur_pos & STOP_FLAG) == 0)
+        while (cur_pos < end_pos)
         {
-            pred_id = pred_info[cur_pos][0];
-            cur_pos = pred_info[cur_pos][1];
+            pred_id = pred_info[cur_pos++];
             bc_data[pred_id].delta += dij_data[pred_id][2] * coeff;
         }
     }
     dij_data[s][0] = UINT32_MAX;
 }
+
+/*
+const size_t max_length = 1 << 16;
+const size_t max_bucket_size = 1 << 16;
+const size_t magical_heap_size = max_length * max_bucket_size;
+
+template <class T>
+struct magical_heap
+{
+    char *region;
+    ui p[max_length][2];
+    ui cur;
+    ui term;
+    magical_heap()
+    {
+        region = (decltype(region))mmap64(
+            NULL, magical_heap_size, PROT_READ | PROT_WRITE,
+            MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+        memset(p, 0, sizeof(p));
+        cur = 0;
+        term = 0;
+    }
+    inline void push(const ui &x, const T &item)
+    {
+        ((T *)(region + max_bucket_size * x))[p[x][1]++] = item;
+        term = std::max(x, term);
+    }
+    inline bool pop(ui &x, T &item)
+    { // return false -> empty
+        while (p[cur][0] >= p[cur][1])
+        {
+            cur++;
+            if (cur > term)
+            {
+                return false;
+            }
+        }
+        x = cur;
+        item = ((T *)(region + max_bucket_size * x))[p[x][0]++];
+        return true;
+    }
+    inline void clear()
+    { // n: number of vertices
+        memset(p, 0, sizeof(int) * 2 * (term + 1));
+        cur = 0;
+        term = 0;
+    }
+    ~magical_heap() { munmap(region, magical_heap_size); }
+};
 
 // 每个线程专属区域
 struct ThreadMemoryMagic
@@ -751,14 +762,14 @@ struct ThreadMemoryMagic
     magical_heap<ui> heap;
 
     ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
-    ui pred_info[MAX_NUM_EDGES][2];
+    ui pred_info[MAX_NUM_EDGES];
 
 } thread_memory_magic[NUM_THREADS];
 
 void magic_dfs(ui cur_id, ui depth, ui num, ui tid)
 {
     ui pred_id, pred_num;
-    for (ui i = pred_begin_pos2[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
+    for (ui i = topo_pred_begin_pos2[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
     {
         pred_id = topo_pred_info[i - 1][0];
         pred_num = topo_pred_num[pred_id] + 1;
@@ -817,9 +828,8 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
             if (update_dis == dij_data[next_id][0])
             {
                 dij_data[next_id][2] += cur_id_sigma;
-                pred_info[pred_info_len][0] = cur_id;
-                pred_info[pred_info_len][1] = bc_data[next_id].pred_begin_pos;
-                bc_data[next_id].pred_begin_pos = pred_info_len++; // 7.45 str
+                pred_info[bc_data[next_id].pred_begin_pos + bc_data[next_id].pred_len] = cur_id;
+                bc_data[next_id].pred_len++;
             }
             else if (update_dis < dij_data[next_id][0])
             {
@@ -829,9 +839,9 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
                 heap.push(dij_data[next_id][0], next_id);
 
                 dij_data[next_id][2] = cur_id_sigma;
-                pred_info[pred_info_len][0] = cur_id;
-                pred_info[pred_info_len][1] = bc_data[next_id].pred_begin_pos = STOP_FLAG;
-                bc_data[next_id].pred_begin_pos = pred_info_len++; // 7.45 str
+
+                pred_info[bc_data[next_id].pred_begin_pos] = cur_id;
+                bc_data[next_id].pred_len = 1;
             }
             ++cur_pos;
         }
@@ -844,21 +854,24 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
-        cur_pos = bc_data[cur_id].pred_begin_pos;
         bc_data[cur_id].score += bc_data[cur_id].delta * multiple;
         dij_data[cur_id][0] = UINT32_MAX;
         coeff = (1 + bc_data[cur_id].delta) / dij_data[cur_id][2];
+
+        cur_pos = bc_data[cur_id].pred_begin_pos;
+        end_pos = cur_pos + bc_data[cur_id].pred_len;
+
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
-        while ((cur_pos & STOP_FLAG) == 0)
+        while (cur_pos < end_pos)
         {
-            pred_id = pred_info[cur_pos][0];
-            cur_pos = pred_info[cur_pos][1];
+            pred_id = pred_info[cur_pos++];
             bc_data[pred_id].delta += dij_data[pred_id][2] * coeff;
         }
     }
     dij_data[s][0] = UINT32_MAX;
     heap.clear();
 }
+*/
 
 mutex id_lock;
 ui cur_id;
@@ -869,27 +882,37 @@ void thread_process(ui tid)
     Time_recorder timer;
     timer.setTime();
 #endif
+
+    /*
     if (is_magic_heap)
     {
         auto &dij_data = thread_memory_magic[tid].dij_data;
+        auto &bc_data = thread_memory_magic[tid].bc_data;
+
         // 初始化
         for (ui i = 0; i < id_num; ++i)
         {
             dij_data[i][0] = UINT32_MAX;
             dij_data[i][1] = succ_begin_pos2[i];
+            bc_data[i].pred_begin_pos = pred_begin_pos2[i];
         }
     }
     else
     {
-        auto &dij_data = thread_memory_sparse[tid].dij_data;
-        // 初始化
-        for (ui i = 0; i < id_num; ++i)
-        {
-            dij_data[i][0] = UINT32_MAX;
-            dij_data[i][1] = succ_begin_pos2[i];
-        }
-    }
 
+        */
+    auto &dij_data = thread_memory_sparse[tid].dij_data;
+    auto &bc_data = thread_memory_sparse[tid].bc_data;
+    // 初始化
+    for (ui i = 0; i < id_num; ++i)
+    {
+        dij_data[i][0] = UINT32_MAX;
+        dij_data[i][1] = succ_begin_pos2[i];
+        bc_data[i].pred_begin_pos = pred_begin_pos2[i];
+    }
+    /*
+    }
+*/
     ui s_id;
     while (true)
     {
@@ -917,10 +940,12 @@ void thread_process(ui tid)
             }
 
             id_lock.unlock();
+            /*
             if (is_magic_heap)
                 dijkstra_priority_queue_magic(s_id, tid);
             else
-                dijkstra_priority_queue_sparse(s_id, tid);
+            */
+            dijkstra_priority_queue_sparse(s_id, tid);
         }
     }
 
@@ -950,6 +975,7 @@ struct Res_pq_elem
 void save_fwrite(char *resultFile)
 {
 
+    /*
     if (is_magic_heap)
     {
         for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
@@ -962,14 +988,17 @@ void save_fwrite(char *resultFile)
     }
     else
     {
-        for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
+        */
+    for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
+    {
+        for (ui id_index = 0; id_index < id_num; ++id_index)
         {
-            for (ui id_index = 0; id_index < id_num; ++id_index)
-            {
-                global_score[id_index] += thread_memory_sparse[thread_index].bc_data[id_index].score;
-            }
+            global_score[id_index] += thread_memory_sparse[thread_index].bc_data[id_index].score;
         }
     }
+    /*
+    }
+    */
 
     int index = 0;
     priority_queue<Res_pq_elem> pq;
