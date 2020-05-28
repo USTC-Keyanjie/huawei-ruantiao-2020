@@ -578,20 +578,13 @@ struct Pq_elem
     }
 };
 
-struct BC_data
-{
-    ui pred_begin_pos;
-    ui pred_len;
-    double delta; // sigma_st(index) / sigma_st
-    double score; // 位置中心性
-};
-
 // 每个线程专属区域
 struct ThreadMemorySparse
 {
-    ui dij_data[MAX_NUM_IDS][2]; // 0: dis 1: local_succ_begin_pos
-    us sigma[MAX_NUM_IDS];
-    BC_data bc_data[MAX_NUM_IDS];
+    ui dij_data[MAX_NUM_IDS][2];           // 0: dis 1: local_succ_begin_pos
+    us sigma[MAX_NUM_IDS];                 // s -> t 的路径条数
+    us pred_begin_and_len[MAX_NUM_IDS][2]; // 0: pred_begin_pos 1: pred_len
+    double bc_data[MAX_NUM_IDS][2];        // 0: delta = sigma_st(index) / sigma_st  1: 位置中心性
 
     // 小根堆
     priority_queue<Pq_elem> pq;
@@ -609,7 +602,7 @@ void sparse_dfs(ui cur_id, ui depth, ui num, ui tid)
     {
         pred_id = topo_pred_info[i - 1][0];
         pred_num = topo_pred_num[pred_id] + 1;
-        thread_memory_sparse[tid].bc_data[cur_id].score += pred_num * (num + depth);
+        thread_memory_sparse[tid].bc_data[cur_id][1] += pred_num * (num + depth);
         if (pred_num > 1)
         {
             sparse_dfs(pred_id, depth + 1, num, tid);
@@ -621,7 +614,9 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
 {
     auto &dij_data = thread_memory_sparse[tid].dij_data;
     auto &sigma = thread_memory_sparse[tid].sigma;
+    auto &pred_begin_and_len = thread_memory_sparse[tid].pred_begin_and_len;
     auto &bc_data = thread_memory_sparse[tid].bc_data;
+
     auto &pq = thread_memory_sparse[tid].pq;
     auto &id_stack = thread_memory_sparse[tid].id_stack;
     auto &pred_info = thread_memory_sparse[tid].pred_info;
@@ -650,7 +645,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
             continue;
 
         id_stack[++id_stack_index] = cur_id;
-        bc_data[cur_id].delta = 0;
+        bc_data[cur_id][0] = 0;
         cur_pos = dij_data[cur_id][1];
         end_pos = cur_pos + out_degree2[cur_id];
         // 遍历cur_id的后继 平均循环d次(平均出度)
@@ -664,8 +659,8 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
             {
                 sigma[next_id] += cur_id_sigma;
 
-                pred_info[bc_data[next_id].pred_begin_pos + bc_data[next_id].pred_len] = cur_id;
-                bc_data[next_id].pred_len++;
+                pred_info[pred_begin_and_len[next_id][0] + pred_begin_and_len[next_id][1]] = cur_id;
+                pred_begin_and_len[next_id][1]++;
             }
             else if (update_dis < dij_data[next_id][0])
             {
@@ -675,8 +670,8 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
 
                 sigma[next_id] = cur_id_sigma;
 
-                pred_info[bc_data[next_id].pred_begin_pos] = cur_id;
-                bc_data[next_id].pred_len = 1;
+                pred_info[pred_begin_and_len[next_id][0]] = cur_id;
+                pred_begin_and_len[next_id][1] = 1;
             }
             ++cur_pos;
         }
@@ -689,18 +684,18 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
-        bc_data[cur_id].score += bc_data[cur_id].delta * multiple;
+        bc_data[cur_id][1] += bc_data[cur_id][0] * multiple;
         dij_data[cur_id][0] = UINT32_MAX;
-        coeff = (1 + bc_data[cur_id].delta) / sigma[cur_id];
+        coeff = (1 + bc_data[cur_id][0]) / sigma[cur_id];
 
-        cur_pos = bc_data[cur_id].pred_begin_pos;
-        end_pos = cur_pos + bc_data[cur_id].pred_len;
+        cur_pos = pred_begin_and_len[cur_id][0];
+        end_pos = cur_pos + pred_begin_and_len[cur_id][1];
 
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
         while (cur_pos < end_pos)
         {
             pred_id = pred_info[cur_pos++];
-            bc_data[pred_id].delta += sigma[pred_id] * coeff;
+            bc_data[pred_id][0] += sigma[pred_id] * coeff;
         }
     }
     dij_data[s][0] = UINT32_MAX;
@@ -758,9 +753,10 @@ struct magical_heap
 // 每个线程专属区域
 struct ThreadMemoryMagic
 {
-    ui dij_data[MAX_NUM_IDS][2]; // 0: dis 1: local_succ_begin_pos
-    us sigma[MAX_NUM_IDS];
-    BC_data bc_data[MAX_NUM_IDS];
+    ui dij_data[MAX_NUM_IDS][2];           // 0: dis 1: local_succ_begin_pos
+    us sigma[MAX_NUM_IDS];                 // s -> t 的路径条数
+    us pred_begin_and_len[MAX_NUM_IDS][2]; // 0: pred_begin_pos 1: pred_len
+    double bc_data[MAX_NUM_IDS][2];        // 0: delta = sigma_st(index) / sigma_st  1: 位置中心性
 
     // 小根堆
     magical_heap<ui> heap;
@@ -777,7 +773,7 @@ void magic_dfs(ui cur_id, ui depth, ui num, ui tid)
     {
         pred_id = topo_pred_info[i - 1][0];
         pred_num = topo_pred_num[pred_id] + 1;
-        thread_memory_magic[tid].bc_data[cur_id].score += pred_num * (num + depth);
+        thread_memory_magic[tid].bc_data[cur_id][1] += pred_num * (num + depth);
         if (pred_num > 1)
         {
             magic_dfs(pred_id, depth + 1, num, tid);
@@ -789,9 +785,10 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
 {
     auto &dij_data = thread_memory_magic[tid].dij_data;
     auto &sigma = thread_memory_magic[tid].sigma;
+    auto &pred_begin_and_len = thread_memory_magic[tid].pred_begin_and_len;
     auto &bc_data = thread_memory_magic[tid].bc_data;
-    auto &heap = thread_memory_magic[tid].heap;
 
+    auto &heap = thread_memory_magic[tid].heap;
     auto &id_stack = thread_memory_magic[tid].id_stack;
     auto &pred_info = thread_memory_magic[tid].pred_info;
 
@@ -820,7 +817,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
             continue;
 
         id_stack[++id_stack_index] = cur_id;
-        bc_data[cur_id].delta = 0;
+        bc_data[cur_id][0] = 0;
         cur_pos = dij_data[cur_id][1];
         end_pos = cur_pos + out_degree2[cur_id];
         // 遍历cur_id的后继 平均循环d次(平均出度)
@@ -833,8 +830,8 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
             if (update_dis == dij_data[next_id][0])
             {
                 sigma[next_id] += cur_id_sigma;
-                pred_info[bc_data[next_id].pred_begin_pos + bc_data[next_id].pred_len] = cur_id;
-                bc_data[next_id].pred_len++;
+                pred_info[pred_begin_and_len[next_id][0] + pred_begin_and_len[next_id][1]] = cur_id;
+                pred_begin_and_len[next_id][1]++;
             }
             else if (update_dis < dij_data[next_id][0])
             {
@@ -845,8 +842,8 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
 
                 sigma[next_id] = cur_id_sigma;
 
-                pred_info[bc_data[next_id].pred_begin_pos] = cur_id;
-                bc_data[next_id].pred_len = 1;
+                pred_info[pred_begin_and_len[next_id][0]] = cur_id;
+                pred_begin_and_len[next_id][1] = 1;
             }
             ++cur_pos;
         }
@@ -859,18 +856,18 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
-        bc_data[cur_id].score += bc_data[cur_id].delta * multiple;
+        bc_data[cur_id][1] += bc_data[cur_id][0] * multiple;
         dij_data[cur_id][0] = UINT32_MAX;
-        coeff = (1 + bc_data[cur_id].delta) / sigma[cur_id];
+        coeff = (1 + bc_data[cur_id][0]) / sigma[cur_id];
 
-        cur_pos = bc_data[cur_id].pred_begin_pos;
-        end_pos = cur_pos + bc_data[cur_id].pred_len;
+        cur_pos = pred_begin_and_len[cur_id][0];
+        end_pos = cur_pos + pred_begin_and_len[cur_id][1];
 
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
         while (cur_pos < end_pos)
         {
             pred_id = pred_info[cur_pos++];
-            bc_data[pred_id].delta += sigma[pred_id] * coeff;
+            bc_data[pred_id][0] += sigma[pred_id] * coeff;
         }
     }
     dij_data[s][0] = UINT32_MAX;
@@ -893,13 +890,14 @@ void thread_process(ui tid)
     {
         auto &dij_data = thread_memory_magic[tid].dij_data;
         auto &bc_data = thread_memory_magic[tid].bc_data;
+        auto &pred_begin_and_len = thread_memory_magic[tid].pred_begin_and_len;
 
         // 初始化
         for (ui i = 0; i < id_num; ++i)
         {
             dij_data[i][0] = UINT32_MAX;
             dij_data[i][1] = succ_begin_pos2[i];
-            bc_data[i].pred_begin_pos = pred_begin_pos2[i];
+            pred_begin_and_len[i][0] = pred_begin_pos2[i];
         }
     }
     else
@@ -907,12 +905,14 @@ void thread_process(ui tid)
 #endif
         auto &dij_data = thread_memory_sparse[tid].dij_data;
         auto &bc_data = thread_memory_sparse[tid].bc_data;
+        auto &pred_begin_and_len = thread_memory_sparse[tid].pred_begin_and_len;
+
         // 初始化
         for (ui i = 0; i < id_num; ++i)
         {
             dij_data[i][0] = UINT32_MAX;
             dij_data[i][1] = succ_begin_pos2[i];
-            bc_data[i].pred_begin_pos = pred_begin_pos2[i];
+            pred_begin_and_len[i][0] = pred_begin_pos2[i];
         }
 #ifdef HEAP_OPT
     }
@@ -990,7 +990,7 @@ void save_fwrite(char *resultFile)
         {
             for (ui id_index = 0; id_index < id_num; ++id_index)
             {
-                global_score[id_index] += thread_memory_magic[thread_index].bc_data[id_index].score;
+                global_score[id_index] += thread_memory_magic[thread_index].bc_data[id_index][1];
             }
         }
     }
@@ -1001,7 +1001,7 @@ void save_fwrite(char *resultFile)
         {
             for (ui id_index = 0; id_index < id_num; ++id_index)
             {
-                global_score[id_index] += thread_memory_sparse[thread_index].bc_data[id_index].score;
+                global_score[id_index] += thread_memory_sparse[thread_index].bc_data[id_index][1];
             }
         }
 #ifdef HEAP_OPT
