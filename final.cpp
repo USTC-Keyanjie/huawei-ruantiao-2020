@@ -553,7 +553,7 @@ struct Pq_elem
     }
 };
 
-const size_t max_length = 1 << 22;
+const size_t max_length = 1 << 21;
 const size_t max_bucket_size = 1 << 20;
 const size_t magical_heap_size = max_length * max_bucket_size;
 
