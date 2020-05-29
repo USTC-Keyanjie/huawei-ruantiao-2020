@@ -1,5 +1,6 @@
 git pull
 
+rm -rf ./final
 g++ final.cpp -o final -O3 -g -lpthread -fpic
 
 rm -rf test_data_js/0/result.txt
