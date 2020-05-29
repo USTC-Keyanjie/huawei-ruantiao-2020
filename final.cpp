@@ -445,23 +445,6 @@ void id_re_hash()
     }
 }
 
-struct node
-{
-    int to, nxt;
-    node() {}
-    node(int tt, int nn)
-    {
-        to = tt;
-        nxt = nn;
-    }
-} e[MAX_NUM_IDS];
-
-void add(int u, int v)
-{ //对每条边u到v进行add处理
-    e[k] = node(v, head[u]);
-    head[u] = k++;
-}
-
 void tarjan(int x)
 {
     tarjan_vis[x] = 1;
@@ -529,10 +512,13 @@ ui tarjan_dfs(ui cur_id)
 void tarjan_dfs()
 {
     ui pred_id;
-    for (ui cur_id = 0; cur_id < id_num - 1; ++cur_id)
+    for (ui cur_id = 0; cur_id < id_num; ++cur_id)
     {
-        if (mark[cur_id] == 0 && tarjan_dfs(cur_id) > 1)
+        if (mark[cur_id] == 0)
+        {
+            tarjan_dfs(cur_id);
             mark[cur_id] = 2; //自己为根节点
+        }
     }
 }
 
@@ -836,6 +822,8 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     dis[s] = UINT32_MAX;
 }
 
+// ---------------------------------------------
+
 const size_t max_length = 1 << 16;
 const size_t max_bucket_size = 1 << 16;
 const size_t magical_heap_size = max_length * max_bucket_size;
@@ -1016,6 +1004,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     heap.clear();
 }
 
+// ---------------------------------------------
 mutex id_lock;
 ui cur_id;
 
@@ -1025,6 +1014,8 @@ void thread_process(ui tid)
     Time_recorder timer;
     timer.setTime();
 #endif
+
+    // ---------------------------------------------
 
     if (is_magic_heap)
     {
@@ -1045,6 +1036,7 @@ void thread_process(ui tid)
             dis[i] = UINT32_MAX;
         }
     }
+    // ---------------------------------------------
 
     ui s_id;
     while (true)
@@ -1074,9 +1066,14 @@ void thread_process(ui tid)
 
             id_lock.unlock();
 
+            // ---------------------------------------------
+
             if (is_magic_heap)
                 dijkstra_priority_queue_magic(s_id, tid);
             else
+
+                // ---------------------------------------------
+
                 dijkstra_priority_queue_sparse(s_id, tid);
         }
     }
@@ -1106,6 +1103,7 @@ struct Res_pq_elem
 
 void save_fwrite(char *resultFile)
 {
+    // ---------------------------------------------
 
     if (is_magic_heap)
     {
@@ -1119,6 +1117,7 @@ void save_fwrite(char *resultFile)
     }
     else
     {
+
         for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
         {
             for (ui id_index = 0; id_index < id_num; ++id_index)
@@ -1127,6 +1126,7 @@ void save_fwrite(char *resultFile)
             }
         }
     }
+    // ---------------------------------------------
 
     int index = 0;
     priority_queue<Res_pq_elem> pq;
