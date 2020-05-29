@@ -69,7 +69,7 @@ typedef unsigned short us;
 // 总id数，总边数
 ui id_num = 0, edge_num = 0;
 
-bool is_topo_opt;
+bool is_topo_opt, fit_usus, fit_uiui, fit_ullui;
 ui max_weight, num_I0O1;
 ui input_u_ids[MAX_NUM_EDGES];
 ui input_v_ids[MAX_NUM_EDGES];
@@ -672,6 +672,13 @@ void pre_process()
         is_topo_opt = true;
     }
 
+    if (max_weight < (1 << 12))
+        fit_usus = true;
+    else if (max_weight < (1 << 20))
+        fit_uiui = true;
+    else
+        fit_ullui = true;
+
 #ifdef TEST
     if (is_topo_opt)
     {
@@ -690,7 +697,6 @@ void pre_process()
         thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
         thread_g_succ.join();
         thread_g_pred_begin_pos.join();
-        
     }
     else
     {
@@ -699,37 +705,21 @@ void pre_process()
         thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
         thread_g_succ.join();
         thread_g_pred_begin_pos.join();
-        
     }
 }
-
-struct Pq_elem
-{
-    ui id;
-    ui dis;
-
-    inline Pq_elem() {}
-
-    inline Pq_elem(ui id, ui dis) : id(id), dis(dis) {}
-
-    inline bool operator<(const Pq_elem &nextNode) const
-    {
-        return dis > nextNode.dis;
-    }
-};
 
 const size_t max_length = 1 << 16;
 const size_t max_bucket_size = 1 << 16;
 const size_t magical_heap_size = max_length * max_bucket_size;
 
-// template <class T>
-struct MyHeap
+template <class DTYPE>
+struct Quick_heap
 {
     char *region;
     us p[max_length];
     us cur;
     us term;
-    MyHeap()
+    Quick_heap()
     {
         region = (decltype(region))mmap64(
             NULL, magical_heap_size, PROT_READ | PROT_WRITE,
@@ -738,7 +728,7 @@ struct MyHeap
         cur = 0;
         term = 0;
     }
-    inline bool push(const us &x, const ui &item)
+    inline bool push(const DTYPE &x, const ui &item)
     {
         if (x >= max_length)
             return false;
@@ -747,7 +737,7 @@ struct MyHeap
             term = x;
         return true;
     }
-    inline bool pop(us &x, ui &item)
+    inline bool pop(DTYPE &x, ui &item)
     { // return false -> empty
         while (p[cur] == 0)
         {
@@ -767,11 +757,31 @@ struct MyHeap
         cur = 0;
         term = 0;
     }
-    ~MyHeap() { munmap(region, magical_heap_size); }
+    ~Quick_heap() { munmap(region, magical_heap_size); }
 };
 
+template <class DTYPE>
+struct Pq_elem
+{
+    ui id;
+    DTYPE dis;
+
+    inline Pq_elem() {}
+
+    inline Pq_elem(ui id, DTYPE dis) : id(id), dis(dis) {}
+
+    inline bool operator<(const Pq_elem &nextNode) const
+    {
+        return dis > nextNode.dis;
+    }
+};
+
+// -------------------------------------------
+// --------------  压缩型 us us  --------------
+// -------------------------------------------
+
 // 每个线程专属区域
-struct ThreadMemoryMagic
+struct ThreadMemory_us_us
 {
     us dis[MAX_NUM_IDS];
     us sigma[MAX_NUM_IDS];          // s -> t 的路径条数
@@ -779,59 +789,199 @@ struct ThreadMemoryMagic
     double bc_data[MAX_NUM_IDS][2]; // 0: delta = sigma_st(index) / sigma_st  1: 位置中心性
 
     // 小根堆
-    MyHeap heap;
-    priority_queue<Pq_elem> pq;
+    Quick_heap<us> heap;
+    priority_queue<Pq_elem<us>> pq;
 
     ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
     ui pred_info[MAX_NUM_EDGES];
 
-} thread_memory_magic[NUM_THREADS];
+} thread_memory_magic_us_us[NUM_THREADS];
 
-void magic_topo_dfs(ui cur_id, ui depth, ui num, ui tid)
+void magic_topo_dfs_us_us(ui &cur_id, ui depth, ui &num, ui &tid)
 {
     ui pred_id, pred_num;
     for (ui i = topo_pred_begin_pos[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
     {
         pred_id = topo_pred_info[i - 1][0];
         pred_num = topo_pred_num[pred_id] + 1;
-        thread_memory_magic[tid].bc_data[cur_id][1] += pred_num * (num + depth);
+        thread_memory_us_us[tid].bc_data[cur_id][1] += pred_num * (num + depth);
         if (pred_num > 1)
         {
-            magic_topo_dfs(pred_id, depth + 1, num, tid);
+            magic_topo_dfs_us_us(pred_id, depth + 1, num, tid);
         }
     }
 }
 
-void magic_tarjan_dfs(ui cur_id, ui depth, ui num, ui tid)
+void magic_tarjan_dfs_us_us(ui &cur_id, ui depth, ui &num, ui &tid)
 {
     ui pred_id, pred_num;
     for (ui i = tarjan_pred_begin_pos[cur_id]; i != 0; i = tarjan_pred_info[i - 1][1])
     {
         pred_id = tarjan_pred_info[i - 1][0];
         pred_num = tarjan_pred_num[pred_id] + 1;
-        thread_memory_magic[tid].bc_data[cur_id][1] += pred_num * (num + depth);
+        thread_memory_us_us[tid].bc_data[cur_id][1] += pred_num * (num + depth);
         if (pred_num > 1)
         {
-            magic_tarjan_dfs(pred_id, depth + 1, num, tid);
+            magic_tarjan_dfs_us_us(pred_id, depth + 1, num, tid);
         }
     }
 }
 
-void dijkstra_priority_queue_magic(ui s, ui tid)
+void dij_us_us(ui s, ui tid)
 {
-    auto &dis = thread_memory_magic[tid].dis;
-    auto &sigma = thread_memory_magic[tid].sigma;
-    auto &pred_next_ptr = thread_memory_magic[tid].pred_next_ptr;
-    auto &bc_data = thread_memory_magic[tid].bc_data;
+    auto &dis = thread_memory_magic_us_us[tid].dis;
+    auto &sigma = thread_memory_magic_us_us[tid].sigma;
+    auto &pred_next_ptr = thread_memory_magic_us_us[tid].pred_next_ptr;
+    auto &bc_data = thread_memory_magic_us_us[tid].bc_data;
 
-    auto &heap = thread_memory_magic[tid].heap;
-    auto &pq = thread_memory_magic[tid].pq;
-    auto &id_stack = thread_memory_magic[tid].id_stack;
-    auto &pred_info = thread_memory_magic[tid].pred_info;
+    auto &heap = thread_memory_magic_us_us[tid].heap;
+    auto &pq = thread_memory_magic_us_us[tid].pq;
+    auto &id_stack = thread_memory_magic_us_us[tid].id_stack;
+    auto &pred_info = thread_memory_magic_us_us[tid].pred_info;
 
     int id_stack_index = -1; // id_stack的指针
     us cur_dis;
-    ui cur_id, next_id, pred_id, multiple, pred_info_len = 0;
+    ui cur_id, next_id, pred_id, multiple;
+    ui cur_pos, end_pos;
+    double coeff;
+
+    dis[s] = 0;
+    sigma[s] = 1;
+
+    heap.push(0, s);
+
+    // 最多循环n次
+    while (heap.pop(cur_dis, cur_id))
+    {
+        if (cur_dis > dis[cur_id]) // dis可能经过松弛后变小了，原压入堆中的路径失去价值
+            continue;
+
+        id_stack[++id_stack_index] = cur_id;
+        bc_data[cur_id][0] = 0; // 代替初始化
+        cur_pos = succ_begin_pos2[cur_id];
+        end_pos = cur_pos + out_degree2[cur_id];
+        // 遍历cur_id的后继 平均循环d次(平均出度)
+        for (cur_pos = succ_begin_pos2[cur_id]; cur_pos < end_pos; ++cur_pos)
+        {
+            next_id = g_succ[cur_pos][0];
+
+            if (dis[cur_id] + g_succ[cur_pos][1] == dis[next_id])
+            {
+                sigma[next_id] += sigma[cur_id];
+
+                pred_info[pred_next_ptr[next_id]++] = cur_id;
+            }
+            else if (dis[cur_id] + g_succ[cur_pos][1] < dis[next_id])
+            {
+                dis[next_id] = dis[cur_id] + g_succ[cur_pos][1];
+
+                heap.push(dis[next_id], next_id);
+
+                sigma[next_id] = sigma[cur_id];
+
+                pred_next_ptr[next_id] = pred_begin_pos2[next_id];
+                pred_info[pred_next_ptr[next_id]++] = cur_id;
+            }
+        }
+    }
+    if (is_topo_opt)
+    {
+        multiple = topo_pred_num[s] + 1;
+        magic_topo_dfs_us_us(s, 0, id_stack_index, tid);
+    }
+    else
+    {
+        multiple = tarjan_pred_num[s] + 1;
+        magic_tarjan_dfs_us_us(s, 0, id_stack_index, tid);
+    }
+
+    // O(M)
+    while (id_stack_index > 0)
+    {
+        cur_id = id_stack[id_stack_index--];
+        bc_data[cur_id][1] += bc_data[cur_id][0] * multiple;
+        coeff = (1 + bc_data[cur_id][0]) / sigma[cur_id];
+        dis[cur_id] = UINT16_MAX;
+
+        cur_pos = pred_begin_pos2[cur_id];
+        end_pos = pred_next_ptr[cur_id];
+
+        // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
+        while (cur_pos < end_pos)
+        {
+            pred_id = pred_info[cur_pos++];
+            bc_data[pred_id][0] += sigma[pred_id] * coeff;
+        }
+    }
+    dis[s] = UINT16_MAX;
+    heap.clear();
+}
+
+// -------------------------------------------
+// --------------  压缩型 ui ui  --------------
+// -------------------------------------------
+// 每个线程专属区域
+struct ThreadMemory_ui_ui
+{
+    ui dis[MAX_NUM_IDS];
+    us sigma[MAX_NUM_IDS];          // s -> t 的路径条数
+    ui pred_next_ptr[MAX_NUM_IDS];  // 下一个后继插入位置
+    double bc_data[MAX_NUM_IDS][2]; // 0: delta = sigma_st(index) / sigma_st  1: 位置中心性
+
+    // 小根堆
+    Quick_heap<ui> heap;
+    priority_queue<Pq_elem<ui>> pq;
+
+    ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
+    ui pred_info[MAX_NUM_EDGES];
+
+} thread_memory_magic_ui_ui[NUM_THREADS];
+
+void magic_topo_dfs_ui_ui(ui cur_id, ui depth, ui num, ui tid)
+{
+    ui pred_id, pred_num;
+    for (ui i = topo_pred_begin_pos[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
+    {
+        pred_id = topo_pred_info[i - 1][0];
+        pred_num = topo_pred_num[pred_id] + 1;
+        thread_memory_magic_ui_ui[tid].bc_data[cur_id][1] += pred_num * (num + depth);
+        if (pred_num > 1)
+        {
+            magic_topo_dfs_ui_ui(pred_id, depth + 1, num, tid);
+        }
+    }
+}
+
+void magic_tarjan_dfs_ui_ui(ui cur_id, ui depth, ui num, ui tid)
+{
+    ui pred_id, pred_num;
+    for (ui i = tarjan_pred_begin_pos[cur_id]; i != 0; i = tarjan_pred_info[i - 1][1])
+    {
+        pred_id = tarjan_pred_info[i - 1][0];
+        pred_num = tarjan_pred_num[pred_id] + 1;
+        thread_memory_magic_ui_ui[tid].bc_data[cur_id][1] += pred_num * (num + depth);
+        if (pred_num > 1)
+        {
+            magic_tarjan_dfs_ui_ui(pred_id, depth + 1, num, tid);
+        }
+    }
+}
+
+void dij_ui_ui(ui s, ui tid)
+{
+    auto &dis = thread_memory_magic_ui_ui[tid].dis;
+    auto &sigma = thread_memory_magic_ui_ui[tid].sigma;
+    auto &pred_next_ptr = thread_memory_magic_ui_ui[tid].pred_next_ptr;
+    auto &bc_data = thread_memory_magic_ui_ui[tid].bc_data;
+
+    auto &heap = thread_memory_magic_ui_ui[tid].heap;
+    auto &pq = thread_memory_magic_ui_ui[tid].pq;
+    auto &id_stack = thread_memory_magic_ui_ui[tid].id_stack;
+    auto &pred_info = thread_memory_magic_ui_ui[tid].pred_info;
+
+    int id_stack_index = -1; // id_stack的指针
+    ui cur_dis;
+    ui cur_id, next_id, pred_id, multiple;
     ui cur_pos, end_pos;
     double coeff;
 
@@ -892,12 +1042,12 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     if (is_topo_opt)
     {
         multiple = topo_pred_num[s] + 1;
-        magic_topo_dfs(s, 0, id_stack_index, tid);
+        magic_topo_dfs_ui_ui(s, 0, id_stack_index, tid);
     }
     else
     {
         multiple = tarjan_pred_num[s] + 1;
-        magic_tarjan_dfs(s, 0, id_stack_index, tid);
+        magic_tarjan_dfs_ui_ui(s, 0, id_stack_index, tid);
     }
 
     // O(M)
@@ -906,7 +1056,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         cur_id = id_stack[id_stack_index--];
         bc_data[cur_id][1] += bc_data[cur_id][0] * multiple;
         coeff = (1 + bc_data[cur_id][0]) / sigma[cur_id];
-        dis[cur_id] = UINT16_MAX;
+        dis[cur_id] = UINT32_MAX;
 
         cur_pos = pred_begin_pos2[cur_id];
         end_pos = pred_next_ptr[cur_id];
@@ -918,9 +1068,170 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
             bc_data[pred_id][0] += sigma[pred_id] * coeff;
         }
     }
-    dis[s] = UINT16_MAX;
+    dis[s] = UINT32_MAX;
     heap.clear();
 }
+
+// -------------------------------------------
+// --------------  标准型 ull ui  --------------
+// -------------------------------------------
+
+// 每个线程专属区域
+struct ThreadMemory_ull_ui
+{
+    ull dis[MAX_NUM_IDS];
+    us sigma[MAX_NUM_IDS];          // s -> t 的路径条数
+    ui pred_next_ptr[MAX_NUM_IDS];  // 下一个后继插入位置
+    double bc_data[MAX_NUM_IDS][2]; // 0: delta = sigma_st(index) / sigma_st  1: 位置中心性
+
+    // 小根堆
+    Quick_heap<ui> heap;
+    priority_queue<Pq_elem<ull>> pq;
+
+    ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
+    ui pred_info[MAX_NUM_EDGES];
+
+} thread_memory_magic_ull_ui[NUM_THREADS];
+
+void magic_topo_dfs_ull_ui(ui cur_id, ui depth, ui num, ui tid)
+{
+    ui pred_id, pred_num;
+    for (ui i = topo_pred_begin_pos[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
+    {
+        pred_id = topo_pred_info[i - 1][0];
+        pred_num = topo_pred_num[pred_id] + 1;
+        thread_memory_magic_ull_ui[tid].bc_data[cur_id][1] += pred_num * (num + depth);
+        if (pred_num > 1)
+        {
+            magic_topo_dfs_ull_ui(pred_id, depth + 1, num, tid);
+        }
+    }
+}
+
+void magic_tarjan_dfs_ull_ui(ui cur_id, ui depth, ui num, ui tid)
+{
+    ui pred_id, pred_num;
+    for (ui i = tarjan_pred_begin_pos[cur_id]; i != 0; i = tarjan_pred_info[i - 1][1])
+    {
+        pred_id = tarjan_pred_info[i - 1][0];
+        pred_num = tarjan_pred_num[pred_id] + 1;
+        thread_memory_magic_ull_ui[tid].bc_data[cur_id][1] += pred_num * (num + depth);
+        if (pred_num > 1)
+        {
+            magic_tarjan_dfs_ull_ui(pred_id, depth + 1, num, tid);
+        }
+    }
+}
+
+void dij_ull_ui(ui s, ui tid)
+{
+    auto &dis = thread_memory_magic_ull_ui[tid].dis;
+    auto &sigma = thread_memory_magic_ull_ui[tid].sigma;
+    auto &pred_next_ptr = thread_memory_magic_ull_ui[tid].pred_next_ptr;
+    auto &bc_data = thread_memory_magic_ull_ui[tid].bc_data;
+
+    auto &heap = thread_memory_magic_ull_ui[tid].heap;
+    auto &pq = thread_memory_magic_ull_ui[tid].pq;
+    auto &id_stack = thread_memory_magic_ull_ui[tid].id_stack;
+    auto &pred_info = thread_memory_magic_ull_ui[tid].pred_info;
+
+    int id_stack_index = -1; // id_stack的指针
+    ull cur_dis;
+    ui cur_id, next_id, pred_id, multiple;
+    ui cur_pos, end_pos;
+    double coeff;
+
+    dis[s] = 0;
+    sigma[s] = 1;
+
+    heap.push(0, s);
+
+    // 最多循环n次
+    while (1)
+    {
+        if (heap.pop(cur_dis, cur_id) == false)
+        {
+            if (!pq.empty())
+            {
+                // 找到离s点最近的顶点
+                cur_dis = pq.top().dis;
+                cur_id = pq.top().id;
+                // O(logn)
+                pq.pop();
+            }
+            else
+                break;
+        }
+
+        if (cur_dis > dis[cur_id]) // dis可能经过松弛后变小了，原压入堆中的路径失去价值
+            continue;
+
+        id_stack[++id_stack_index] = cur_id;
+        bc_data[cur_id][0] = 0; // 代替初始化
+        cur_pos = succ_begin_pos2[cur_id];
+        end_pos = cur_pos + out_degree2[cur_id];
+        // 遍历cur_id的后继 平均循环d次(平均出度)
+        for (cur_pos = succ_begin_pos2[cur_id]; cur_pos < end_pos; ++cur_pos)
+        {
+            next_id = g_succ[cur_pos][0];
+
+            if (dis[cur_id] + g_succ[cur_pos][1] == dis[next_id])
+            {
+                sigma[next_id] += sigma[cur_id];
+
+                pred_info[pred_next_ptr[next_id]++] = cur_id;
+            }
+            else if (dis[cur_id] + g_succ[cur_pos][1] < dis[next_id])
+            {
+                dis[next_id] = dis[cur_id] + g_succ[cur_pos][1];
+
+                if (heap.push(dis[next_id], next_id) == false)
+                    pq.emplace(Pq_elem(next_id, dis[next_id]));
+
+                sigma[next_id] = sigma[cur_id];
+
+                pred_next_ptr[next_id] = pred_begin_pos2[next_id];
+                pred_info[pred_next_ptr[next_id]++] = cur_id;
+            }
+        }
+    }
+
+    if (is_topo_opt)
+    {
+        multiple = topo_pred_num[s] + 1;
+        magic_topo_dfs_ull_ui(s, 0, id_stack_index, tid);
+    }
+    else
+    {
+        multiple = tarjan_pred_num[s] + 1;
+        magic_tarjan_dfs_ull_ui(s, 0, id_stack_index, tid);
+    }
+
+    // O(M)
+    while (id_stack_index > 0)
+    {
+        cur_id = id_stack[id_stack_index--];
+        bc_data[cur_id][1] += bc_data[cur_id][0] * multiple;
+        coeff = (1 + bc_data[cur_id][0]) / sigma[cur_id];
+        dis[cur_id] = UINT64_MAX;
+
+        cur_pos = pred_begin_pos2[cur_id];
+        end_pos = pred_next_ptr[cur_id];
+
+        // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
+        while (cur_pos < end_pos)
+        {
+            pred_id = pred_info[cur_pos++];
+            bc_data[pred_id][0] += sigma[pred_id] * coeff;
+        }
+    }
+    dis[s] = UINT64_MAX;
+    heap.clear();
+}
+
+// -------------------------------------------
+// ----------------  end  --------------------
+// -------------------------------------------
 
 mutex id_lock;
 ui cur_id;
@@ -932,12 +1243,32 @@ void thread_process(ui tid)
     timer.setTime();
 #endif
 
-    auto &dis = thread_memory_magic[tid].dis;
-    // 初始化
-    for (ui i = 0; i < id_num; ++i)
+    if (fit_usus)
     {
-        // TODO: 注意修改
-        dis[i] = UINT16_MAX;
+        auto &dis = thread_memory_magic_us_us[tid].dis;
+        // 初始化
+        for (ui i = 0; i < id_num; ++i)
+        {
+            dis[i] = UINT16_MAX;
+        }
+    }
+    else if (fit_usus)
+    {
+        auto &dis = thread_memory_magic_ui_ui[tid].dis;
+        // 初始化
+        for (ui i = 0; i < id_num; ++i)
+        {
+            dis[i] = UINT32_MAX;
+        }
+    }
+    else
+    {
+        auto &dis = thread_memory_magic_ull_ui[tid].dis;
+        // 初始化
+        for (ui i = 0; i < id_num; ++i)
+        {
+            dis[i] = UINT64_MAX;
+        }
     }
 
     ui s_id;
@@ -972,7 +1303,12 @@ void thread_process(ui tid)
 
             id_lock.unlock();
 
-            dijkstra_priority_queue_magic(s_id, tid);
+            if (fit_usus)
+                dij_us_us(s_id, tid);
+            else if (fit_uiui)
+                dij_ui_ui(s_id, tid);
+            else
+                dij_ull_ui(s_id, tid);
         }
     }
 
@@ -1001,14 +1337,24 @@ struct Res_pq_elem
 
 void save_fwrite(char *resultFile)
 {
-    // ---------------------------------------------
 
-    for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
+    if (fit_usus)
     {
-        for (ui id_index = 0; id_index < id_num; ++id_index)
-        {
-            global_score[id_index] += thread_memory_magic[thread_index].bc_data[id_index][1];
-        }
+        for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
+            for (ui id_index = 0; id_index < id_num; ++id_index)
+                global_score[id_index] += thread_memory_magic_us_us[thread_index].bc_data[id_index][1];
+    }
+    else if (fit_usus)
+    {
+        for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
+            for (ui id_index = 0; id_index < id_num; ++id_index)
+                global_score[id_index] += thread_memory_magic_ui_ui[thread_index].bc_data[id_index][1];
+    }
+    else
+    {
+        for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
+            for (ui id_index = 0; id_index < id_num; ++id_index)
+                global_score[id_index] += thread_memory_magic_ull_ui[thread_index].bc_data[id_index][1];
     }
 
     int index = 0;
