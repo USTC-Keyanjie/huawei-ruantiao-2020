@@ -673,11 +673,20 @@ void pre_process()
     }
 
     if (max_weight < (1 << 12))
+    {
         fit_usus = true;
+        cout << "fit_usus\n";
+    }
     else if (max_weight < (1 << 20))
+    {
         fit_uiui = true;
+        cout << "fit_uiui\n";
+    }
     else
+    {
         fit_ullui = true;
+        cout << "fit_ullui\n";
+    }
 
 #ifdef TEST
     if (is_topo_opt)
