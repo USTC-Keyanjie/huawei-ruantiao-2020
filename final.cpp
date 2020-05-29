@@ -2,7 +2,7 @@
 // 1. close #define TEST.
 // 2. open //#define MMAP
 
-// #define TEST
+#define TEST
 #define MMAP // 使用mmap函数
 
 #ifndef TEST
