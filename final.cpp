@@ -868,31 +868,6 @@ void cal_cb_magic(ui tid, ui multiple, int &id_stack_index)
 
 void dijkstra_priority_queue_magic(ui s, ui tid)
 {
-    auto &dis = thread_memory_magic[tid].dis;
-    auto &sigma = thread_memory_magic[tid].sigma;
-    auto &pred_next_ptr = thread_memory_magic[tid].pred_next_ptr;
-    auto &bc_data = thread_memory_magic[tid].bc_data;
-
-    auto &heap = thread_memory_magic[tid].heap;
-    auto &id_stack = thread_memory_magic[tid].id_stack;
-    auto &pred_info = thread_memory_magic[tid].pred_info;
-
-    int id_stack_index = -1; // id_stack的指针
-
-    dis[s] = 0;
-    sigma[s] = 1;
-
-    // pq.emplace(Pq_elem(s, 0));
-    heap.push(0, s);
-
-    dijkstra_magic(tid, id_stack_index);
-
-    ui multiple = topo_pred_num[s] + 1;
-    magic_dfs(s, 0, id_stack_index, tid);
-
-    cal_cb_magic(tid, multiple, id_stack_index);
-
-    heap.clear();
 }
 
 mutex id_lock;
@@ -953,9 +928,32 @@ void thread_process(ui tid)
             id_lock.unlock();
 
             if (is_magic_heap)
-                dijkstra_priority_queue_magic(s_id, tid);
+            {
+                auto &dis = thread_memory_magic[tid].dis;
+                auto &sigma = thread_memory_magic[tid].sigma;
+                auto &heap = thread_memory_magic[tid].heap;
+
+                int id_stack_index = -1; // id_stack的指针
+
+                dis[s_id] = 0;
+                sigma[s_id] = 1;
+
+                // pq.emplace(Pq_elem(s, 0));
+                heap.push(0, s_id);
+
+                dijkstra_magic(tid, id_stack_index);
+
+                ui multiple = topo_pred_num[s_id] + 1;
+                magic_dfs(s, 0, id_stack_index, tid);
+
+                cal_cb_magic(tid, multiple, id_stack_index);
+
+                heap.clear();
+            }
             else
+            {
                 dijkstra_priority_queue_sparse(s_id, tid);
+            }
         }
     }
 
