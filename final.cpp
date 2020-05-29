@@ -111,6 +111,7 @@ ui topo_pred_info[MAX_NUM_IDS][2]; // 存储前驱点信息  第一维：id 第�
 ui topo_pred_num[MAX_NUM_IDS];     // 前驱数量
 ui topo_pred_begin_pos[MAX_NUM_IDS];
 
+bool delete_recorder[MAX_NUM_IDS];
 double global_score[MAX_NUM_IDS]; // 存储答案的数组
 
 #ifdef TEST
@@ -546,7 +547,7 @@ void topo_sort()
         if (in_degree2[index] == 0 && out_degree2[index] == 1)
         {
             topo_stack[++topo_index] = index;
-            mark[index] = 2;
+            delete_recorder[index] = true;
         }
     }
     ui topo_pred_info_len = 0;
@@ -566,7 +567,7 @@ void topo_sort()
         if (in_degree2[v_hash_id] == 0 && out_degree2[v_hash_id] == 1)
         {
             topo_stack[++topo_index] = v_hash_id;
-            mark[v_hash_id] = 2;
+            delete_recorder[v_hash_id] = true;
         }
     }
 }
@@ -948,8 +949,12 @@ void thread_process(ui tid)
         }
         else
         {
-            while (cur_id < id_num && mark[cur_id] != 2)
-                cur_id++;
+            if (is_topo_opt)
+                while (cur_id < id_num && delete_recorder[cur_id])
+                    cur_id++;
+            else
+                while (cur_id < id_num && mark[cur_id] != 2)
+                    cur_id++;
 #ifdef TEST
             if (cur_id % 10000 == 0)
                 printf("[%0.1f%%] ~ %u/%u\n", 100.0 * cur_id / id_num, cur_id, id_num);
