@@ -824,7 +824,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
 
 // ---------------------------------------------
 
-const size_t max_length = 1 << 16;
+const size_t max_length = 1 << 6;
 const size_t max_bucket_size = 1 << 16;
 const size_t magical_heap_size = max_length * max_bucket_size;
 
