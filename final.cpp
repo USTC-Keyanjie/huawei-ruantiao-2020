@@ -3,7 +3,7 @@
 // 2. open //#define MMAP
 
 #define TEST
-// #define MMAP // 使用mmap函数
+#define MMAP // 使用mmap函数
 
 #ifndef TEST
 #include <bits/stdc++.h>
@@ -50,13 +50,13 @@ string dataset = "test";
 #include <stddef.h>
 #endif
 
-#define NUM_THREADS 1 // 线程数
+#define NUM_THREADS 8 // 线程数
 
-// #define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5
-// #define MAX_NUM_IDS 2500005   // 最大可接受id数 250w+5
+#define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5
+#define MAX_NUM_IDS 2500005   // 最大可接受id数 250w+5
 
-#define MAX_NUM_EDGES 255 // 最大可接受边数 250w+5
-#define MAX_NUM_IDS 255   // 最大可接受id数 250w+5
+// #define MAX_NUM_EDGES 255 // 最大可接受边数 250w+5
+// #define MAX_NUM_IDS 255   // 最大可接受id数 250w+5
 
 #define TopK 100 // 只输出前TopK个结果
 
