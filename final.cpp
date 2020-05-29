@@ -830,6 +830,9 @@ struct ThreadMemory_us_us
     ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
     ui pred_info[MAX_NUM_EDGES];
 
+    ui pred_info_arr[MAX_NUM_IDS][16]; // 第一位用来存储长度
+    vector<vector<ui>> pred_info_arr_back_up;
+
 } thread_memory_magic_us_us[NUM_THREADS];
 
 void magic_topo_dfs_us_us(ui &cur_id, ui depth, int &num, ui &tid)
@@ -872,7 +875,10 @@ void dij_us_us(ui s, ui tid)
     auto &heap = thread_memory_magic_us_us[tid].heap;
     auto &pq = thread_memory_magic_us_us[tid].pq;
     auto &id_stack = thread_memory_magic_us_us[tid].id_stack;
-    auto &pred_info = thread_memory_magic_us_us[tid].pred_info;
+    // auto &pred_info = thread_memory_magic_us_us[tid].pred_info;
+
+    auto &pred_info_arr = thread_memory_magic_us_us[tid].pred_info_arr;
+    auto &pred_info_arr_back_up = thread_memory_magic_us_us[tid].pred_info_arr_back_up;
 
     int id_stack_index = -1; // id_stack的指针
     us cur_dis;
@@ -904,7 +910,11 @@ void dij_us_us(ui s, ui tid)
             {
                 sigma[next_id] += sigma[cur_id];
 
-                pred_info[pred_next_ptr[next_id]++] = cur_id;
+                // pred_info[pred_next_ptr[next_id]++] = cur_id;
+                if (pred_info_arr[next_id][0] < 16)
+                    pred_info_arr[next_id][pred_info_arr[next_id][0]++] = cur_id;
+                else
+                    pred_info_arr_back_up[next_id].emplace(cur_id);
             }
             else if (dis[cur_id] + g_succ[cur_pos][1] < dis[next_id])
             {
@@ -914,8 +924,14 @@ void dij_us_us(ui s, ui tid)
 
                 sigma[next_id] = sigma[cur_id];
 
-                pred_next_ptr[next_id] = pred_begin_pos2[next_id];
-                pred_info[pred_next_ptr[next_id]++] = cur_id;
+                // pred_next_ptr[next_id] = pred_begin_pos2[next_id];
+                // pred_info[pred_next_ptr[next_id]++] = cur_id;
+                if (pred_info_arr[next_id][0] == 16)
+                {
+                    pred_info_arr_back_up[next_id].empty();
+                }
+                pred_info_arr[next_id][0] = 2;
+                pred_info_arr[next_id][1] = cur_id;
             }
         }
     }
@@ -942,10 +958,23 @@ void dij_us_us(ui s, ui tid)
         end_pos = pred_next_ptr[cur_id];
 
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
-        while (cur_pos < end_pos)
+        // while (cur_pos < end_pos)
+        // {
+        //     pred_id = pred_info[cur_pos++];
+        //     bc_data[pred_id][0] += sigma[pred_id] * coeff;
+        // }
+        for (cur_pos = 1; cur_pos < pred_info_arr[next_id][0]; cur_pos++)
         {
-            pred_id = pred_info[cur_pos++];
-            bc_data[pred_id][0] += sigma[pred_id] * coeff;
+            bc_data[pred_id][0] += sigma[pred_info_arr[cur_id][cur_pos]] * coeff;
+        }
+
+        if (pred_info_arr[next_id][0] == 16)
+        {
+            for (cur_pos = 0; cur_pos < pred_info_arr_back_up[cur_id].size(); ++cur_pos)
+            {
+                bc_data[pred_id][0] += sigma[pred_info_arr_back_up[cur_id][cur_pos]] * coeff;
+            }
+            pred_info_arr_back_up.empty();
         }
     }
     dis[s] = UINT16_MAX;
@@ -969,6 +998,9 @@ struct ThreadMemory_ui_ui
 
     ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
     ui pred_info[MAX_NUM_EDGES];
+
+    ui pred_info_arr[MAX_NUM_IDS][16]; // 第一位用来存储长度
+    vector<vector<ui>> pred_info_arr_back_up;
 
 } thread_memory_magic_ui_ui[NUM_THREADS];
 
@@ -1012,7 +1044,10 @@ void dij_ui_ui(ui s, ui tid)
     auto &heap = thread_memory_magic_ui_ui[tid].heap;
     auto &pq = thread_memory_magic_ui_ui[tid].pq;
     auto &id_stack = thread_memory_magic_ui_ui[tid].id_stack;
-    auto &pred_info = thread_memory_magic_ui_ui[tid].pred_info;
+    // auto &pred_info = thread_memory_magic_ui_ui[tid].pred_info;
+
+    auto &pred_info_arr = thread_memory_magic_ui_ui[tid].pred_info_arr;
+    auto &pred_info_arr_back_up = thread_memory_magic_ui_ui[tid].pred_info_arr_back_up;
 
     int id_stack_index = -1; // id_stack的指针
     ui cur_dis;
@@ -1058,7 +1093,11 @@ void dij_ui_ui(ui s, ui tid)
             {
                 sigma[next_id] += sigma[cur_id];
 
-                pred_info[pred_next_ptr[next_id]++] = cur_id;
+                // pred_info[pred_next_ptr[next_id]++] = cur_id;
+                if (pred_info_arr[next_id][0] < 16)
+                    pred_info_arr[next_id][pred_info_arr[next_id][0]++] = cur_id;
+                else
+                    pred_info_arr_back_up[next_id].emplace(cur_id);
             }
             else if (dis[cur_id] + g_succ[cur_pos][1] < dis[next_id])
             {
@@ -1069,8 +1108,14 @@ void dij_ui_ui(ui s, ui tid)
 
                 sigma[next_id] = sigma[cur_id];
 
-                pred_next_ptr[next_id] = pred_begin_pos2[next_id];
-                pred_info[pred_next_ptr[next_id]++] = cur_id;
+                // pred_next_ptr[next_id] = pred_begin_pos2[next_id];
+                // pred_info[pred_next_ptr[next_id]++] = cur_id;
+                if (pred_info_arr[next_id][0] == 16)
+                {
+                    pred_info_arr_back_up[next_id].empty();
+                }
+                pred_info_arr[next_id][0] = 2;
+                pred_info_arr[next_id][1] = cur_id;
             }
         }
     }
@@ -1097,10 +1142,23 @@ void dij_ui_ui(ui s, ui tid)
         end_pos = pred_next_ptr[cur_id];
 
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
-        while (cur_pos < end_pos)
+        // while (cur_pos < end_pos)
+        // {
+        //     pred_id = pred_info[cur_pos++];
+        //     bc_data[pred_id][0] += sigma[pred_id] * coeff;
+        // }
+        for (cur_pos = 1; cur_pos < pred_info_arr[next_id][0]; cur_pos++)
         {
-            pred_id = pred_info[cur_pos++];
-            bc_data[pred_id][0] += sigma[pred_id] * coeff;
+            bc_data[pred_id][0] += sigma[pred_info_arr[cur_id][cur_pos]] * coeff;
+        }
+
+        if (pred_info_arr[next_id][0] == 16)
+        {
+            for (cur_pos = 0; cur_pos < pred_info_arr_back_up[cur_id].size(); ++cur_pos)
+            {
+                bc_data[pred_id][0] += sigma[pred_info_arr_back_up[cur_id][cur_pos]] * coeff;
+            }
+            pred_info_arr_back_up.empty();
         }
     }
     dis[s] = UINT32_MAX;
@@ -1125,6 +1183,9 @@ struct ThreadMemory_ull_ui
 
     ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
     ui pred_info[MAX_NUM_EDGES];
+
+    ui pred_info_arr[MAX_NUM_IDS][16]; // 第一位用来存储长度
+    vector<vector<ui>> pred_info_arr_back_up;
 
 } thread_memory_magic_ull_ui[NUM_THREADS];
 
@@ -1168,7 +1229,7 @@ void dij_ull_ui(ui s, ui tid)
     auto &heap = thread_memory_magic_ull_ui[tid].heap;
     auto &pq = thread_memory_magic_ull_ui[tid].pq;
     auto &id_stack = thread_memory_magic_ull_ui[tid].id_stack;
-    auto &pred_info = thread_memory_magic_ull_ui[tid].pred_info;
+    // auto &pred_info = thread_memory_magic_ull_ui[tid].pred_info;
 
     int id_stack_index = -1; // id_stack的指针
     ull cur_dis;
@@ -1214,7 +1275,11 @@ void dij_ull_ui(ui s, ui tid)
             {
                 sigma[next_id] += sigma[cur_id];
 
-                pred_info[pred_next_ptr[next_id]++] = cur_id;
+                // pred_info[pred_next_ptr[next_id]++] = cur_id;
+                if (pred_info_arr[next_id][0] < 16)
+                    pred_info_arr[next_id][pred_info_arr[next_id][0]++] = cur_id;
+                else
+                    pred_info_arr_back_up[next_id].emplace(cur_id);
             }
             else if (dis[cur_id] + g_succ[cur_pos][1] < dis[next_id])
             {
@@ -1225,8 +1290,15 @@ void dij_ull_ui(ui s, ui tid)
 
                 sigma[next_id] = sigma[cur_id];
 
-                pred_next_ptr[next_id] = pred_begin_pos2[next_id];
-                pred_info[pred_next_ptr[next_id]++] = cur_id;
+                // pred_next_ptr[next_id] = pred_begin_pos2[next_id];
+                // pred_info[pred_next_ptr[next_id]++] = cur_id;
+
+                if (pred_info_arr[next_id][0] == 16)
+                {
+                    pred_info_arr_back_up[next_id].empty();
+                }
+                pred_info_arr[next_id][0] = 2;
+                pred_info_arr[next_id][1] = cur_id;
             }
         }
     }
@@ -1254,10 +1326,23 @@ void dij_ull_ui(ui s, ui tid)
         end_pos = pred_next_ptr[cur_id];
 
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
-        while (cur_pos < end_pos)
+        // while (cur_pos < end_pos)
+        // {
+        //     pred_id = pred_info[cur_pos++];
+        //     bc_data[pred_id][0] += sigma[pred_id] * coeff;
+        // }
+        for (cur_pos = 1; cur_pos < pred_info_arr[next_id][0]; cur_pos++)
         {
-            pred_id = pred_info[cur_pos++];
-            bc_data[pred_id][0] += sigma[pred_id] * coeff;
+            bc_data[pred_id][0] += sigma[pred_info_arr[cur_id][cur_pos]] * coeff;
+        }
+
+        if (pred_info_arr[next_id][0] == 16)
+        {
+            for (cur_pos = 0; cur_pos < pred_info_arr_back_up[cur_id].size(); ++cur_pos)
+            {
+                bc_data[pred_id][0] += sigma[pred_info_arr_back_up[cur_id][cur_pos]] * coeff;
+            }
+            pred_info_arr_back_up.empty();
         }
     }
     dis[s] = UINT64_MAX;
@@ -1281,29 +1366,38 @@ void thread_process(ui tid)
     if (fit_usus)
     {
         auto &dis = thread_memory_magic_us_us[tid].dis;
+        auto &pred_info_arr_back_up = thread_memory_magic_us_us[tid].pred_info_arr_back_up;
+
         // 初始化
         for (ui i = 0; i < id_num; ++i)
         {
             dis[i] = UINT16_MAX;
         }
+        pred_info_arr_back_up.resize(id_num);
     }
     else if (fit_usus)
     {
         auto &dis = thread_memory_magic_ui_ui[tid].dis;
+        auto &pred_info_arr_back_up = thread_memory_magic_ui_ui[tid].pred_info_arr_back_up;
+
         // 初始化
         for (ui i = 0; i < id_num; ++i)
         {
             dis[i] = UINT32_MAX;
         }
+        pred_info_arr_back_up.resize(id_num);
     }
     else
     {
         auto &dis = thread_memory_magic_ull_ui[tid].dis;
+        auto &pred_info_arr_back_up = thread_memory_magic_ull_ui[tid].pred_info_arr_back_up;
+
         // 初始化
         for (ui i = 0; i < id_num; ++i)
         {
             dis[i] = UINT64_MAX;
         }
+        pred_info_arr_back_up.resize(id_num);
     }
 
     ui s_id;
