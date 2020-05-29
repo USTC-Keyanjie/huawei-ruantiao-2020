@@ -1085,7 +1085,7 @@ struct ThreadMemory_ull_ui
     double bc_data[MAX_NUM_IDS][2]; // 0: delta = sigma_st(index) / sigma_st  1: 位置中心性
 
     // 小根堆
-    Quick_heap<ui> heap;
+    Quick_heap<ull> heap;
     priority_queue<Pq_elem<ull>> pq;
 
     ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
