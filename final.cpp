@@ -914,7 +914,7 @@ void dij_us_us(ui s, ui tid)
                 if (pred_info_arr[next_id][0] < 16)
                     pred_info_arr[next_id][pred_info_arr[next_id][0]++] = cur_id;
                 else
-                    pred_info_arr_back_up[next_id].emplace(cur_id);
+                    pred_info_arr_back_up[next_id].push_back(cur_id);
             }
             else if (dis[cur_id] + g_succ[cur_pos][1] < dis[next_id])
             {
@@ -1097,7 +1097,7 @@ void dij_ui_ui(ui s, ui tid)
                 if (pred_info_arr[next_id][0] < 16)
                     pred_info_arr[next_id][pred_info_arr[next_id][0]++] = cur_id;
                 else
-                    pred_info_arr_back_up[next_id].emplace(cur_id);
+                    pred_info_arr_back_up[next_id].push_back(cur_id);
             }
             else if (dis[cur_id] + g_succ[cur_pos][1] < dis[next_id])
             {
@@ -1231,6 +1231,9 @@ void dij_ull_ui(ui s, ui tid)
     auto &id_stack = thread_memory_magic_ull_ui[tid].id_stack;
     // auto &pred_info = thread_memory_magic_ull_ui[tid].pred_info;
 
+    auto &pred_info_arr = thread_memory_magic_ull_ui[tid].pred_info_arr;
+    auto &pred_info_arr_back_up = thread_memory_magic_ull_ui[tid].pred_info_arr_back_up;
+
     int id_stack_index = -1; // id_stack的指针
     ull cur_dis;
     ui cur_id, next_id, pred_id, multiple;
@@ -1279,7 +1282,7 @@ void dij_ull_ui(ui s, ui tid)
                 if (pred_info_arr[next_id][0] < 16)
                     pred_info_arr[next_id][pred_info_arr[next_id][0]++] = cur_id;
                 else
-                    pred_info_arr_back_up[next_id].emplace(cur_id);
+                    pred_info_arr_back_up[next_id].push_back(cur_id);
             }
             else if (dis[cur_id] + g_succ[cur_pos][1] < dis[next_id])
             {
