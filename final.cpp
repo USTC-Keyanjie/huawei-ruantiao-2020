@@ -685,19 +685,19 @@ void pre_process()
 
     if (is_topo_opt)
     {
+        topo_sort();
         thread thread_g_succ = thread(build_g_succ_for_topo_opt);
         thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
         thread_g_succ.join();
         thread_g_pred_begin_pos.join();
-        topo_sort();
     }
     else
     {
+        tarjan();
         thread thread_g_succ = thread(build_g_succ);
         thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
         thread_g_succ.join();
         thread_g_pred_begin_pos.join();
-        tarjan();
     }
 }
 
