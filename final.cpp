@@ -714,9 +714,6 @@ void pre_process()
 #endif
     }
 
-    fit_uiui = false;
-    fit_ullui = true; // 强制ullui，测试用
-
 #ifdef TEST
     if (is_topo_opt)
     {
