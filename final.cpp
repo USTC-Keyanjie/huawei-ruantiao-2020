@@ -977,7 +977,7 @@ void dij_us_us(ui s, ui tid)
             {
                 bc_data[pred_info_arr_back_up[cur_id][cur_pos]][0] += sigma[pred_info_arr_back_up[cur_id][cur_pos]] * coeff;
             }
-            pred_info_arr_back_up.empty();
+            pred_info_arr_back_up[cur_id].empty();
         }
     }
     dis[s] = UINT16_MAX;
@@ -1161,7 +1161,7 @@ void dij_ui_ui(ui s, ui tid)
             {
                 bc_data[pred_info_arr_back_up[cur_id][cur_pos]][0] += sigma[pred_info_arr_back_up[cur_id][cur_pos]] * coeff;
             }
-            pred_info_arr_back_up.empty();
+            pred_info_arr_back_up[cur_id].empty();
         }
     }
     dis[s] = UINT32_MAX;
@@ -1348,7 +1348,7 @@ void dij_ull_ui(ui s, ui tid)
             {
                 bc_data[pred_info_arr_back_up[cur_id][cur_pos]][0] += sigma[pred_info_arr_back_up[cur_id][cur_pos]] * coeff;
             }
-            pred_info_arr_back_up.empty();
+            pred_info_arr_back_up[cur_id].empty();
         }
     }
     dis[s] = UINT64_MAX;
