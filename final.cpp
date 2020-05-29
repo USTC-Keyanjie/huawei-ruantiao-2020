@@ -813,7 +813,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         cur_pos = succ_begin_pos2[cur_id];
         end_pos = cur_pos + out_degree2[cur_id];
         // 遍历cur_id的后继 平均循环d次(平均出度)
-        while (cur_pos < end_pos)
+        for (cur_pos = succ_begin_pos2[cur_id]; cur_pos < end_pos; ++cur_pos)
         {
             next_id = g_succ[cur_pos][0];
 
@@ -833,7 +833,6 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
                 pred_next_ptr[next_id] = pred_begin_pos2[next_id];
                 pred_info[pred_next_ptr[next_id]++] = cur_id;
             }
-            ++cur_pos;
         }
     }
 
