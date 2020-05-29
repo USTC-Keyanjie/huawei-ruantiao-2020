@@ -797,14 +797,14 @@ struct ThreadMemory_us_us
 
 } thread_memory_magic_us_us[NUM_THREADS];
 
-void magic_topo_dfs_us_us(ui &cur_id, ui depth, ui &num, ui &tid)
+void magic_topo_dfs_us_us(ui &cur_id, ui depth, int &num, ui &tid)
 {
     ui pred_id, pred_num;
     for (ui i = topo_pred_begin_pos[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
     {
         pred_id = topo_pred_info[i - 1][0];
         pred_num = topo_pred_num[pred_id] + 1;
-        thread_memory_us_us[tid].bc_data[cur_id][1] += pred_num * (num + depth);
+        thread_memory_magic_us_us[tid].bc_data[cur_id][1] += pred_num * (num + depth);
         if (pred_num > 1)
         {
             magic_topo_dfs_us_us(pred_id, depth + 1, num, tid);
@@ -812,14 +812,14 @@ void magic_topo_dfs_us_us(ui &cur_id, ui depth, ui &num, ui &tid)
     }
 }
 
-void magic_tarjan_dfs_us_us(ui &cur_id, ui depth, ui &num, ui &tid)
+void magic_tarjan_dfs_us_us(ui &cur_id, ui depth, int &num, ui &tid)
 {
     ui pred_id, pred_num;
     for (ui i = tarjan_pred_begin_pos[cur_id]; i != 0; i = tarjan_pred_info[i - 1][1])
     {
         pred_id = tarjan_pred_info[i - 1][0];
         pred_num = tarjan_pred_num[pred_id] + 1;
-        thread_memory_us_us[tid].bc_data[cur_id][1] += pred_num * (num + depth);
+        thread_memory_magic_us_us[tid].bc_data[cur_id][1] += pred_num * (num + depth);
         if (pred_num > 1)
         {
             magic_tarjan_dfs_us_us(pred_id, depth + 1, num, tid);
@@ -937,7 +937,7 @@ struct ThreadMemory_ui_ui
 
 } thread_memory_magic_ui_ui[NUM_THREADS];
 
-void magic_topo_dfs_ui_ui(ui cur_id, ui depth, ui num, ui tid)
+void magic_topo_dfs_ui_ui(ui &cur_id, ui depth, int &num, ui &tid)
 {
     ui pred_id, pred_num;
     for (ui i = topo_pred_begin_pos[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
@@ -952,7 +952,7 @@ void magic_topo_dfs_ui_ui(ui cur_id, ui depth, ui num, ui tid)
     }
 }
 
-void magic_tarjan_dfs_ui_ui(ui cur_id, ui depth, ui num, ui tid)
+void magic_tarjan_dfs_ui_ui(ui &cur_id, ui depth, int &num, ui &tid)
 {
     ui pred_id, pred_num;
     for (ui i = tarjan_pred_begin_pos[cur_id]; i != 0; i = tarjan_pred_info[i - 1][1])
@@ -1030,7 +1030,7 @@ void dij_ui_ui(ui s, ui tid)
                 dis[next_id] = dis[cur_id] + g_succ[cur_pos][1];
 
                 if (heap.push(dis[next_id], next_id) == false)
-                    pq.emplace(Pq_elem(next_id, dis[next_id]));
+                    pq.emplace(Pq_elem<ui>(next_id, dis[next_id]));
 
                 sigma[next_id] = sigma[cur_id];
 
@@ -1093,7 +1093,7 @@ struct ThreadMemory_ull_ui
 
 } thread_memory_magic_ull_ui[NUM_THREADS];
 
-void magic_topo_dfs_ull_ui(ui cur_id, ui depth, ui num, ui tid)
+void magic_topo_dfs_ull_ui(ui &cur_id, ui depth, int &num, ui &tid)
 {
     ui pred_id, pred_num;
     for (ui i = topo_pred_begin_pos[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
@@ -1108,7 +1108,7 @@ void magic_topo_dfs_ull_ui(ui cur_id, ui depth, ui num, ui tid)
     }
 }
 
-void magic_tarjan_dfs_ull_ui(ui cur_id, ui depth, ui num, ui tid)
+void magic_tarjan_dfs_ull_ui(ui &cur_id, ui depth, int &num, ui &tid)
 {
     ui pred_id, pred_num;
     for (ui i = tarjan_pred_begin_pos[cur_id]; i != 0; i = tarjan_pred_info[i - 1][1])
@@ -1186,7 +1186,7 @@ void dij_ull_ui(ui s, ui tid)
                 dis[next_id] = dis[cur_id] + g_succ[cur_pos][1];
 
                 if (heap.push(dis[next_id], next_id) == false)
-                    pq.emplace(Pq_elem(next_id, dis[next_id]));
+                    pq.emplace(Pq_elem<ull>(next_id, dis[next_id]));
 
                 sigma[next_id] = sigma[cur_id];
 
