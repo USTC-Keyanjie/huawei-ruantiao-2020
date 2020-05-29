@@ -779,7 +779,7 @@ void magic_dfs(ui cur_id, ui depth, ui num, ui tid)
     }
 }
 
-void dijkstra_magic()
+void dijkstra_magic(ui tid, int &id_stack_index)
 {
     auto &dis = thread_memory_magic[tid].dis;
     auto &sigma = thread_memory_magic[tid].sigma;
@@ -789,6 +789,11 @@ void dijkstra_magic()
     auto &heap = thread_memory_magic[tid].heap;
     auto &id_stack = thread_memory_magic[tid].id_stack;
     auto &pred_info = thread_memory_magic[tid].pred_info;
+
+    us cur_dis;
+    ui cur_id, next_id;
+    ui cur_pos, end_pos;
+
     // 最多循环n次
     while (heap.pop(cur_dis, cur_id))
     {
@@ -825,7 +830,7 @@ void dijkstra_magic()
     }
 }
 
-void cal_cb_magic()
+void cal_cb_magic(ui tid, ui multiple, int &id_stack_index)
 {
     auto &dis = thread_memory_magic[tid].dis;
     auto &sigma = thread_memory_magic[tid].sigma;
@@ -835,6 +840,10 @@ void cal_cb_magic()
     auto &heap = thread_memory_magic[tid].heap;
     auto &id_stack = thread_memory_magic[tid].id_stack;
     auto &pred_info = thread_memory_magic[tid].pred_info;
+
+    ui cur_id, pred_id;
+    ui cur_pos, end_pos;
+    double coeff;
 
     // O(M)
     while (id_stack_index > 0)
@@ -869,10 +878,6 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     auto &pred_info = thread_memory_magic[tid].pred_info;
 
     int id_stack_index = -1; // id_stack的指针
-    us cur_dis;
-    ui cur_id, next_id, pred_id, multiple, pred_info_len = 0;
-    ui cur_pos, end_pos;
-    double coeff;
 
     dis[s] = 0;
     sigma[s] = 1;
@@ -880,10 +885,12 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     // pq.emplace(Pq_elem(s, 0));
     heap.push(0, s);
 
-    dijkstra_magic();
+    dijkstra_magic(tid, id_stack_index);
 
-    multiple = topo_pred_num[s] + 1;
+    ui multiple = topo_pred_num[s] + 1;
     magic_dfs(s, 0, id_stack_index, tid);
+
+    cal_cb_magic(tid, multiple, id_stack_index);
 
     heap.clear();
 }
