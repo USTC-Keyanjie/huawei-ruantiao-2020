@@ -100,9 +100,11 @@ bool tarjan_vis[MAX_NUM_IDS];
 int low[MAX_NUM_IDS], dfn[MAX_NUM_IDS], head[MAX_NUM_IDS], col[MAX_NUM_IDS], stack[MAX_NUM_IDS];
 ui tot = 0, top = 0, cnt = 0, k = 0;
 
-ui tarjan_pred_begin_pos2[MAX_NUM_IDS];
-ui tarjan_pred_num[MAX_NUM_IDS];     // 前驱数量
-ui tarjan_pred_info[MAX_NUM_IDS][2]; // 存储前驱点信息  第一维：id 第二维：下一个兄弟index
+us mark[MAX_NUM_IDS]; // 0表示不在链上，1表示在链上但不是根节点，2表示是根节点
+ui tarjan_pred_begin_pos[MAX_NUM_IDS];
+ui tarjan_pred_info_len;
+ui tarjan_pred_num[MAX_NUM_IDS];     // 前驱数量, 不连根节点
+ui tarjan_pred_info[MAX_NUM_IDS][2]; // 存储前驱点信息  第一维：id 第二维：子树数量 第三维：next index
 
 ui topo_stack[MAX_NUM_IDS];        // 拓扑排序的栈
 ui topo_pred_info[MAX_NUM_IDS][2]; // 存储前驱点信息  第一维：id 第二维：下一个兄弟index
@@ -495,6 +497,45 @@ void tarjan(int x)
     }
 }
 
+ui tarjan_dfs(ui cur_id)
+{
+    for (int i = pred_begin_pos2[cur_id]; i != 0; i = v_next[i])
+    {
+        i--;
+        ui pred_id = input_u_ids2[i];
+        if (out_degree2[pred_id] == 1 && col[cur_id] != col[pred_id])
+        {
+            if (mark[pred_id] == 2) // 前驱是根节点
+            {
+                mark[pred_id] = 1; //改为在线节点
+                tarjan_pred_info[tarjan_pred_info_len][0] = pred_id;
+                tarjan_pred_info[tarjan_pred_info_len][1] = tarjan_pred_begin_pos[cur_id];
+                tarjan_pred_num[cur_id] += tarjan_pred_num[pred_id] + 1;
+                tarjan_pred_begin_pos[cur_id] = ++tarjan_pred_info_len;
+            }
+            else
+            {
+                mark[pred_id] = 1; //改为在线节点
+                tarjan_pred_info[tarjan_pred_info_len][0] = pred_id;
+                tarjan_pred_info[tarjan_pred_info_len][1] = tarjan_pred_begin_pos[cur_id];
+                tarjan_pred_num[cur_id] += tarjan_dfs(pred_id);
+                tarjan_pred_begin_pos[cur_id] = ++tarjan_pred_info_len;
+            }
+        }
+    }
+    return tarjan_pred_num[cur_id] + 1;
+}
+
+void tarjan_dfs()
+{
+    ui pred_id;
+    for (ui cur_id = 0; cur_id < id_num - 1; ++cur_id)
+    {
+        if (mark[cur_id] == 0 && tarjan_dfs(cur_id) > 1)
+            mark[cur_id] = 2; //自己为根节点
+    }
+}
+
 void tarjan()
 {
     for (ui cur_id = 0; cur_id < id_num; ++cur_id)
@@ -502,18 +543,7 @@ void tarjan()
         tarjan(cur_id);
     }
 
-    ui tarjan_pred_info_len = 0;
-    for (ui cur_id = 0; cur_id < id_num - 1; ++cur_id)
-    {
-        ui next_id = input_v_ids2[succ_begin_pos2[cur_id] - 1];
-        if (out_degree2[cur_id] == 1 && col[cur_id] != col[next_id])
-        {
-            tarjan_pred_info[tarjan_pred_info_len][0] = cur_id;
-            tarjan_pred_info[tarjan_pred_info_len][1] = tarjan_pred_begin_pos2[next_id];
-            tarjan_pred_begin_pos2[next_id] = ++tarjan_pred_info_len;
-            delete_recorder[cur_id] = true;
-        }
-    }
+    tarjan_dfs();
 }
 
 void topo_sort()
@@ -632,7 +662,9 @@ void pre_process()
 
         // 链表串起来
         u_next[index] = succ_begin_pos[u_hash_id];
-        succ_begin_pos[u_hash_id] = ++index;
+        succ_begin_pos[u_hash_id] = index + 1;
+        v_next[index] = pred_begin_pos[v_hash_id];
+        pred_begin_pos[v_hash_id] = ++index;
 
         out_degree[u_hash_id]++;
         in_degree[v_hash_id]++;
@@ -681,7 +713,7 @@ struct ThreadMemorySparse
 
 } thread_memory_sparse[NUM_THREADS];
 
-void sparse_dfs(ui cur_id, ui depth, int &num, ui tid)
+void sparse_topo_dfs(ui cur_id, ui depth, int &num, ui tid)
 {
     ui pred_id, pred_num;
     for (ui i = topo_pred_begin_pos2[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
@@ -691,41 +723,24 @@ void sparse_dfs(ui cur_id, ui depth, int &num, ui tid)
         thread_memory_sparse[tid].bc_data[cur_id][1] += pred_num * (num + depth);
         if (pred_num > 1)
         {
-            sparse_dfs(pred_id, depth + 1, num, tid);
+            sparse_topo_dfs(pred_id, depth + 1, num, tid);
         }
     }
 }
 
-ui get_pred_num(ui start_id)
-{
-    for (ui i = tarjan_pred_begin_pos2[start_id]; i != 0; i = tarjan_pred_info[i - 1][1])
-    {
-        tarjan_pred_num[start_id] += get_pred_num(tarjan_pred_info[i - 1][0]);
-    }
-    return tarjan_pred_num[start_id] + 1;
-}
-
-void dfs_tarjan(ui cur_id, ui depth, int &num, ui tid)
+void sparse_tarjan_dfs(ui cur_id, ui depth, int &num, ui tid)
 {
     ui pred_id, pred_num;
-    for (ui i = tarjan_pred_begin_pos2[cur_id]; i != 0; i = tarjan_pred_info[i - 1][1])
+    for (ui i = tarjan_pred_begin_pos[cur_id]; i != 0; i = tarjan_pred_info[i - 1][1])
     {
         pred_id = tarjan_pred_info[i - 1][0];
         pred_num = tarjan_pred_num[pred_id] + 1;
         thread_memory_sparse[tid].bc_data[cur_id][1] += pred_num * (num + depth);
         if (pred_num > 1)
         {
-            dfs_tarjan(pred_id, depth + 1, num, tid);
+            sparse_tarjan_dfs(pred_id, depth + 1, num, tid);
         }
     }
-}
-
-void sparse_tarjan(ui start_id, ui num, ui &num_of_pred, ui tid, int &id_stack_index)
-{
-    // 一次dfs，搜索前驱数量
-    num_of_pred = get_pred_num(start_id);
-    // 和上面一样的计算方式
-    dfs_tarjan(start_id, 0, id_stack_index, tid);
 }
 
 void dijkstra_priority_queue_sparse(ui s, ui tid)
@@ -797,9 +812,8 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     // multiple = topo_pred_num[s] + 1;
     // sparse_dfs(s, 0, id_stack_index, tid);
 
-    ui num_of_pred = 0;
-    sparse_tarjan(s, id_stack_index, num_of_pred, tid, id_stack_index);
-    multiple = num_of_pred;
+    multiple = tarjan_pred_num[s] + 1;
+    sparse_tarjan_dfs(s, 0, id_stack_index, tid);
 
     // O(M)
     while (id_stack_index > 0)
@@ -887,7 +901,7 @@ struct ThreadMemoryMagic
 
 } thread_memory_magic[NUM_THREADS];
 
-void magic_dfs(ui cur_id, ui depth, ui num, ui tid)
+void magic_topo_dfs(ui cur_id, ui depth, ui num, ui tid)
 {
     ui pred_id, pred_num;
     for (ui i = topo_pred_begin_pos2[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
@@ -897,32 +911,24 @@ void magic_dfs(ui cur_id, ui depth, ui num, ui tid)
         thread_memory_magic[tid].bc_data[cur_id][1] += pred_num * (num + depth);
         if (pred_num > 1)
         {
-            magic_dfs(pred_id, depth + 1, num, tid);
+            magic_topo_dfs(pred_id, depth + 1, num, tid);
         }
     }
 }
 
-void magic_dfs_tarjan(ui cur_id, ui depth, int &num, ui tid)
+void magic_tarjan_dfs(ui cur_id, ui depth, ui num, ui tid)
 {
     ui pred_id, pred_num;
-    for (ui i = tarjan_pred_begin_pos2[cur_id]; i != 0; i = tarjan_pred_info[i - 1][1])
+    for (ui i = tarjan_pred_begin_pos[cur_id]; i != 0; i = tarjan_pred_info[i - 1][1])
     {
         pred_id = tarjan_pred_info[i - 1][0];
         pred_num = tarjan_pred_num[pred_id] + 1;
         thread_memory_magic[tid].bc_data[cur_id][1] += pred_num * (num + depth);
         if (pred_num > 1)
         {
-            magic_dfs_tarjan(pred_id, depth + 1, num, tid);
+            magic_tarjan_dfs(pred_id, depth + 1, num, tid);
         }
     }
-}
-
-void magic_tarjan(ui start_id, ui num, ui &num_of_pred, ui tid, int &id_stack_index)
-{
-    // 一次dfs，搜索前驱数量
-    num_of_pred = get_pred_num(start_id);
-    // 和上面一样的计算方式
-    magic_dfs_tarjan(start_id, 0, id_stack_index, tid);
 }
 
 void dijkstra_priority_queue_magic(ui s, ui tid)
@@ -982,12 +988,11 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         }
     }
 
-    // magic_dfs(s, 0, id_stack_index, tid);
     // multiple = topo_pred_num[s] + 1;
+    // magic_topo_dfs(s, 0, id_stack_index, tid);
 
-    ui num_of_pred = 0;
-    magic_tarjan(s, id_stack_index, num_of_pred, tid, id_stack_index);
-    multiple = num_of_pred;
+    multiple = tarjan_pred_num[s] + 1;
+    magic_tarjan_dfs(s, 0, id_stack_index, tid);
 
     // O(M)
     while (id_stack_index > 0)
@@ -1056,7 +1061,7 @@ void thread_process(ui tid)
             if (cur_id % 10000 == 0)
                 printf("[%0.1f%%] ~ %u/%u\n", 100.0 * cur_id / id_num, cur_id, id_num);
 #endif
-            while (delete_recorder[cur_id] && cur_id < id_num)
+            while (cur_id < id_num && mark[cur_id] != 2)
                 cur_id++;
 
             if (cur_id < id_num)
