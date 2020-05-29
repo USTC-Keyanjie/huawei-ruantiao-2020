@@ -1106,7 +1106,7 @@ struct Res_pq_elem
 
 void save_fwrite(char *resultFile)
 {
-    /*
+
     if (is_magic_heap)
     {
         for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
@@ -1119,15 +1119,14 @@ void save_fwrite(char *resultFile)
     }
     else
     {
-        */
-    for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
-    {
-        for (ui id_index = 0; id_index < id_num; ++id_index)
+        for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
         {
-            global_score[id_index] += thread_memory_sparse[thread_index].bc_data[id_index][1];
+            for (ui id_index = 0; id_index < id_num; ++id_index)
+            {
+                global_score[id_index] += thread_memory_sparse[thread_index].bc_data[id_index][1];
+            }
         }
     }
-    // }
 
     int index = 0;
     priority_queue<Res_pq_elem> pq;
