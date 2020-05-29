@@ -4,7 +4,6 @@
 // 3. open //#define NEON
 
 #define TEST
-#define HEAP_OPT
 // #define MMAP // 使用mmap函数
 // #define NEON // 打开NEON特性的算子，开了反而会慢
 
