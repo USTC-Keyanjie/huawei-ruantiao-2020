@@ -822,7 +822,6 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     dis[s] = UINT32_MAX;
 }
 
-/*
 const size_t max_length = 1 << 16;
 const size_t max_bucket_size = 1 << 16;
 const size_t magical_heap_size = max_length * max_bucket_size;
@@ -903,24 +902,27 @@ void magic_dfs(ui cur_id, ui depth, ui num, ui tid)
     }
 }
 
-void magic_tarjan(ui start_id, ui num, ui &num_of_pred, ui tid)
+void magic_dfs_tarjan(ui cur_id, ui depth, int &num, ui tid)
 {
-    ui pred_num = 0, cur_id = start_id, depth = 0;
-    while (tarjan_pred_info[cur_id] != 0)
+    ui pred_id, pred_num;
+    for (ui i = tarjan_pred_begin_pos2[cur_id]; i != 0; i = tarjan_pred_info[i - 1][1])
     {
-        pred_num++;
-        cur_id = tarjan_pred_info[cur_id];
-    }
-    num_of_pred = pred_num;
-
-    cur_id = start_id;
-    while (pred_num > 0)
-    {
+        pred_id = tarjan_pred_info[i - 1][0];
+        pred_num = tarjan_pred_num[pred_id] + 1;
         thread_memory_magic[tid].bc_data[cur_id][1] += pred_num * (num + depth);
-        depth++;
-        pred_num--;
-        cur_id = tarjan_pred_info[cur_id];
+        if (pred_num > 1)
+        {
+            dfs_tarjan(pred_id, depth + 1, num, tid);
+        }
     }
+}
+
+void magic_tarjan(ui start_id, ui num, ui &num_of_pred, ui tid, int &id_stack_index)
+{
+    // 一次dfs，搜索前驱数量
+    num_of_pred = get_pred_num(start_id);
+    // 和上面一样的计算方式
+    magic_dfs_tarjan(start_id, 0, id_stack_index, tid);
 }
 
 void dijkstra_priority_queue_magic(ui s, ui tid)
@@ -984,7 +986,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     // multiple = topo_pred_num[s] + 1;
 
     ui num_of_pred = 0;
-    magic_tarjan(s, id_stack_index, num_of_pred, tid);
+    magic_tarjan(s, id_stack_index, num_of_pred, tid, id_stack_index);
     multiple = num_of_pred + 1;
 
     // O(M)
@@ -1008,7 +1010,6 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     dis[s] = UINT16_MAX;
     heap.clear();
 }
-*/
 
 mutex id_lock;
 ui cur_id;
@@ -1020,7 +1021,6 @@ void thread_process(ui tid)
     timer.setTime();
 #endif
 
-    /*
     if (is_magic_heap)
     {
         auto &dis = thread_memory_magic[tid].dis;
@@ -1032,14 +1032,14 @@ void thread_process(ui tid)
     }
     else
     {
-        */
-    auto &dis = thread_memory_sparse[tid].dis;
-    // 初始化
-    for (ui i = 0; i < id_num; ++i)
-    {
-        dis[i] = UINT32_MAX;
+
+        auto &dis = thread_memory_sparse[tid].dis;
+        // 初始化
+        for (ui i = 0; i < id_num; ++i)
+        {
+            dis[i] = UINT32_MAX;
+        }
     }
-    // }
 
     ui s_id;
     while (true)
@@ -1068,12 +1068,11 @@ void thread_process(ui tid)
             }
 
             id_lock.unlock();
-            /*
+
             if (is_magic_heap)
                 dijkstra_priority_queue_magic(s_id, tid);
             else
-            */
-            dijkstra_priority_queue_sparse(s_id, tid);
+                dijkstra_priority_queue_sparse(s_id, tid);
         }
     }
 
