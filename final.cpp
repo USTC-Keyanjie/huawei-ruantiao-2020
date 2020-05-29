@@ -682,27 +682,36 @@ void pre_process()
 
     if (gcd != 1)
     {
+#ifdef TEST
+        cout << "gcd = " << gcd << endl;
+#endif
         max_weight /= gcd;
         for (ui i = 0; i < id_num; ++i)
         {
-            input_weights /= gcd;
+            input_weights[i] /= gcd;
         }
     }
 
     if (max_weight < (1 << 10))
     {
         fit_usus = true;
+#ifdef TEST
         cout << "fit_usus\n";
+#endif
     }
     else if (max_weight < (1 << 18))
     {
         fit_uiui = true;
+#ifdef TEST
         cout << "fit_uiui\n";
+#endif
     }
     else
     {
         fit_ullui = true;
+#ifdef TEST
         cout << "fit_ullui\n";
+#endif
     }
 
 #ifdef TEST
