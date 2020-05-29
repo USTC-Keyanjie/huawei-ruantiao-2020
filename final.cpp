@@ -971,7 +971,7 @@ void dij_us_us(ui s, ui tid)
             printf("cur_id: %u pos %u out id: %u\n", cur_id, cur_pos, pred_info_arr[cur_id][cur_pos]);
         }
 
-        if (pred_info_arr[next_id][0] == 16)
+        if (pred_info_arr[cur_id][0] == 16)
         {
             for (cur_pos = 0; cur_pos < pred_info_arr_back_up[cur_id].size(); ++cur_pos)
             {
@@ -1150,12 +1150,12 @@ void dij_ui_ui(ui s, ui tid)
         //     pred_id = pred_info[cur_pos++];
         //     bc_data[pred_id][0] += sigma[pred_id] * coeff;
         // }
-        for (cur_pos = 1; cur_pos < pred_info_arr[next_id][0]; cur_pos++)
+        for (cur_pos = 1; cur_pos < pred_info_arr[cur_id][0]; cur_pos++)
         {
             bc_data[pred_id][0] += sigma[pred_info_arr[cur_id][cur_pos]] * coeff;
         }
 
-        if (pred_info_arr[next_id][0] == 16)
+        if (pred_info_arr[cur_id][0] == 16)
         {
             for (cur_pos = 0; cur_pos < pred_info_arr_back_up[cur_id].size(); ++cur_pos)
             {
@@ -1337,12 +1337,12 @@ void dij_ull_ui(ui s, ui tid)
         //     pred_id = pred_info[cur_pos++];
         //     bc_data[pred_id][0] += sigma[pred_id] * coeff;
         // }
-        for (cur_pos = 1; cur_pos < pred_info_arr[next_id][0]; cur_pos++)
+        for (cur_pos = 1; cur_pos < pred_info_arr[cur_id][0]; cur_pos++)
         {
             bc_data[pred_id][0] += sigma[pred_info_arr[cur_id][cur_pos]] * coeff;
         }
 
-        if (pred_info_arr[next_id][0] == 16)
+        if (pred_info_arr[cur_id][0] == 16)
         {
             for (cur_pos = 0; cur_pos < pred_info_arr_back_up[cur_id].size(); ++cur_pos)
             {
