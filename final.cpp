@@ -36,7 +36,7 @@ using namespace std;
 // 1
 // 2
 // 3
-string dataset = "test";
+string dataset = "0";
 #endif
 
 #ifdef MMAP
@@ -96,15 +96,12 @@ ui pred_begin_pos2[MAX_NUM_IDS];
 ui ids2[MAX_NUM_IDS];
 bool vis[MAX_NUM_IDS];
 
-ui topl_sort[MAX_NUM_IDS];
-ui tarjan_vis[MAX_NUM_IDS], low[MAX_NUM_IDS], dfn[MAX_NUM_IDS];
-ui tarjan_size[MAX_NUM_IDS], stack[MAX_NUM_IDS], dye[MAX_NUM_IDS];
+bool tarjan_vis[MAX_NUM_IDS];
+int low[MAX_NUM_IDS], dfn[MAX_NUM_IDS], head[MAX_NUM_IDS], col[MAX_NUM_IDS], stack[MAX_NUM_IDS];
+ui tot = 0, top = 0, cnt = 0, k = 0;
+
 ui tarjan_pred_begin_pos2[MAX_NUM_IDS];
-ui tarjan_pred_num[MAX_NUM_IDS]; // 前驱数量
-int tarjan_index = 0;
-int cn = 0; // 强连通分量个数
-int dfs_num = 0;
-int tarjan_n = 0;
+ui tarjan_pred_num[MAX_NUM_IDS];     // 前驱数量
 ui tarjan_pred_info[MAX_NUM_IDS][2]; // 存储前驱点信息  第一维：id 第二维：下一个兄弟index
 
 ui topo_stack[MAX_NUM_IDS];        // 拓扑排序的栈
@@ -446,36 +443,55 @@ void id_re_hash()
     }
 }
 
-void tarjan(int pos)
+struct node
 {
-    if (dfn[pos])
-        return;
-    vis[stack[++tarjan_index] = pos] = 1;
-    low[pos] = dfn[pos] = ++dfs_num;
-    for (ui cur_pos = succ_begin_pos2[pos]; cur_pos != 0; cur_pos = u_next[cur_pos])
+    int to, nxt;
+    node() {}
+    node(int tt, int nn)
     {
-        cur_pos--;
-        if (!dfn[input_v_ids2[cur_pos]])
-        {
-            tarjan(input_v_ids2[cur_pos]);
-            low[pos] = min(low[pos], low[input_v_ids2[cur_pos]]);
-        }
-        else if (tarjan_vis[input_v_ids2[cur_pos]])
-            low[pos] = min(low[pos], dfn[input_v_ids2[cur_pos]]);
+        to = tt;
+        nxt = nn;
     }
-    if (low[pos] == low[pos])
+} e[MAX_NUM_IDS];
+
+void add(int u, int v)
+{ //对每条边u到v进行add处理
+    e[k] = node(v, head[u]);
+    head[u] = k++;
+}
+
+void tarjan(int x)
+{
+    tarjan_vis[x] = 1;
+    dfn[x] = low[x] = ++tot;
+    stack[++top] = x; //初始化
+
+    int y;
+    for (int i = succ_begin_pos2[x]; i != 0; i = u_next[i])
     {
-        tarjan_vis[pos] = 0;
-        tarjan_size[dye[pos] = ++cn]++;
-        while (pos != stack[tarjan_index])
-        {
-            vis[stack[tarjan_index]] = 0;
-            topl_sort[tarjan_n--] = stack[tarjan_index];
-            tarjan_size[cn]++;
-            dye[stack[tarjan_index--]] = cn;
+        i--; // index都是+1处理的，这里要还原
+        y = input_v_ids2[i];
+        if (!dfn[y])
+        { //y没有访问过
+            tarjan(y);
+            low[x] = min(low[x], low[y]);
         }
-        topl_sort[tarjan_n--] = stack[tarjan_index];
-        tarjan_index--;
+
+        else if (vis[y])
+        { //访问过并且在栈内（因为有可能访问过但是不在栈内，被弹出过了）
+            low[x] = min(low[x], dfn[y]);
+        }
+    }
+
+    if (dfn[x] == low[x])
+    {          //特判
+        cnt++; //强连通分量计数
+        do
+        {
+            y = stack[top--];
+            col[y] = cnt;      //存
+            tarjan_vis[y] = 0; //出栈后vis也自动更新，也就是说此处dfns不能完全代劳vis
+        } while (x != y);      //只要还没有弹出到这个追溯点
     }
 }
 
@@ -490,7 +506,7 @@ void tarjan()
     for (ui cur_id = 0; cur_id < id_num - 1; ++cur_id)
     {
         ui next_id = input_v_ids2[succ_begin_pos2[cur_id] - 1];
-        if (out_degree2[cur_id] == 1 && dye[cur_id] != dye[next_id])
+        if (out_degree2[cur_id] == 1 && col[cur_id] != col[next_id])
         {
             tarjan_pred_info[tarjan_pred_info_len][0] = cur_id;
             tarjan_pred_info[tarjan_pred_info_len][1] = tarjan_pred_begin_pos2[next_id];
