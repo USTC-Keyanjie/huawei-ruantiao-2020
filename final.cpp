@@ -690,6 +690,7 @@ void pre_process()
         thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
         thread_g_succ.join();
         thread_g_pred_begin_pos.join();
+        
     }
     else
     {
@@ -698,6 +699,7 @@ void pre_process()
         thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
         thread_g_succ.join();
         thread_g_pred_begin_pos.join();
+        
     }
 }
 
@@ -720,14 +722,14 @@ const size_t max_length = 1 << 16;
 const size_t max_bucket_size = 1 << 16;
 const size_t magical_heap_size = max_length * max_bucket_size;
 
-template <class T>
-struct magical_heap
+// template <class T>
+struct MyHeap
 {
     char *region;
     us p[max_length];
     us cur;
     us term;
-    magical_heap()
+    MyHeap()
     {
         region = (decltype(region))mmap64(
             NULL, magical_heap_size, PROT_READ | PROT_WRITE,
@@ -736,16 +738,16 @@ struct magical_heap
         cur = 0;
         term = 0;
     }
-    inline bool push(const us &x, const T &item)
+    inline bool push(const us &x, const ui &item)
     {
         if (x >= max_length)
             return false;
-        ((T *)(region + max_bucket_size * x))[p[x]++] = item;
+        ((ui *)(region + max_bucket_size * x))[p[x]++] = item;
         if (x > term)
             term = x;
         return true;
     }
-    inline bool pop(us &x, T &item)
+    inline bool pop(us &x, ui &item)
     { // return false -> empty
         while (p[cur] == 0)
         {
@@ -756,7 +758,7 @@ struct magical_heap
             }
         }
         x = cur;
-        item = ((T *)(region + max_bucket_size * x))[--p[x]];
+        item = ((ui *)(region + max_bucket_size * x))[--p[x]];
         return true;
     }
     inline void clear()
@@ -765,7 +767,7 @@ struct magical_heap
         cur = 0;
         term = 0;
     }
-    ~magical_heap() { munmap(region, magical_heap_size); }
+    ~MyHeap() { munmap(region, magical_heap_size); }
 };
 
 // 每个线程专属区域
@@ -777,7 +779,7 @@ struct ThreadMemoryMagic
     double bc_data[MAX_NUM_IDS][2]; // 0: delta = sigma_st(index) / sigma_st  1: 位置中心性
 
     // 小根堆
-    magical_heap<ui> heap;
+    MyHeap heap;
     priority_queue<Pq_elem> pq;
 
     ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
