@@ -987,7 +987,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
 
     ui num_of_pred = 0;
     magic_tarjan(s, id_stack_index, num_of_pred, tid, id_stack_index);
-    multiple = num_of_pred + 1;
+    multiple = num_of_pred;
 
     // O(M)
     while (id_stack_index > 0)
