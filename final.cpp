@@ -3,7 +3,7 @@
 // 2. open //#define MMAP
 
 #define TEST
-#define MMAP // 使用mmap函数
+// #define MMAP // 使用mmap函数
 
 #ifndef TEST
 #include <bits/stdc++.h>
@@ -96,6 +96,15 @@ ui pred_begin_pos2[MAX_NUM_IDS];
 ui topo_pred_begin_pos2[MAX_NUM_IDS];
 ui ids2[MAX_NUM_IDS];
 bool vis[MAX_NUM_IDS];
+
+ui topl_sort[MAX_NUM_IDS];
+ui tarjan_vis[MAX_NUM_IDS], low[MAX_NUM_IDS], dfn[MAX_NUM_IDS];
+ui size[MAX_NUM_IDS], stack[MAX_NUM_IDS], dye[MAX_NUM_IDS];
+int tarjan_index = 0;
+int cn = 0; // 强连通分量个数
+int dfs_num = 0;
+int tarjan_n = 0;
+ui tarjan_pred_info[MAX_NUM_IDS];
 
 ui topo_stack[MAX_NUM_IDS];        // 拓扑排序的栈
 ui topo_pred_info[MAX_NUM_IDS][2]; // 存储前驱点信息  第一维：id 第二维：下一个兄弟index
@@ -435,6 +444,92 @@ void id_re_hash()
     }
 }
 
+void tarjan(int pos)
+{
+    if (dfn[pos])
+        return;
+    vis[stack[++tarjan_index] = pos] = 1;
+    low[pos] = dfn[pos] = ++dfs_num;
+    for (ui cur_pos = succ_begin_pos2[pos]; cur_pos != 0; cur_pos = u_next[cur_pos])
+    {
+        if (!dfn[input_v_ids2[cur_pos]])
+        {
+            tarjan(input_v_ids2[cur_pos]);
+            low[pos] = min(low[pos], low[input_v_ids2[cur_pos]]);
+        }
+        else if (tarjan_vis[input_v_ids2[cur_pos]])
+            low[pos] = min(low[pos], dfn[input_v_ids2[cur_pos]]);
+    }
+    if (low[pos] == low[pos])
+    {
+        tarjan_vis[pos] = 0;
+        size[dye[pos] = ++cn]++;
+        while (pos != stack[tarjan_index])
+        {
+            vis[stack[tarjan_index]] = 0;
+            topl_sort[tarjan_n--] = stack[tarjan_index];
+            size[cn]++;
+            dye[stack[tarjan_index--]] = cn;
+        }
+        topl_sort[tarjan_n--] = stack[tarjan_index];
+        tarjan_index--;
+    }
+}
+
+void tarjan()
+{
+    for (ui cur_id = 0; cur_id < id_num; ++cur_id)
+    {
+        tarjan(cur_id);
+    }
+
+    for (ui cur_id = 0; cur_id < id_num - 1; ++cur_id)
+    {
+        ui next_id = input_v_ids2[succ_begin_pos2[cur_id]];
+        if (out_degree2[cur_id] == 1 && dye[cur_id] != dye[next_id])
+        {
+            tarjan_pred_info[next_id] = cur_id + 1; // 加一存储
+            delete_recorder[cur_id] = true;
+        }
+    }
+}
+
+void topo_sort()
+{
+    // topo sort
+    // 去除所有入度为0且出度为1的点
+    int topo_index = -1;
+    ui index, u_hash_id, v_hash_id;
+    for (index = 0; index < id_num; ++index)
+    {
+        if (in_degree2[index] == 0 && out_degree2[index] == 1)
+        {
+            topo_stack[++topo_index] = index;
+            delete_recorder[index] = true;
+        }
+    }
+    ui topo_pred_info_len = 0;
+    while (topo_index >= 0)
+    {
+        u_hash_id = topo_stack[topo_index--];
+        index = succ_begin_pos2[u_hash_id];
+        v_hash_id = input_v_ids2[index - 1];
+
+        topo_pred_info[topo_pred_info_len][0] = u_hash_id;
+        topo_pred_info[topo_pred_info_len][1] = topo_pred_begin_pos2[v_hash_id];
+        topo_pred_begin_pos2[v_hash_id] = ++topo_pred_info_len;
+        topo_pred_num[v_hash_id] += topo_pred_num[u_hash_id] + 1;
+
+        --out_degree2[u_hash_id];
+        --in_degree2[v_hash_id];
+        if (in_degree2[v_hash_id] == 0 && out_degree2[v_hash_id] == 1)
+        {
+            topo_stack[++topo_index] = v_hash_id;
+            delete_recorder[v_hash_id] = true;
+        }
+    }
+}
+
 void build_g_succ()
 {
     ui succ_iterator = 0, succ_index = 0, cur_id = 0;
@@ -524,37 +619,8 @@ void pre_process()
 
     id_re_hash();
 
-    // topo sort
-    // 去除所有入度为0且出度为1的点
-    int topo_index = -1;
-    for (index = 0; index < id_num; ++index)
-    {
-        if (in_degree2[index] == 0 && out_degree2[index] == 1)
-        {
-            topo_stack[++topo_index] = index;
-            delete_recorder[index] = true;
-        }
-    }
-    ui topo_pred_info_len = 0;
-    while (topo_index >= 0)
-    {
-        u_hash_id = topo_stack[topo_index--];
-        index = succ_begin_pos2[u_hash_id];
-        v_hash_id = input_v_ids2[index - 1];
-
-        topo_pred_info[topo_pred_info_len][0] = u_hash_id;
-        topo_pred_info[topo_pred_info_len][1] = topo_pred_begin_pos2[v_hash_id];
-        topo_pred_begin_pos2[v_hash_id] = ++topo_pred_info_len;
-        topo_pred_num[v_hash_id] += topo_pred_num[u_hash_id] + 1;
-
-        --out_degree2[u_hash_id];
-        --in_degree2[v_hash_id];
-        if (in_degree2[v_hash_id] == 0 && out_degree2[v_hash_id] == 1)
-        {
-            topo_stack[++topo_index] = v_hash_id;
-            delete_recorder[v_hash_id] = true;
-        }
-    }
+    tarjan();
+    // topo_sort();
 
     thread thread_g_succ = thread(build_g_succ);
     thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
@@ -779,6 +845,26 @@ void magic_dfs(ui cur_id, ui depth, ui num, ui tid)
     }
 }
 
+void magic_tarjan(ui start_id, ui num, ui &num_of_pred, ui tid)
+{
+    ui pred_num = 0, cur_id = start_id, depth = 0;
+    while (tarjan_pred_info[cur_id] != 0)
+    {
+        pred_num++;
+        cur_id = tarjan_pred_info[cur_id];
+    }
+    num_of_pred = pred_num;
+
+    cur_id = start_id;
+    while (pred_num > 0)
+    {
+        thread_memory_magic[tid].bc_data[cur_id][1] += pred_num * (num + depth);
+        depth++;
+        pred_num--;
+        cur_id = tarjan_pred_info[cur_id];
+    }
+}
+
 void dijkstra_priority_queue_magic(ui s, ui tid)
 {
     auto &dis = thread_memory_magic[tid].dis;
@@ -836,13 +922,18 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         }
     }
 
-    magic_dfs(s, 0, id_stack_index, tid);
+    // magic_dfs(s, 0, id_stack_index, tid);
+    // multiple = topo_pred_num[s] + 1;
+
+    ui num_of_pred = 0;
+    magic_tarjan(s, id_stack_index, num_of_pred, tid);
+    multiple = num_of_pred + 1;
 
     // O(M)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
-        bc_data[cur_id][1] += bc_data[cur_id][0] * (topo_pred_num[s] + 1);
+        bc_data[cur_id][1] += bc_data[cur_id][0] * multiple;
         coeff = (1 + bc_data[cur_id][0]) / sigma[cur_id];
         dis[cur_id] = UINT16_MAX;
 
