@@ -3,7 +3,7 @@
 // 2. open //#define MMAP
 
 #define TEST
-// #define MMAP // 使用mmap函数
+#define MMAP // 使用mmap函数
 
 #ifndef TEST
 #include <bits/stdc++.h>
