@@ -97,7 +97,7 @@ ui ids2[MAX_NUM_IDS];
 bool vis[MAX_NUM_IDS];
 
 bool tarjan_vis[MAX_NUM_IDS];
-int low[MAX_NUM_IDS], dfn[MAX_NUM_IDS], head[MAX_NUM_IDS], col[MAX_NUM_IDS], stack[MAX_NUM_IDS];
+int low[MAX_NUM_IDS], dfn[MAX_NUM_IDS], tarjan_head[MAX_NUM_IDS], col[MAX_NUM_IDS], tarjan_stack[MAX_NUM_IDS];
 ui tot = 0, top = 0, cnt = 0, k = 0;
 
 us mark[MAX_NUM_IDS]; // 0表示不在链上，1表示在链上但不是根节点，2表示是根节点
@@ -453,7 +453,7 @@ void tarjan(int x)
 {
     tarjan_vis[x] = 1;
     dfn[x] = low[x] = ++tot;
-    stack[++top] = x; //初始化
+    tarjan_stack[++top] = x; //初始化
 
     int y;
     for (int i = succ_begin_pos2[x]; i != 0; i = u_next[i])
@@ -477,7 +477,7 @@ void tarjan(int x)
         cnt++; //强连通分量计数
         do
         {
-            y = stack[top--];
+            y = tarjan_stack[top--];
             col[y] = cnt;      //存
             tarjan_vis[y] = 0; //出栈后vis也自动更新，也就是说此处dfns不能完全代劳vis
         } while (x != y);      //只要还没有弹出到这个追溯点
