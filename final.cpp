@@ -912,7 +912,7 @@ void magic_dfs_tarjan(ui cur_id, ui depth, int &num, ui tid)
         thread_memory_magic[tid].bc_data[cur_id][1] += pred_num * (num + depth);
         if (pred_num > 1)
         {
-            dfs_tarjan(pred_id, depth + 1, num, tid);
+            magic_dfs_tarjan(pred_id, depth + 1, num, tid);
         }
     }
 }
