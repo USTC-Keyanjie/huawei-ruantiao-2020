@@ -965,7 +965,7 @@ void dij_us_us(ui s, ui tid)
         //     pred_id = pred_info[cur_pos++];
         //     bc_data[pred_id][0] += sigma[pred_id] * coeff;
         // }
-        for (cur_pos = 1; cur_pos < pred_info_arr[next_id][0]; cur_pos++)
+        for (cur_pos = 1; cur_pos < pred_info_arr[cur_id][0]; cur_pos++)
         {
             bc_data[pred_id][0] += sigma[pred_info_arr[cur_id][cur_pos]] * coeff;
             printf("cur_id: %u pos %u out id: %u\n", cur_id, cur_pos, pred_info_arr[cur_id][cur_pos]);
