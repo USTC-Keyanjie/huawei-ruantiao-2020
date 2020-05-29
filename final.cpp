@@ -1,11 +1,9 @@
 // submit:
 // 1. close #define TEST.
 // 2. open //#define MMAP
-// 3. open //#define NEON
 
 #define TEST
 // #define MMAP // 使用mmap函数
-// #define NEON // 打开NEON特性的算子，开了反而会慢
 
 #ifndef TEST
 #include <bits/stdc++.h>
@@ -558,8 +556,10 @@ void pre_process()
         }
     }
 
-    build_g_succ();
-    build_g_pred_begin_pos();
+    thread thread_g_succ = thread(build_g_succ);
+    thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
+    thread_g_succ.join();
+    thread_g_pred_begin_pos.join();
 }
 
 struct Pq_elem
@@ -683,8 +683,8 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     {
         cur_id = id_stack[id_stack_index--];
         bc_data[cur_id][1] += bc_data[cur_id][0] * multiple;
-        dis[cur_id] = UINT32_MAX;
         coeff = (1 + bc_data[cur_id][0]) / sigma[cur_id];
+        dis[cur_id] = UINT32_MAX;
 
         cur_pos = pred_begin_pos2[cur_id];
         end_pos = pred_next_ptr[cur_id];
@@ -722,7 +722,8 @@ struct magical_heap
     inline void push(const us &x, const T &item)
     {
         ((T *)(region + max_bucket_size * x))[p[x]++] = item;
-        term = std::max(x, term);
+        if (x > term)
+            term = x;
     }
     inline bool pop(us &x, T &item)
     { // return false -> empty
@@ -791,7 +792,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
 
     int id_stack_index = -1; // id_stack的指针
     us cur_dis;
-    ui cur_id, next_id, pred_id, cur_id_sigma, multiple, pred_info_len = 0;
+    ui cur_id, next_id, pred_id, multiple, pred_info_len = 0;
     ui cur_pos, end_pos;
     double coeff;
 
@@ -804,12 +805,6 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     // 最多循环n次
     while (heap.pop(cur_dis, cur_id))
     {
-        // 找到离s点最近的顶点
-        // cur_dis = pq.top().dis;
-        // cur_id = pq.top().id;
-        // O(logn)
-        // pq.pop();
-
         if (cur_dis > dis[cur_id]) // dis可能经过松弛后变小了，原压入堆中的路径失去价值
             continue;
 
@@ -820,19 +815,17 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         // 遍历cur_id的后继 平均循环d次(平均出度)
         while (cur_pos < end_pos)
         {
-            // update_dis = dis[cur_id] + g_succ[cur_pos][1]; // 11.05 ldr
             next_id = g_succ[cur_pos][0];
 
             if (dis[cur_id] + g_succ[cur_pos][1] == dis[next_id])
             {
                 sigma[next_id] += sigma[cur_id];
+
                 pred_info[pred_next_ptr[next_id]++] = cur_id;
             }
             else if (dis[cur_id] + g_succ[cur_pos][1] < dis[next_id])
             {
                 dis[next_id] = dis[cur_id] + g_succ[cur_pos][1];
-                // O(logn)
-                // pq.emplace(Pq_elem(next_id, dij_data[next_id][0]));
                 heap.push(dis[next_id], next_id);
 
                 sigma[next_id] = sigma[cur_id];
@@ -852,8 +845,8 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     {
         cur_id = id_stack[id_stack_index--];
         bc_data[cur_id][1] += bc_data[cur_id][0] * multiple;
-        dis[cur_id] = UINT16_MAX;
         coeff = (1 + bc_data[cur_id][0]) / sigma[cur_id];
+        dis[cur_id] = UINT16_MAX;
 
         cur_pos = pred_begin_pos2[cur_id];
         end_pos = pred_next_ptr[cur_id];
@@ -883,19 +876,13 @@ void thread_process(ui tid)
     {
         auto &dis = thread_memory_magic[tid].dis;
         // 初始化
-        for (ui i = 0; i < id_num; ++i)
-        {
-            dis[i] = UINT16_MAX;
-        }
+        memset(dis, 0xff, id_num * sizeof(dis));
     }
     else
     {
         auto &dis = thread_memory_sparse[tid].dis;
         // 初始化
-        for (ui i = 0; i < id_num; ++i)
-        {
-            dis[i] = UINT32_MAX;
-        }
+        memset(dis, 0xff, id_num * sizeof(dis));
     }
 
     ui s_id;
