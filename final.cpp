@@ -650,7 +650,22 @@ void pre_process()
     id_re_hash();
 
     if (num_I0O1 > 0.6 * id_num)
+    {
         is_topo_opt = true;
+    }
+    
+#ifdef TEST
+    if (is_topo_opt)
+    {
+        cout << "use topo opt\n"
+             << endl;
+    }
+    else
+    {
+        cout << "use tarjan opt\n"
+             << endl;
+    }
+#endif
 
     if (is_topo_opt)
         topo_sort();
@@ -891,7 +906,6 @@ void thread_process(ui tid)
     Time_recorder timer;
     timer.setTime();
 #endif
-
 
     auto &dis = thread_memory_magic[tid].dis;
     // 初始化
