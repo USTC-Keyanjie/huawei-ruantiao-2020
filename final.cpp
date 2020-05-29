@@ -793,7 +793,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     int id_stack_index = -1; // id_stack的指针
     us cur_dis;
     ui cur_id, next_id, pred_id, multiple, pred_info_len = 0;
-    ui cur_pos;
+    ui cur_pos, end_pos;
     double coeff;
 
     dis[s] = 0;
@@ -810,9 +810,10 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
 
         id_stack[++id_stack_index] = cur_id;
         bc_data[cur_id][0] = 0; // 代替初始化
-
+        cur_pos = succ_begin_pos2[cur_id];
+        end_pos = cur_pos + out_degree2[cur_id];
         // 遍历cur_id的后继 平均循环d次(平均出度)
-        for (cur_pos = succ_begin_pos2[cur_id]; cur_pos < cur_pos + out_degree2[cur_id]; ++cur_pos)
+        for (cur_pos = succ_begin_pos2[cur_id]; cur_pos < end_pos; ++cur_pos)
         {
             next_id = g_succ[cur_pos][0];
 
@@ -846,8 +847,10 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         dis[cur_id] = UINT16_MAX;
 
         cur_pos = pred_begin_pos2[cur_id];
+        end_pos = pred_next_ptr[cur_id];
+
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
-        while (cur_pos < pred_next_ptr[cur_id])
+        while (cur_pos < end_pos)
         {
             pred_id = pred_info[cur_pos++];
             bc_data[pred_id][0] += sigma[pred_id] * coeff;
