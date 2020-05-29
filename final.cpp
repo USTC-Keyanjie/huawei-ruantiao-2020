@@ -830,7 +830,7 @@ void dijkstra_magic(ui tid, int &id_stack_index)
     }
 }
 
-void cal_cb_magic(ui tid, ui multiple, int &id_stack_index)
+void cal_cb_magic(ui tid, ui multiple, int &id_stack_index, ui s)
 {
     auto &dis = thread_memory_magic[tid].dis;
     auto &sigma = thread_memory_magic[tid].sigma;
@@ -864,10 +864,6 @@ void cal_cb_magic(ui tid, ui multiple, int &id_stack_index)
         }
     }
     dis[s] = UINT16_MAX;
-}
-
-void dijkstra_priority_queue_magic(ui s, ui tid)
-{
 }
 
 mutex id_lock;
@@ -944,9 +940,9 @@ void thread_process(ui tid)
                 dijkstra_magic(tid, id_stack_index);
 
                 ui multiple = topo_pred_num[s_id] + 1;
-                magic_dfs(s, 0, id_stack_index, tid);
+                magic_dfs(s_id, 0, id_stack_index, tid);
 
-                cal_cb_magic(tid, multiple, id_stack_index);
+                cal_cb_magic(tid, multiple, id_stack_index, s_id);
 
                 heap.clear();
             }
