@@ -70,7 +70,7 @@ typedef unsigned short us;
 ui id_num = 0, edge_num = 0;
 
 bool is_topo_opt, fit_usus, fit_uiui, fit_ullui;
-ui max_weight, num_I0O1;
+ui max_weight, num_I0O1, gcd;
 ui input_u_ids[MAX_NUM_EDGES];
 ui input_v_ids[MAX_NUM_EDGES];
 ui input_weights[MAX_NUM_EDGES];
@@ -672,12 +672,29 @@ void pre_process()
         is_topo_opt = true;
     }
 
-    if (max_weight < (1 << 12))
+    gcd = input_weights[0];
+    for (ui i = 1; i < id_num; ++i)
+    {
+        gcd = __gcd(gcd, input_weights[i]);
+        if (gcd == 1)
+            break;
+    }
+
+    if (gcd != 1)
+    {
+        max_weight /= gcd;
+        for (ui i = 0; i < id_num; ++i)
+        {
+            input_weights /= gcd;
+        }
+    }
+
+    if (max_weight < (1 << 10))
     {
         fit_usus = true;
         cout << "fit_usus\n";
     }
-    else if (max_weight < (1 << 20))
+    else if (max_weight < (1 << 18))
     {
         fit_uiui = true;
         cout << "fit_uiui\n";
