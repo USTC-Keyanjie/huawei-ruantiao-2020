@@ -111,7 +111,6 @@ ui topo_pred_info[MAX_NUM_IDS][2]; // 存储前驱点信息  第一维：id 第�
 ui topo_pred_num[MAX_NUM_IDS];     // 前驱数量
 ui topo_pred_begin_pos[MAX_NUM_IDS];
 
-bool delete_recorder[MAX_NUM_IDS];
 double global_score[MAX_NUM_IDS]; // 存储答案的数组
 
 #ifdef TEST
@@ -275,7 +274,7 @@ void input_mmap(char *testFile)
     clock_t input_time = clock();
 #endif
     int fd = open(testFile, O_RDONLY);
-    //get the tarjan_size of the document
+    //get the size of the document
     // long length = lseek(fd, 0, SEEK_END);
 
     struct stat stat_buf;
@@ -547,7 +546,7 @@ void topo_sort()
         if (in_degree2[index] == 0 && out_degree2[index] == 1)
         {
             topo_stack[++topo_index] = index;
-            delete_recorder[index] = true;
+            mark[index] = 2;
         }
     }
     ui topo_pred_info_len = 0;
@@ -567,9 +566,30 @@ void topo_sort()
         if (in_degree2[v_hash_id] == 0 && out_degree2[v_hash_id] == 1)
         {
             topo_stack[++topo_index] = v_hash_id;
-            delete_recorder[v_hash_id] = true;
+            mark[v_hash_id] = 2;
         }
     }
+}
+
+void build_g_succ_for_topo_opt()
+{
+    ui succ_iterator = 0, succ_index = 0, cur_id = 0;
+    while (cur_id < id_num)
+    {
+        if (mark[cur_id] != 2)
+        {
+            succ_iterator = succ_begin_pos2[cur_id];
+            succ_begin_pos2[cur_id] = succ_index;
+            while (succ_iterator != 0)
+            {
+                g_succ[succ_index][0] = input_v_ids2[succ_iterator - 1];
+                g_succ[succ_index++][1] = input_weights[succ_iterator - 1];
+                succ_iterator = u_next[succ_iterator - 1];
+            }
+        }
+        ++cur_id;
+    }
+    succ_begin_pos2[cur_id] = succ_index;
 }
 
 void build_g_succ()
@@ -577,8 +597,6 @@ void build_g_succ()
     ui succ_iterator = 0, succ_index = 0, cur_id = 0;
     while (cur_id < id_num)
     {
-        // if (delete_recorder[cur_id] == false)
-        // {
         succ_iterator = succ_begin_pos2[cur_id];
         succ_begin_pos2[cur_id] = succ_index;
         while (succ_iterator != 0)
@@ -587,7 +605,6 @@ void build_g_succ()
             g_succ[succ_index++][1] = input_weights[succ_iterator - 1];
             succ_iterator = u_next[succ_iterator - 1];
         }
-        // }
         ++cur_id;
     }
     succ_begin_pos2[cur_id] = succ_index;
@@ -653,29 +670,34 @@ void pre_process()
     {
         is_topo_opt = true;
     }
-    
+
 #ifdef TEST
     if (is_topo_opt)
     {
-        cout << "use topo opt\n"
-             << endl;
+        cout << "use topo opt\n";
     }
     else
     {
-        cout << "use tarjan opt\n"
-             << endl;
+        cout << "use tarjan opt\n";
     }
 #endif
 
     if (is_topo_opt)
+    {
+        thread thread_g_succ = thread(build_g_succ_for_topo_opt);
+        thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
+        thread_g_succ.join();
+        thread_g_pred_begin_pos.join();
         topo_sort();
+    }
     else
+    {
+        thread thread_g_succ = thread(build_g_succ);
+        thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
+        thread_g_succ.join();
+        thread_g_pred_begin_pos.join();
         tarjan();
-
-    thread thread_g_succ = thread(build_g_succ);
-    thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
-    thread_g_succ.join();
-    thread_g_pred_begin_pos.join();
+    }
 }
 
 struct Pq_elem
