@@ -109,7 +109,7 @@ ui tarjan_pred_info[MAX_NUM_IDS][2]; // 存储前驱点信息  第一维：id �
 ui topo_stack[MAX_NUM_IDS];        // 拓扑排序的栈
 ui topo_pred_info[MAX_NUM_IDS][2]; // 存储前驱点信息  第一维：id 第二维：下一个兄弟index
 ui topo_pred_num[MAX_NUM_IDS];     // 前驱数量
-ui topo_pred_begin_pos2[MAX_NUM_IDS];
+ui topo_pred_begin_pos[MAX_NUM_IDS];
 
 bool delete_recorder[MAX_NUM_IDS];
 double global_score[MAX_NUM_IDS]; // 存储答案的数组
@@ -554,8 +554,8 @@ void topo_sort()
         v_hash_id = input_v_ids2[index - 1];
 
         topo_pred_info[topo_pred_info_len][0] = u_hash_id;
-        topo_pred_info[topo_pred_info_len][1] = topo_pred_begin_pos2[v_hash_id];
-        topo_pred_begin_pos2[v_hash_id] = ++topo_pred_info_len;
+        topo_pred_info[topo_pred_info_len][1] = topo_pred_begin_pos[v_hash_id];
+        topo_pred_begin_pos[v_hash_id] = ++topo_pred_info_len;
         topo_pred_num[v_hash_id] += topo_pred_num[u_hash_id] + 1;
 
         --out_degree2[u_hash_id];
@@ -702,7 +702,7 @@ struct ThreadMemorySparse
 void sparse_topo_dfs(ui cur_id, ui depth, int &num, ui tid)
 {
     ui pred_id, pred_num;
-    for (ui i = topo_pred_begin_pos2[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
+    for (ui i = topo_pred_begin_pos[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
     {
         pred_id = topo_pred_info[i - 1][0];
         pred_num = topo_pred_num[pred_id] + 1;
@@ -844,11 +844,14 @@ struct magical_heap
         cur = 0;
         term = 0;
     }
-    inline void push(const us &x, const T &item)
+    inline bool push(const us &x, const T &item)
     {
+        if (x >= max_length)
+            return false;
         ((T *)(region + max_bucket_size * x))[p[x]++] = item;
         if (x > term)
             term = x;
+        return true;
     }
     inline bool pop(us &x, T &item)
     { // return false -> empty
@@ -883,6 +886,7 @@ struct ThreadMemoryMagic
 
     // 小根堆
     magical_heap<ui> heap;
+    priority_queue<Pq_elem> pq;
 
     ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
     ui pred_info[MAX_NUM_EDGES];
@@ -892,7 +896,7 @@ struct ThreadMemoryMagic
 void magic_topo_dfs(ui cur_id, ui depth, ui num, ui tid)
 {
     ui pred_id, pred_num;
-    for (ui i = topo_pred_begin_pos2[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
+    for (ui i = topo_pred_begin_pos[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
     {
         pred_id = topo_pred_info[i - 1][0];
         pred_num = topo_pred_num[pred_id] + 1;
@@ -927,6 +931,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     auto &bc_data = thread_memory_magic[tid].bc_data;
 
     auto &heap = thread_memory_magic[tid].heap;
+    auto &pq = thread_memory_magic[tid].pq;
     auto &id_stack = thread_memory_magic[tid].id_stack;
     auto &pred_info = thread_memory_magic[tid].pred_info;
 
@@ -939,12 +944,25 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     dis[s] = 0;
     sigma[s] = 1;
 
-    // pq.emplace(Pq_elem(s, 0));
     heap.push(0, s);
 
     // 最多循环n次
-    while (heap.pop(cur_dis, cur_id))
+    while (1)
     {
+        if (heap.pop(cur_dis, cur_id) == false)
+        {
+            if (!pq.empty())
+            {
+                // 找到离s点最近的顶点
+                cur_dis = pq.top().dis;
+                cur_id = pq.top().id;
+                // O(logn)
+                pq.pop();
+            }
+            else
+                break;
+        }
+
         if (cur_dis > dis[cur_id]) // dis可能经过松弛后变小了，原压入堆中的路径失去价值
             continue;
 
@@ -966,7 +984,9 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
             else if (dis[cur_id] + g_succ[cur_pos][1] < dis[next_id])
             {
                 dis[next_id] = dis[cur_id] + g_succ[cur_pos][1];
-                heap.push(dis[next_id], next_id);
+
+                if (heap.push(dis[next_id], next_id) == false)
+                    pq.emplace(Pq_elem(next_id, dis[next_id]));
 
                 sigma[next_id] = sigma[cur_id];
 
@@ -1049,12 +1069,12 @@ void thread_process(ui tid)
         }
         else
         {
+            while (cur_id < id_num && mark[cur_id] != 2)
+                cur_id++;
 #ifdef TEST
             if (cur_id % 10000 == 0)
                 printf("[%0.1f%%] ~ %u/%u\n", 100.0 * cur_id / id_num, cur_id, id_num);
 #endif
-            while (cur_id < id_num && mark[cur_id] != 2)
-                cur_id++;
 
             if (cur_id < id_num)
                 s_id = cur_id++;
