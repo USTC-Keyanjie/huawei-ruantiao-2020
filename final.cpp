@@ -876,13 +876,19 @@ void thread_process(ui tid)
     {
         auto &dis = thread_memory_magic[tid].dis;
         // 初始化
-        memset(dis, 0xff, id_num * sizeof(dis));
+        for (ui i = 0; i < id_num; ++i)
+        {
+            dis[i] = UINT16_MAX;
+        }
     }
     else
     {
         auto &dis = thread_memory_sparse[tid].dis;
         // 初始化
-        memset(dis, 0xff, id_num * sizeof(dis));
+        for (ui i = 0; i < id_num; ++i)
+        {
+            dis[i] = UINT32_MAX;
+        }
     }
 
     ui s_id;
