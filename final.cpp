@@ -99,7 +99,7 @@ bool vis[MAX_NUM_IDS];
 
 ui topo_stack[MAX_NUM_IDS];        // 拓扑排序的栈
 ui topo_pred_info[MAX_NUM_IDS][2]; // 存储前驱点信息  第一维：id 第二维：下一个兄弟index
-us topo_pred_num[MAX_NUM_IDS];     // 前驱数量
+ui topo_pred_num[MAX_NUM_IDS];     // 前驱数量
 
 bool delete_recorder[MAX_NUM_IDS];
 double global_score[MAX_NUM_IDS]; // 存储答案的数组
@@ -830,7 +830,7 @@ void dijkstra_magic(ui tid, int &id_stack_index)
     }
 }
 
-void cal_cb_magic(ui tid, us multiple, int &id_stack_index, ui s)
+void cal_cb_magic(ui tid, ui multiple, int &id_stack_index, ui s)
 {
     auto &dis = thread_memory_magic[tid].dis;
     auto &sigma = thread_memory_magic[tid].sigma;
@@ -939,7 +939,7 @@ void thread_process(ui tid)
 
                 dijkstra_magic(tid, id_stack_index);
 
-                us multiple = topo_pred_num[s_id] + 1;
+                ui multiple = topo_pred_num[s_id] + 1;
                 magic_dfs(s_id, 0, id_stack_index, tid);
 
                 cal_cb_magic(tid, multiple, id_stack_index, s_id);
