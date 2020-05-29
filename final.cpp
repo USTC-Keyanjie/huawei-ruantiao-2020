@@ -36,7 +36,7 @@ using namespace std;
 // 1
 // 2
 // 3
-string dataset = "1";
+string dataset = "test";
 #endif
 
 #ifdef MMAP
@@ -50,13 +50,13 @@ string dataset = "1";
 #include <stddef.h>
 #endif
 
-#define NUM_THREADS 8 // 线程数
+#define NUM_THREADS 1 // 线程数
 
-#define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5
-#define MAX_NUM_IDS 2500005   // 最大可接受id数 250w+5
+// #define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5
+// #define MAX_NUM_IDS 2500005   // 最大可接受id数 250w+5
 
-// #define MAX_NUM_EDGES 25500 // 最大可接受边数 250w+5
-// #define MAX_NUM_IDS 25500   // 最大可接受id数 250w+5
+#define MAX_NUM_EDGES 25500 // 最大可接受边数 250w+5
+#define MAX_NUM_IDS 25500   // 最大可接受id数 250w+5
 
 #define TopK 100 // 只输出前TopK个结果
 
@@ -93,22 +93,24 @@ ui out_degree2[MAX_NUM_IDS]; // id重排序后每个节点的出度
 ui in_degree2[MAX_NUM_IDS];  // id重排序后每个节点的入度
 ui succ_begin_pos2[MAX_NUM_IDS];
 ui pred_begin_pos2[MAX_NUM_IDS];
-ui topo_pred_begin_pos2[MAX_NUM_IDS];
 ui ids2[MAX_NUM_IDS];
 bool vis[MAX_NUM_IDS];
 
 ui topl_sort[MAX_NUM_IDS];
 ui tarjan_vis[MAX_NUM_IDS], low[MAX_NUM_IDS], dfn[MAX_NUM_IDS];
-ui size[MAX_NUM_IDS], stack[MAX_NUM_IDS], dye[MAX_NUM_IDS];
+ui tarjan_size[MAX_NUM_IDS], stack[MAX_NUM_IDS], dye[MAX_NUM_IDS];
+ui tarjan_pred_begin_pos2[MAX_NUM_IDS];
+ui tarjan_pred_num[MAX_NUM_IDS]; // 前驱数量
 int tarjan_index = 0;
 int cn = 0; // 强连通分量个数
 int dfs_num = 0;
 int tarjan_n = 0;
-ui tarjan_pred_info[MAX_NUM_IDS];
+ui tarjan_pred_info[MAX_NUM_IDS][2]; // 存储前驱点信息  第一维：id 第二维：下一个兄弟index
 
 ui topo_stack[MAX_NUM_IDS];        // 拓扑排序的栈
 ui topo_pred_info[MAX_NUM_IDS][2]; // 存储前驱点信息  第一维：id 第二维：下一个兄弟index
 ui topo_pred_num[MAX_NUM_IDS];     // 前驱数量
+ui topo_pred_begin_pos2[MAX_NUM_IDS];
 
 bool delete_recorder[MAX_NUM_IDS];
 double global_score[MAX_NUM_IDS]; // 存储答案的数组
@@ -274,7 +276,7 @@ void input_mmap(char *testFile)
     clock_t input_time = clock();
 #endif
     int fd = open(testFile, O_RDONLY);
-    //get the size of the document
+    //get the tarjan_size of the document
     // long length = lseek(fd, 0, SEEK_END);
 
     struct stat stat_buf;
@@ -452,6 +454,7 @@ void tarjan(int pos)
     low[pos] = dfn[pos] = ++dfs_num;
     for (ui cur_pos = succ_begin_pos2[pos]; cur_pos != 0; cur_pos = u_next[cur_pos])
     {
+        cur_pos--;
         if (!dfn[input_v_ids2[cur_pos]])
         {
             tarjan(input_v_ids2[cur_pos]);
@@ -463,12 +466,12 @@ void tarjan(int pos)
     if (low[pos] == low[pos])
     {
         tarjan_vis[pos] = 0;
-        size[dye[pos] = ++cn]++;
+        tarjan_size[dye[pos] = ++cn]++;
         while (pos != stack[tarjan_index])
         {
             vis[stack[tarjan_index]] = 0;
             topl_sort[tarjan_n--] = stack[tarjan_index];
-            size[cn]++;
+            tarjan_size[cn]++;
             dye[stack[tarjan_index--]] = cn;
         }
         topl_sort[tarjan_n--] = stack[tarjan_index];
@@ -483,12 +486,15 @@ void tarjan()
         tarjan(cur_id);
     }
 
+    ui tarjan_pred_info_len = 0;
     for (ui cur_id = 0; cur_id < id_num - 1; ++cur_id)
     {
-        ui next_id = input_v_ids2[succ_begin_pos2[cur_id]];
+        ui next_id = input_v_ids2[succ_begin_pos2[cur_id] - 1];
         if (out_degree2[cur_id] == 1 && dye[cur_id] != dye[next_id])
         {
-            tarjan_pred_info[next_id] = cur_id + 1; // 加一存储
+            tarjan_pred_info[tarjan_pred_info_len][0] = cur_id;
+            tarjan_pred_info[tarjan_pred_info_len][1] = tarjan_pred_begin_pos2[next_id];
+            tarjan_pred_begin_pos2[next_id] = ++tarjan_pred_info_len;
             delete_recorder[cur_id] = true;
         }
     }
@@ -535,18 +541,17 @@ void build_g_succ()
     ui succ_iterator = 0, succ_index = 0, cur_id = 0;
     while (cur_id < id_num)
     {
-        if (delete_recorder[cur_id] == false)
+        // if (delete_recorder[cur_id] == false)
+        // {
+        succ_iterator = succ_begin_pos2[cur_id];
+        succ_begin_pos2[cur_id] = succ_index;
+        while (succ_iterator != 0)
         {
-            succ_iterator = succ_begin_pos2[cur_id];
-            succ_begin_pos2[cur_id] = succ_index;
-            while (succ_iterator != 0)
-            {
-                g_succ[succ_index][0] = input_v_ids2[succ_iterator - 1];
-                g_succ[succ_index++][1] = input_weights[succ_iterator - 1];
-                succ_iterator = u_next[succ_iterator - 1];
-            }
-            // sort(g_succ + succ_begin_pos[cur_id], g_succ + succ_index);
+            g_succ[succ_index][0] = input_v_ids2[succ_iterator - 1];
+            g_succ[succ_index++][1] = input_weights[succ_iterator - 1];
+            succ_iterator = u_next[succ_iterator - 1];
         }
+        // }
         ++cur_id;
     }
     succ_begin_pos2[cur_id] = succ_index;
@@ -660,7 +665,7 @@ struct ThreadMemorySparse
 
 } thread_memory_sparse[NUM_THREADS];
 
-void sparse_dfs(ui cur_id, ui depth, ui num, ui tid)
+void sparse_dfs(ui cur_id, ui depth, int &num, ui tid)
 {
     ui pred_id, pred_num;
     for (ui i = topo_pred_begin_pos2[cur_id]; i != 0; i = topo_pred_info[i - 1][1])
@@ -673,6 +678,38 @@ void sparse_dfs(ui cur_id, ui depth, ui num, ui tid)
             sparse_dfs(pred_id, depth + 1, num, tid);
         }
     }
+}
+
+ui get_pred_num(ui start_id)
+{
+    for (ui i = tarjan_pred_begin_pos2[start_id]; i != 0; i = tarjan_pred_info[i - 1][1])
+    {
+        tarjan_pred_num[start_id] += get_pred_num(tarjan_pred_info[i - 1][0]);
+    }
+    return tarjan_pred_num[start_id] + 1;
+}
+
+void dfs_tarjan(ui cur_id, ui depth, int &num, ui tid)
+{
+    ui pred_id, pred_num;
+    for (ui i = tarjan_pred_begin_pos2[cur_id]; i != 0; i = tarjan_pred_info[i - 1][1])
+    {
+        pred_id = tarjan_pred_info[i - 1][0];
+        pred_num = tarjan_pred_num[pred_id] + 1;
+        thread_memory_sparse[tid].bc_data[cur_id][1] += pred_num * (num + depth);
+        if (pred_num > 1)
+        {
+            dfs_tarjan(pred_id, depth + 1, num, tid);
+        }
+    }
+}
+
+void sparse_tarjan(ui start_id, ui num, ui &num_of_pred, ui tid, int &id_stack_index)
+{
+    // 一次dfs，搜索前驱数量
+    num_of_pred = get_pred_num(start_id);
+    // 和上面一样的计算方式
+    dfs_tarjan(start_id, 0, id_stack_index, tid);
 }
 
 void dijkstra_priority_queue_sparse(ui s, ui tid)
@@ -741,8 +778,12 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
         }
     }
 
-    multiple = topo_pred_num[s] + 1;
-    sparse_dfs(s, 0, id_stack_index, tid);
+    // multiple = topo_pred_num[s] + 1;
+    // sparse_dfs(s, 0, id_stack_index, tid);
+
+    ui num_of_pred = 0;
+    sparse_tarjan(s, id_stack_index, num_of_pred, tid, id_stack_index);
+    multiple = num_of_pred;
 
     // O(M)
     while (id_stack_index > 0)
@@ -765,6 +806,7 @@ void dijkstra_priority_queue_sparse(ui s, ui tid)
     dis[s] = UINT32_MAX;
 }
 
+/*
 const size_t max_length = 1 << 16;
 const size_t max_bucket_size = 1 << 16;
 const size_t magical_heap_size = max_length * max_bucket_size;
@@ -950,6 +992,7 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
     dis[s] = UINT16_MAX;
     heap.clear();
 }
+*/
 
 mutex id_lock;
 ui cur_id;
@@ -961,6 +1004,7 @@ void thread_process(ui tid)
     timer.setTime();
 #endif
 
+    /*
     if (is_magic_heap)
     {
         auto &dis = thread_memory_magic[tid].dis;
@@ -972,13 +1016,14 @@ void thread_process(ui tid)
     }
     else
     {
-        auto &dis = thread_memory_sparse[tid].dis;
-        // 初始化
-        for (ui i = 0; i < id_num; ++i)
-        {
-            dis[i] = UINT32_MAX;
-        }
+        */
+    auto &dis = thread_memory_sparse[tid].dis;
+    // 初始化
+    for (ui i = 0; i < id_num; ++i)
+    {
+        dis[i] = UINT32_MAX;
     }
+    // }
 
     ui s_id;
     while (true)
@@ -1007,11 +1052,12 @@ void thread_process(ui tid)
             }
 
             id_lock.unlock();
-
+            /*
             if (is_magic_heap)
                 dijkstra_priority_queue_magic(s_id, tid);
             else
-                dijkstra_priority_queue_sparse(s_id, tid);
+            */
+            dijkstra_priority_queue_sparse(s_id, tid);
         }
     }
 
@@ -1040,7 +1086,7 @@ struct Res_pq_elem
 
 void save_fwrite(char *resultFile)
 {
-
+    /*
     if (is_magic_heap)
     {
         for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
@@ -1053,14 +1099,15 @@ void save_fwrite(char *resultFile)
     }
     else
     {
-        for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
+        */
+    for (ui thread_index = 0; thread_index < NUM_THREADS; ++thread_index)
+    {
+        for (ui id_index = 0; id_index < id_num; ++id_index)
         {
-            for (ui id_index = 0; id_index < id_num; ++id_index)
-            {
-                global_score[id_index] += thread_memory_sparse[thread_index].bc_data[id_index][1];
-            }
+            global_score[id_index] += thread_memory_sparse[thread_index].bc_data[id_index][1];
         }
     }
+    // }
 
     int index = 0;
     priority_queue<Res_pq_elem> pq;
