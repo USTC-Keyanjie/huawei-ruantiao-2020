@@ -3,7 +3,7 @@
 // 2. open //#define MMAP
 
 #define TEST
-#define MMAP // 使用mmap函数
+// #define MMAP // 使用mmap函数
 
 #ifndef TEST
 #include <bits/stdc++.h>
@@ -837,14 +837,13 @@ void dijkstra_priority_queue_magic(ui s, ui tid)
         }
     }
 
-    multiple = topo_pred_num[s] + 1;
     magic_dfs(s, 0, id_stack_index, tid);
 
     // O(M)
     while (id_stack_index > 0)
     {
         cur_id = id_stack[id_stack_index--];
-        bc_data[cur_id][1] += bc_data[cur_id][0] * multiple;
+        bc_data[cur_id][1] += bc_data[cur_id][0] * (topo_pred_num[s] + 1);
         coeff = (1 + bc_data[cur_id][0]) / sigma[cur_id];
         dis[cur_id] = UINT16_MAX;
 
