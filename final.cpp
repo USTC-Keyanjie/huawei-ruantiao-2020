@@ -752,7 +752,7 @@ struct Quick_heap
 {
     char *region;
     us p[max_length];
-    us cur;
+    ui cur;
     us term;
     Quick_heap()
     {
@@ -777,7 +777,7 @@ struct Quick_heap
         while (p[cur] == 0)
         {
             cur++;
-            printf("cur = %u  term = %u\n", cur, term);
+            // printf("cur = %u  term = %u id = %u\n", cur, term, item);
             if (cur > term)
             {
                 return false;
