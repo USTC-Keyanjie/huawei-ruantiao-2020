@@ -777,6 +777,7 @@ struct Quick_heap
         while (p[cur] == 0)
         {
             cur++;
+            printf("cur = %u  term = %u\n", cur, term);
             if (cur > term)
             {
                 return false;
