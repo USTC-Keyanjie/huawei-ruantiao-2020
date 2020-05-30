@@ -80,6 +80,7 @@ ui u_ids[MAX_NUM_EDGES];
 ui v_ids[MAX_NUM_EDGES];
 
 ui g_succ[MAX_NUM_EDGES][2];
+ui g_succ_byte[MAX_NUM_EDGES];
 
 ui out_degree[MAX_NUM_IDS];     // 每个节点的出度
 ui in_degree[MAX_NUM_IDS];      // 每个节点的入度
@@ -572,6 +573,43 @@ void topo_sort()
     }
 }
 
+void build_g_succ_for_topo_opt_bit()
+{
+    ui succ_iterator = 0, succ_index = 0, cur_id = 0;
+    while (cur_id < id_num)
+    {
+        if (mark[cur_id] != 2)
+        {
+            succ_iterator = succ_begin_pos2[cur_id];
+            succ_begin_pos2[cur_id] = succ_index;
+            while (succ_iterator != 0)
+            {
+                g_succ_byte[succ_index++] = input_v_ids2[succ_iterator - 1] << 10 | input_weights[succ_iterator - 1];
+                succ_iterator = u_next[succ_iterator - 1];
+            }
+        }
+        ++cur_id;
+    }
+    succ_begin_pos2[cur_id] = succ_index;
+}
+
+void build_g_succ_bit()
+{
+    ui succ_iterator = 0, succ_index = 0, cur_id = 0;
+    while (cur_id < id_num)
+    {
+        succ_iterator = succ_begin_pos2[cur_id];
+        succ_begin_pos2[cur_id] = succ_index;
+        while (succ_iterator != 0)
+        {
+            g_succ_byte[succ_index++] = input_v_ids2[succ_iterator - 1] << 10 | input_weights[succ_iterator - 1];
+            succ_iterator = u_next[succ_iterator - 1];
+        }
+        ++cur_id;
+    }
+    succ_begin_pos2[cur_id] = succ_index;
+}
+
 void build_g_succ_for_topo_opt()
 {
     ui succ_iterator = 0, succ_index = 0, cur_id = 0;
@@ -724,22 +762,43 @@ void pre_process()
         cout << "use tarjan opt\n";
     }
 #endif
-
-    if (is_topo_opt)
+    if (fit_usus)
     {
-        topo_sort();
-        thread thread_g_succ = thread(build_g_succ_for_topo_opt);
-        thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
-        thread_g_succ.join();
-        thread_g_pred_begin_pos.join();
+        if (is_topo_opt)
+        {
+            topo_sort();
+            thread thread_g_succ = thread(build_g_succ_for_topo_opt_bit);
+            thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
+            thread_g_succ.join();
+            thread_g_pred_begin_pos.join();
+        }
+        else
+        {
+            tarjan();
+            thread thread_g_succ = thread(build_g_succ_bit);
+            thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
+            thread_g_succ.join();
+            thread_g_pred_begin_pos.join();
+        }
     }
     else
     {
-        tarjan();
-        thread thread_g_succ = thread(build_g_succ);
-        thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
-        thread_g_succ.join();
-        thread_g_pred_begin_pos.join();
+        if (is_topo_opt)
+        {
+            topo_sort();
+            thread thread_g_succ = thread(build_g_succ_for_topo_opt);
+            thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
+            thread_g_succ.join();
+            thread_g_pred_begin_pos.join();
+        }
+        else
+        {
+            tarjan();
+            thread thread_g_succ = thread(build_g_succ);
+            thread thread_g_pred_begin_pos = thread(build_g_pred_begin_pos);
+            thread_g_succ.join();
+            thread_g_pred_begin_pos.join();
+        }
     }
 }
 
@@ -905,9 +964,9 @@ void dij_us_us(ui s, ui tid)
         // 遍历cur_id的后继 平均循环d次(平均出度)
         for (cur_pos = succ_begin_pos2[cur_id]; cur_pos < end_pos; ++cur_pos)
         {
-            next_id = g_succ[cur_pos][0];
+            next_id = g_succ_byte[cur_pos] >> 10;
 
-            if (dis[cur_id] + g_succ[cur_pos][1] == dis[next_id])
+            if (dis[cur_id] + (g_succ_byte[cur_pos] & 0x3ff) == dis[next_id])
             {
                 sigma[next_id] += sigma[cur_id];
 
@@ -920,9 +979,9 @@ void dij_us_us(ui s, ui tid)
                     // printf("equal: next_id: %u pos %u insert id: %u\n", next_id, pred_info_arr[next_id][0] - 1, cur_id);
                 }
             }
-            else if (dis[cur_id] + g_succ[cur_pos][1] < dis[next_id])
+            else if (dis[cur_id] + (g_succ_byte[cur_pos] & 0x3ff) < dis[next_id])
             {
-                dis[next_id] = dis[cur_id] + g_succ[cur_pos][1];
+                dis[next_id] = dis[cur_id] + (g_succ_byte[cur_pos] & 0x3ff);
 
                 heap.push(dis[next_id], next_id);
 
