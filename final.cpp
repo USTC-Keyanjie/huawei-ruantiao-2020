@@ -979,7 +979,7 @@ void dij_us_us(ui s, ui tid)
             for (cur_pos = 0; cur_pos < pred_info_arr_back_up[cur_id].size(); ++cur_pos)
             {
                 bc_data[pred_info_arr_back_up[cur_id][cur_pos]][0] += sigma[pred_info_arr_back_up[cur_id][cur_pos]] * coeff;
-                printf("cur_id: %u pos %u out id: %u\n", cur_id, cur_pos, pred_info_arr[cur_id][cur_pos]);
+                printf("cur_id: %u pos %u out id: %u\n", cur_id, cur_pos, pred_info_arr_back_up[cur_id][cur_pos]);
             }
             pred_info_arr_back_up[cur_id].empty();
         }
