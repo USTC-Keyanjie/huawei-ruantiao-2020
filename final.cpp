@@ -916,7 +916,7 @@ void dij_us_us(ui s, ui tid)
                 else
                 {
                     pred_info_arr_back_up[next_id].push_back(cur_id);
-                    printf("equal: next_id: %u pos %u insert id: %u\n", next_id, pred_info_arr[next_id][0] - 1, cur_id);
+                    // printf("equal: next_id: %u pos %u insert id: %u\n", next_id, pred_info_arr[next_id][0] - 1, cur_id);
                 }
             }
             else if (dis[cur_id] + g_succ[cur_pos][1] < dis[next_id])
@@ -932,7 +932,7 @@ void dij_us_us(ui s, ui tid)
                 if (pred_info_arr[next_id][0] == 16)
                 {
                     pred_info_arr_back_up[next_id].empty();
-                    printf("pred_info_arr_back_up.empty(): next_id: %u pos %u insert id: %u\n", next_id, pred_info_arr[next_id][0] - 1, cur_id);
+                    // printf("pred_info_arr_back_up.empty(): next_id: %u pos %u insert id: %u\n", next_id, pred_info_arr[next_id][0] - 1, cur_id);
                 }
                 pred_info_arr[next_id][0] = 2;
                 pred_info_arr[next_id][1] = cur_id;
@@ -979,7 +979,7 @@ void dij_us_us(ui s, ui tid)
             for (cur_pos = 0; cur_pos < pred_info_arr_back_up[cur_id].size(); ++cur_pos)
             {
                 bc_data[pred_info_arr_back_up[cur_id][cur_pos]][0] += sigma[pred_info_arr_back_up[cur_id][cur_pos]] * coeff;
-                printf("cur_id: %u pos %u out id: %u\n", cur_id, cur_pos, pred_info_arr_back_up[cur_id][cur_pos]);
+                // printf("cur_id: %u pos %u out id: %u\n", cur_id, cur_pos, pred_info_arr_back_up[cur_id][cur_pos]);
             }
             pred_info_arr_back_up[cur_id].empty();
         }
