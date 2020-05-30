@@ -36,7 +36,7 @@ using namespace std;
 // 1
 // 2
 // 3
-string dataset = "test";
+string dataset = "6";
 #endif
 
 #ifdef MMAP
