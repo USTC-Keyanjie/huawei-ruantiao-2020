@@ -983,6 +983,7 @@ void dij_us_us(ui s, ui tid)
             }
             pred_info_arr_back_up[cur_id].empty();
         }
+        pred_info_arr[cur_id][0] == 0;
     }
     dis[s] = UINT16_MAX;
     heap.clear();
