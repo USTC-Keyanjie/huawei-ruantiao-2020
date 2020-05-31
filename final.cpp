@@ -50,7 +50,7 @@ string dataset = "4";
 #include <stddef.h>
 #endif
 
-#define NUM_THREADS 12 // 线程数
+#define NUM_THREADS 8 // 线程数
 
 #define MAX_NUM_EDGES 2500005 // 最大可接受边数 250w+5
 #define MAX_NUM_IDS 2000000   // 最大可接受id数 250w+5
@@ -725,8 +725,7 @@ struct ThreadMemory_us_us
     ui id_stack[MAX_NUM_IDS]; // 出栈的节点会离s越来越近
     ui pred_info[MAX_NUM_EDGES];
 
-    ui pred_info_arr[MAX_NUM_IDS][16]; // 第一位用来存储长度
-    vector<vector<ui>> pred_info_arr_back_up;
+    ui pred_info_arr[MAX_NUM_IDS]; // 第一位用来存储长度
 
 } thread_memory_magic_us_us[NUM_THREADS];
 
@@ -770,10 +769,9 @@ void dij_us_us(ui s, ui tid)
     auto &heap = thread_memory_magic_us_us[tid].heap;
     auto &pq = thread_memory_magic_us_us[tid].pq;
     auto &id_stack = thread_memory_magic_us_us[tid].id_stack;
-    // auto &pred_info = thread_memory_magic_us_us[tid].pred_info;
+    auto &pred_info = thread_memory_magic_us_us[tid].pred_info;
 
     auto &pred_info_arr = thread_memory_magic_us_us[tid].pred_info_arr;
-    auto &pred_info_arr_back_up = thread_memory_magic_us_us[tid].pred_info_arr_back_up;
 
     int id_stack_index = -1; // id_stack的指针
     us cur_dis;
@@ -805,14 +803,7 @@ void dij_us_us(ui s, ui tid)
             {
                 sigma[next_id] += sigma[cur_id];
 
-                // pred_info[pred_next_ptr[next_id]++] = cur_id;
-                if (pred_info_arr[next_id][0] < 16)
-                    pred_info_arr[next_id][pred_info_arr[next_id][0]++] = cur_id;
-                else
-                {
-                    pred_info_arr_back_up[next_id].push_back(cur_id);
-                    // printf("equal: next_id: %u pos %u insert id: %u\n", next_id, pred_info_arr[next_id][0] - 1, cur_id);
-                }
+                pred_info[pred_next_ptr[next_id]++] = cur_id;
             }
             else if (dis[cur_id] + (g_succ_byte[cur_pos] & 0x3ff) < dis[next_id])
             {
@@ -822,16 +813,8 @@ void dij_us_us(ui s, ui tid)
 
                 sigma[next_id] = sigma[cur_id];
 
-                // pred_next_ptr[next_id] = pred_begin_pos2[next_id];
-                // pred_info[pred_next_ptr[next_id]++] = cur_id;
-                if (pred_info_arr[next_id][0] == 16)
-                {
-                    pred_info_arr_back_up[next_id].clear();
-                    // printf("pred_info_arr_back_up.clear(): next_id: %u pos %u insert id: %u\n", next_id, pred_info_arr[next_id][0] - 1, cur_id);
-                }
-                pred_info_arr[next_id][0] = 2;
-                pred_info_arr[next_id][1] = cur_id;
-                // printf("noequal: next_id: %u pos %u insert id: %u\n", next_id, pred_info_arr[next_id][0] - 1, cur_id);
+                pred_info_arr[next_id] = cur_id;
+                pred_next_ptr[next_id] = pred_begin_pos2[next_id];
             }
         }
     }
@@ -853,32 +836,14 @@ void dij_us_us(ui s, ui tid)
         bc_data[cur_id][1] += bc_data[cur_id][0] * multiple;
         coeff = (1 + bc_data[cur_id][0]) / sigma[cur_id];
         dis[cur_id] = UINT16_MAX;
-
+        bc_data[pred_info_arr[cur_id]][0] += sigma[pred_info_arr[cur_id]] * coeff;
         cur_pos = pred_begin_pos2[cur_id];
-        end_pos = pred_next_ptr[cur_id];
-
         // 遍历cur_id的前驱，且前驱必须在起始点到cur_id的最短路径上 平均循环d'次(平均入度)
-        // while (cur_pos < end_pos)
-        // {
-        //     pred_id = pred_info[cur_pos++];
-        //     bc_data[pred_id][0] += sigma[pred_id] * coeff;
-        // }
-        for (cur_pos = 1; cur_pos < pred_info_arr[cur_id][0]; cur_pos++)
+        while (cur_pos < pred_next_ptr[cur_id])
         {
-            bc_data[pred_info_arr[cur_id][cur_pos]][0] += sigma[pred_info_arr[cur_id][cur_pos]] * coeff;
-            // printf("cur_id: %u pos %u out id: %u\n", cur_id, cur_pos, pred_info_arr[cur_id][cur_pos]);
+            bc_data[pred_info[cur_pos]][0] += sigma[pred_info[cur_pos]] * coeff;
+            cur_pos++;
         }
-
-        if (pred_info_arr[cur_id][0] == 16)
-        {
-            for (cur_pos = 0; cur_pos < pred_info_arr_back_up[cur_id].size(); ++cur_pos)
-            {
-                bc_data[pred_info_arr_back_up[cur_id][cur_pos]][0] += sigma[pred_info_arr_back_up[cur_id][cur_pos]] * coeff;
-                // printf("cur_id: %u pos %u out id: %u\n", cur_id, cur_pos, pred_info_arr_back_up[cur_id][cur_pos]);
-            }
-            pred_info_arr_back_up[cur_id].clear();
-        }
-        pred_info_arr[cur_id][0] == 0;
     }
     dis[s] = UINT16_MAX;
     heap.clear();
@@ -896,14 +861,12 @@ void *thread_process(void *t)
     unsigned int tid = *((unsigned int *)t);
 
     auto &dis = thread_memory_magic_us_us[tid].dis;
-    auto &pred_info_arr_back_up = thread_memory_magic_us_us[tid].pred_info_arr_back_up;
 
     // 初始化
     for (ui i = 0; i < id_num; ++i)
     {
         dis[i] = UINT16_MAX;
     }
-    pred_info_arr_back_up.resize(id_num);
 
     ui s_id;
     while (true)
@@ -1070,17 +1033,16 @@ int main(int argc, char *argv[])
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
-    int j, cpu_nums = sysconf(_SC_NPROCESSORS_ONLN);
-    cpu_set_t cpuset[NUM_THREADS];
+    // int j, cpu_nums = sysconf(_SC_NPROCESSORS_ONLN);
+    // cpu_set_t cpuset[NUM_THREADS];
 
     // 创建NUM_THREADS个数的线程
     for (tid = 0; tid < NUM_THREADS; tid++)
     {
         indexes[tid] = tid;
-        CPU_ZERO(cpuset + tid);
-        CPU_SET(tid, cpuset + tid);
+        // CPU_ZERO(cpuset + tid);
+        // CPU_SET(tid, cpuset + tid);
         pthread_create(&threads[tid], NULL, thread_process, (void *)&indexes[tid]);
-        pthread_setaffinity_np(threads[tid], sizeof(cpu_set_t), cpuset + tid);
     }
 
     // 删除属性，并等待其他线程
