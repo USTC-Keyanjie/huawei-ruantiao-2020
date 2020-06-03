@@ -230,6 +230,7 @@ Runtime Error
 2. 优化g_succ数组，使用4个字节同时表示id和权重，22个bit表示id，10个bit表示权重
 3. dijkstra的前驱图使用 MAX_NUM_IDS * 15 的二维数组来表示，并且使用vector回落，防止二维数组存不下
 4. 使用STL的优先队列回落快速堆
+5. 增加tarjan优化方式，线上效果比topo优化效果好
 
 ### 2020-5-30
 
