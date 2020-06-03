@@ -2,7 +2,7 @@
 
 上合赛区 好想去冰岛看极光呀
 
-我和我的队友[许老师](https://github.com/NicoleXCT),[海神](https://github.com/wanghaijie2017)一起努力，拿下华为软件挑战赛2020初赛第8，复赛A榜第9，B榜第3，决赛榜第16。
+我和我的队友[许老师](https://github.com/NicoleXCT)，[海神](https://github.com/wanghaijie2017)一起努力，拿下华为软件挑战赛2020初赛第8，复赛A榜第9，B榜第3，决赛榜第16。
 
 # 华为软件挑战赛2020 初赛
 
